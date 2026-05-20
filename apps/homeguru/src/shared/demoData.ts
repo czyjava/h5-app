@@ -1,0 +1,100 @@
+import { homeGuruAssets } from './assets';
+import type { HomeGuruSnapshot } from './types';
+
+export const demoSnapshot: HomeGuruSnapshot = {
+  banners: [
+    'https://pixel-studio.wm-cdn.cn/pixel-studio/2026/03/18/default/101/-1/8d63e98c26744038958b0550eb9e5157.png!default',
+    homeGuruAssets.splashReplaceBg,
+    homeGuruAssets.splashColoringBg,
+  ],
+  features: [
+    {
+      code: 'interior',
+      title: 'Interior Design',
+      subtitle: 'Upload a room photo and generate a fresh layout.',
+      route: 'http://homeguru.nav.wanmeixiangsu.com/design?featureCode=interior',
+      accent: '#fffb00',
+      guideImage: homeGuruAssets.guide.interiorGood,
+      badImage: homeGuruAssets.guide.interiorBad,
+      icon: homeGuruAssets.magicWand,
+    },
+    {
+      code: 'renovation',
+      title: 'Renovation',
+      subtitle: 'Refresh old rooms while keeping their original structure.',
+      route: 'http://homeguru.nav.wanmeixiangsu.com/design?featureCode=renovation',
+      accent: '#83e1d8',
+      guideImage: homeGuruAssets.guide.renovationGood,
+      badImage: homeGuruAssets.guide.renovationBad,
+      icon: homeGuruAssets.paint,
+    },
+    {
+      code: 'garden',
+      title: 'Garden Design',
+      subtitle: 'Turn outdoor snapshots into landscaping concepts.',
+      route: 'http://homeguru.nav.wanmeixiangsu.com/design?featureCode=garden',
+      accent: '#b7f26e',
+      guideImage: homeGuruAssets.guide.gardenGood,
+      badImage: homeGuruAssets.guide.gardenBad,
+      icon: homeGuruAssets.defaultColor,
+    },
+    {
+      code: 'storefront',
+      title: 'Storefront Design',
+      subtitle: 'Generate facade ideas for stores and small venues.',
+      route: 'http://homeguru.nav.wanmeixiangsu.com/design?featureCode=storefront',
+      accent: '#ffc46b',
+      guideImage: homeGuruAssets.guide.exteriorGood,
+      badImage: homeGuruAssets.guide.exteriorBad,
+      icon: homeGuruAssets.upload,
+    },
+  ],
+  discover: [
+    {
+      title: 'Warm Minimal Living Room',
+      subtitle: 'A bright neutral palette with textured soft furnishings.',
+      coverUrl: 'https://pixel-studio.wm-cdn.cn/pixel-studio/2025/07/15/default/101/-1/4ca9b0864ad54be8b6518c7dd016dd31.png!small',
+      tag: 'Interior',
+      buildingType: 'apartment',
+      spaceType: 'living_room',
+    },
+    {
+      title: 'Garden Path Refresh',
+      subtitle: 'Layered plants, low lighting and clean stone paths.',
+      coverUrl: homeGuruAssets.guide.gardenGood,
+      tag: 'Garden',
+      buildingType: 'garden',
+      spaceType: 'outdoor',
+    },
+    {
+      title: 'Modern Storefront',
+      subtitle: 'Simple signage and clear product display zones.',
+      coverUrl: homeGuruAssets.guide.exteriorGood,
+      tag: 'Store',
+      buildingType: 'storefront',
+      spaceType: 'exterior',
+    },
+  ],
+  works: [
+    {
+      id: 'demo-1',
+      title: 'Interior concept',
+      status: 'Generated',
+      coverUrl: homeGuruAssets.guide.interiorGood,
+      createdAt: '2026-05-19',
+    },
+    {
+      id: 'demo-2',
+      title: 'Color replace draft',
+      status: 'Queued',
+      coverUrl: homeGuruAssets.splashReplace,
+      createdAt: '2026-05-19',
+    },
+  ],
+  user: {
+    nickname: 'Guest Designer',
+    userId: 'homeguru-demo',
+    diamondCount: 12,
+    vipLabel: 'Free trial',
+  },
+};

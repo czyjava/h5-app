@@ -1,0 +1,9 @@
+{
+  "name": "h5-app",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "common",
+    "apps/*"
+  ]
+}

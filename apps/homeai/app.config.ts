@@ -1,0 +1,51 @@
+import type { ReplicaAppConfig } from '@wmxs/h5-replica-common/client';
+
+export const homeAiReplicaConfig: ReplicaAppConfig = {
+  appId: 'homeai',
+  displayName: '装修 APP',
+  packageName: 'com.wanmeixiangsu.android.homeai',
+  version: '5.26.0',
+  product: 'homeai',
+  productCategory: 'homeai',
+  hosts: {
+    business: {
+      proxyPrefix: '/homeai-business',
+      productionTarget: 'https://pixel-studio.wanmeixiangsu.cn',
+      testTarget: 'https://pixel-studio.ttt.wanmeixiangsu.cn',
+      signKey: '*#06#RotvnIuEg32QqaOmcqh1qGuN',
+    },
+    config: {
+      proxyPrefix: '/homeai-config',
+      productionTarget: 'https://config.wanmeixiangsu.cn',
+      testTarget: 'https://config.ttt.wanmeixiangsu.cn',
+      signKey: '*#06#bYmCRnJ2jEVreGtEnKKnh6On',
+    },
+    feedback: {
+      proxyPrefix: '/homeai-feedback',
+      productionTarget: 'https://feedback.wanmeixiangsu.cn',
+      testTarget: 'https://feedback.ttt.wanmeixiangsu.cn',
+      signKey: '*#06#fHhwnIs8b0h2eJycPI6mh4pu',
+    },
+  },
+  endpoints: {
+    currentUser: '/api/open/v2/user/current-user.htm',
+    featureConfig: '/api/open/homeai/config/feature-config.htm',
+    detectObjectsSubmit: '/api/open/homeai/detect-objects/submit.htm',
+    detectObjectsResult: '/api/open/homeai/detect-objects/get-result.htm',
+    recognizeBuildingType: '/api/open/homeai/generate/recognize-building-type.htm',
+    generationSubmit: '/api/open/generation/submit.htm',
+    generationList: '/api/open/generation/list.htm',
+    generationDetail: '/api/open/generation/detail.htm',
+    generationDelete: '/api/open/generation/delete.htm',
+    recommendConfig: '/api/open/recommend/config.htm',
+    recommendList: '/api/open/recommend/list.htm',
+    templateRecommendList: '/api/open/template/recommend-list.htm',
+    templateInputConfig: '/api/open/template/get-input-config.htm',
+    communityChannels: '/api/open/community/channel/list.htm',
+    communityPostRecommend: '/api/open/community/post/recommend.htm',
+    userPermission: '/api/open/permission/get-user-permission.htm',
+    goodsChannelCode: '/api/open/goods/get-channel-code.htm',
+    feedbackCreate: '/api/open/feedback/create.htm',
+    upload: '/api/open/upload/upload.htm',
+  },
+};

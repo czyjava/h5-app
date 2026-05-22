@@ -1,0 +1,27 @@
+[
+  {
+    "name": "home",
+    "changed_ratio": 0.649,
+    "avg_abs_delta": 65.02
+  },
+  {
+    "name": "inspiration",
+    "changed_ratio": 0.6806,
+    "avg_abs_delta": 71.7
+  },
+  {
+    "name": "coloring",
+    "changed_ratio": 0.6803,
+    "avg_abs_delta": 103.94
+  },
+  {
+    "name": "profile",
+    "changed_ratio": 0.4575,
+    "avg_abs_delta": 65.63
+  },
+  {
+    "name": "capture",
+    "changed_ratio": 0.1093,
+    "avg_abs_delta": 25.78
+  }
+]

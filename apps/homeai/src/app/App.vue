@@ -186,19 +186,19 @@
 
           <section v-else class="design-panel result-panel">
             <img class="detecting" :src="homeAiAssets.objectDetecting" alt="" />
-            <h2>AI 正在生成装修方案</h2>
-            <p>{{ selectedFeature.title }} · {{ selectedStyle }}</p>
+            <h2>{{ generationTitle }}</h2>
+            <p>{{ generationSubtitle }}</p>
             <div class="result-preview">
               <img :src="selectedFeature.guideImage" alt="" />
               <div>
-                <strong>生成任务已准备</strong>
-                <span>真实生成接口可在 Network 面板中对照代理请求。</span>
+                <strong>{{ generationCardTitle }}</strong>
+                <span>{{ generationCardSubtitle }}</span>
               </div>
             </div>
           </section>
 
-          <button class="bottom-action" type="button" @click="nextDesignStep">
-            {{ designStep === designSteps.length - 1 ? '再做一张' : '下一步' }}
+          <button class="bottom-action" :disabled="!canAdvanceDesignStep" type="button" @click="nextDesignStep">
+            {{ bottomActionLabel }}
           </button>
         </section>
 
@@ -221,12 +221,20 @@
               {{ category }}
             </button>
           </div>
-          <section class="discover-grid">
+          <section v-if="snapshotLoading" class="state-card">
+            <strong>发现内容加载中</strong>
+            <span>正在根据当前环境同步推荐内容，请稍候。</span>
+          </section>
+          <section v-else-if="filteredDiscover.length > 0" class="discover-grid">
             <article v-for="item in filteredDiscover" :key="item.title" class="discover-card">
               <img :src="item.coverUrl" alt="" />
               <strong>{{ item.title }}</strong>
               <span>{{ item.subtitle }}</span>
             </article>
+          </section>
+          <section v-else class="state-card">
+            <strong>暂无灵感内容</strong>
+            <span>当前分类还没有可展示数据，可稍后重试或切回全部查看。</span>
           </section>
         </section>
 
@@ -277,13 +285,23 @@
 
           <section class="work-list">
             <h3>我的作品</h3>
-            <article v-for="work in snapshot.works" :key="work.id" class="work-row">
-              <img :src="work.coverUrl" alt="" />
-              <div>
-                <strong>{{ work.title }}</strong>
-                <span>{{ work.status }} · {{ work.createdAt || '今天' }}</span>
-              </div>
-            </article>
+            <section v-if="snapshotLoading" class="state-card compact">
+              <strong>作品列表加载中</strong>
+              <span>正在同步生成记录与账户信息。</span>
+            </section>
+            <section v-else-if="snapshot.works.length === 0" class="state-card compact">
+              <strong>还没有作品</strong>
+              <span>上传空间照片并完成生成后，结果会出现在这里。</span>
+            </section>
+            <template v-else>
+              <article v-for="work in snapshot.works" :key="work.id" class="work-row">
+                <img :src="work.coverUrl" alt="" />
+                <div>
+                  <strong>{{ work.title }}</strong>
+                  <span>{{ work.status }} · {{ work.createdAt || '今天' }}</span>
+                </div>
+              </article>
+            </template>
           </section>
         </section>
       </section>
@@ -303,7 +321,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, WandSparkles, X } from 'lucide-vue-next';
 import {
   createReplicaSession,
@@ -322,6 +340,7 @@ import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
+import { buildHomeAiHashRoute, getFeatureNativePath, parseHomeAiHashRoute } from '../shared/navigation';
 import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
 
 const API_DEBUG_HASH = '#/api-debug';
@@ -353,6 +372,7 @@ const apiDebugPage = ref(window.location.hash === API_DEBUG_HASH);
 const switchingEnvironment = ref(false);
 const toastMessage = ref('');
 const toastKind = ref<'notice' | 'error'>('notice');
+const snapshotLoading = ref(false);
 const isScrolled = ref(false);
 const privacyVisible = ref(localStorage.getItem(PRIVACY_STORAGE_KEY) !== '1');
 const onboardingVisible = ref(localStorage.getItem(ONBOARDING_STORAGE_KEY) !== '1');
@@ -366,6 +386,8 @@ const designStep = ref(0);
 const selectedImageName = ref('');
 const selectedStyle = ref('现代简约');
 const activeDiscoverCategory = ref('全部');
+const generationPhase = ref<'idle' | 'queued' | 'processing' | 'done'>('idle');
+let generationPhaseTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -451,6 +473,60 @@ const homeCards = computed(() =>
 const bootFlowVisible = computed(() => privacyVisible.value || onboardingVisible.value || guideVisible.value);
 const activeGuide = computed(() => guideSlides[guideStep.value] ?? guideSlides[0]);
 const currentStep = computed(() => designSteps[designStep.value]);
+const canAdvanceDesignStep = computed(() => {
+  if (currentStep.value === 'upload') {
+    return Boolean(selectedImageName.value);
+  }
+  if (currentStep.value === 'result') {
+    return generationPhase.value === 'done';
+  }
+  return true;
+});
+const bottomActionLabel = computed(() => {
+  if (designStep.value === designSteps.length - 1) {
+    return generationPhase.value === 'done' ? '再做一张' : '生成中...';
+  }
+  if (currentStep.value === 'upload' && !selectedImageName.value) {
+    return '先上传照片';
+  }
+  return '下一步';
+});
+const generationTitle = computed(() => {
+  if (generationPhase.value === 'queued') {
+    return '正在创建生成任务';
+  }
+  if (generationPhase.value === 'processing') {
+    return 'AI 正在生成装修方案';
+  }
+  if (generationPhase.value === 'done') {
+    return '方案已生成，可继续下一轮';
+  }
+  return 'AI 正在生成装修方案';
+});
+const generationSubtitle = computed(() => {
+  if (generationPhase.value === 'queued') {
+    return `${selectedFeature.value.title} · ${selectedStyle.value} · 正在排队`;
+  }
+  if (generationPhase.value === 'processing') {
+    return `${selectedFeature.value.title} · ${selectedStyle.value} · 正在渲染`;
+  }
+  return `${selectedFeature.value.title} · ${selectedStyle.value} · 可重新发起体验`;
+});
+const generationCardTitle = computed(() => {
+  if (generationPhase.value === 'queued') {
+    return '任务已进入队列';
+  }
+  if (generationPhase.value === 'processing') {
+    return '正在生成装修效果';
+  }
+  return '结果预览已就绪';
+});
+const generationCardSubtitle = computed(() => {
+  if (generationPhase.value === 'done') {
+    return '真实生成接口可在 Network 面板中继续对照请求参数与时机。';
+  }
+  return '当前为 H5 演示态，真实生成接口可在 Network 面板中对照代理请求。';
+});
 const discoverCategories = computed(() => ['全部', ...Array.from(new Set(snapshot.value.discover.map((item) => item.tag)))]);
 const filteredDiscover = computed(() => {
   if (activeDiscoverCategory.value === '全部') {
@@ -479,8 +555,63 @@ function updateApiState(lastError = '') {
   };
 }
 
-function syncApiDebugPage() {
-  apiDebugPage.value = window.location.hash === API_DEBUG_HASH;
+function clearGenerationPhaseTimer() {
+  if (generationPhaseTimer !== null) {
+    window.clearTimeout(generationPhaseTimer);
+    generationPhaseTimer = null;
+  }
+}
+
+function startGenerationPreview() {
+  // 复刻 APK 的排队、生成、完成节奏，便于和真实接口时机逐步对齐。
+  clearGenerationPhaseTimer();
+  generationPhase.value = 'queued';
+  console.info('[HomeAI App] 进入生成预览态', { featureCode: selectedFeatureCode.value, style: selectedStyle.value });
+  generationPhaseTimer = window.setTimeout(() => {
+    generationPhase.value = 'processing';
+    generationPhaseTimer = window.setTimeout(() => {
+      generationPhase.value = 'done';
+      generationPhaseTimer = null;
+    }, 900);
+  }, 700);
+}
+
+function applyHashRoute() {
+  // 启动引导和 Network 调试页由独立流程接管，避免普通页面状态覆盖当前 hash。
+  const nextHash = buildHomeAiHashRoute(
+    activeTab.value === 'design'
+      ? { page: 'design', featureCode: selectedFeatureCode.value, nativePath: getFeatureNativePath(selectedFeatureCode.value) }
+      : activeTab.value === 'discover'
+        ? { page: 'discover' }
+        : activeTab.value === 'mine'
+          ? { page: 'mine' }
+          : { page: 'home' },
+  );
+  if (window.location.hash === nextHash || apiDebugPage.value || bootFlowVisible.value) {
+    return;
+  }
+  console.info('[HomeAI App] 同步页面路由', { tab: activeTab.value, hash: nextHash });
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+}
+
+function syncStateFromHash() {
+  // 支持从 APK 抓到的原生 hash 直接落到 H5 对应页面，方便逐入口对照。
+  const route = parseHomeAiHashRoute(window.location.hash);
+  apiDebugPage.value = route.page === 'api-debug';
+  if (route.page === 'discover') {
+    activeTab.value = 'discover';
+    return;
+  }
+  if (route.page === 'mine') {
+    activeTab.value = 'mine';
+    return;
+  }
+  if (route.page === 'design') {
+    selectedFeatureCode.value = route.featureCode ?? 'interior';
+    activeTab.value = 'design';
+    return;
+  }
+  activeTab.value = 'home';
 }
 
 function showToast(message: string) {
@@ -585,25 +716,39 @@ function nextGuide() {
 function selectFeature(code: string) {
   selectedFeatureCode.value = code;
   designStep.value = 0;
+  generationPhase.value = 'idle';
   activeTab.value = 'design';
 }
 
 function resetDesign() {
   designStep.value = 0;
   selectedImageName.value = '';
+  generationPhase.value = 'idle';
+  clearGenerationPhaseTimer();
 }
 
 function mockUpload() {
   // 首版复刻只保存交互态，真实上传接口后续通过透明代理逐项对齐原 APP。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
+  console.info('[HomeAI App] 模拟选择空间照片', { featureCode: selectedFeatureCode.value, imageName: selectedImageName.value });
 }
 
 function nextDesignStep() {
+  if (!canAdvanceDesignStep.value) {
+    showToast('请先上传空间照片，再进入下一步');
+    return;
+  }
   if (designStep.value < designSteps.length - 1) {
     designStep.value += 1;
+    if (designSteps[designStep.value] === 'result') {
+      startGenerationPreview();
+    }
     return;
   }
   designStep.value = 0;
+  selectedImageName.value = '';
+  generationPhase.value = 'idle';
+  clearGenerationPhaseTimer();
 }
 
 async function reload() {
@@ -613,10 +758,12 @@ async function reload() {
   updateApiState();
 
   if (demoMode.value) {
+    snapshotLoading.value = false;
     snapshot.value = structuredClone(demoSnapshot);
     return;
   }
 
+  snapshotLoading.value = true;
   try {
     snapshot.value = await loadHomeAiSnapshot({
       authToken: authTokenDraft.value,
@@ -633,19 +780,26 @@ async function reload() {
       environmentLabel: environment.value,
       lastError: error instanceof Error ? error.message : '接口请求失败，已展示演示数据',
     };
+  } finally {
+    snapshotLoading.value = false;
   }
 }
 
 onMounted(() => {
-  window.addEventListener('hashchange', syncApiDebugPage);
-  window.addEventListener('popstate', syncApiDebugPage);
-  syncApiDebugPage();
+  window.addEventListener('hashchange', syncStateFromHash);
+  window.addEventListener('popstate', syncStateFromHash);
+  syncStateFromHash();
   void reload();
 });
 
 onUnmounted(() => {
-  window.removeEventListener('hashchange', syncApiDebugPage);
-  window.removeEventListener('popstate', syncApiDebugPage);
+  clearGenerationPhaseTimer();
+  window.removeEventListener('hashchange', syncStateFromHash);
+  window.removeEventListener('popstate', syncStateFromHash);
+});
+
+watch([activeTab, selectedFeatureCode, bootFlowVisible], () => {
+  applyHashRoute();
 });
 </script>
 
@@ -1691,6 +1845,12 @@ button {
   bottom: 18px;
 }
 
+.bottom-action:disabled {
+  color: #526075;
+  background: linear-gradient(135deg, #d5dfec, #c3cfdd);
+  box-shadow: none;
+}
+
 .page-discover,
 .page-mine {
   background: #f6f8fb;
@@ -1740,6 +1900,30 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.state-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 22px rgba(51, 78, 112, 0.08);
+}
+
+.state-card.compact {
+  padding: 14px 12px;
+}
+
+.state-card strong {
+  color: #14233d;
+  font-size: 15px;
+}
+
+.state-card span {
+  color: #687a91;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .discover-card {

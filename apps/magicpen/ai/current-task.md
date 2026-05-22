@@ -31,3 +31,4 @@
   - 已在 `/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/network` 抽出公共网络 profile、公共 query、form 参数和上游请求头构造，供后续 APP 复刻复用。
   - 已补齐“钻石明细”页面：从原 APP 抓包确认接口为 `/api/open/user-token/bill.htm?page=1&limit=20&apiVersion=1`，H5 新增 `#/profile/diamond-detail`，展示余额卡、立即充值入口和钻石流水列表。
   - 已重新对照模拟器首页和灵感页截图：接入 APK 内首页 logo、顶部背景和底部导航图标；首页卡片背景改为抓包素材组中的大图/视频封面，标签缩略图改为对应小图；新增首页右下“海底世界”可关闭悬浮入口，灵感页不展示该浮层以对齐原 APP。
+  - 2026-05-22 已参照 HomeAI 做法新增神笔绘画 APP 测试账号映射，固定使用分配手机号 `99900000089` 查询短信验证码，验证码只用于当次回填且不写入日志或文档。

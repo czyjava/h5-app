@@ -226,7 +226,7 @@
             <article v-for="section in activeDiscoverSections" :key="section.key" class="discover-shelf">
               <header>
                 <h2>{{ section.title }}</h2>
-                <button type="button" @click="showToast(`${section.title} 全部内容待接入`)">查看全部</button>
+                <button type="button" @click="openDiscoverSection(section.key)">查看全部</button>
               </header>
               <div>
                 <img v-for="item in section.items" :key="item.id" :src="item.coverUrl" :alt="item.title" />
@@ -240,16 +240,16 @@
             <img :src="homeAiAssets.defaultAvatar" alt="" />
             <div>
               <h2>{{ snapshot.user.nickname }}</h2>
-              <button type="button" @click="showToast('钻石明细待接入')">
+              <button type="button" @click="openOverlay('diamond')">
                 <img :src="homeAiAssets.diamond" alt="" />
                 {{ snapshot.user.diamondCount }}钻石
                 <span>查看明细</span>
               </button>
             </div>
-            <button type="button" class="mine-icon" aria-label="充值钻石" @click="showToast('钻石充值待接入')">
+            <button type="button" class="mine-icon" aria-label="充值钻石" @click="openOverlay('diamond')">
               <Gem :size="18" />
             </button>
-            <button type="button" class="mine-icon" aria-label="设置" @click="showToast('设置入口待接入')">
+            <button type="button" class="mine-icon" aria-label="设置" @click="openOverlay('settings')">
               <Settings :size="18" />
             </button>
           </header>
@@ -257,7 +257,7 @@
           <section class="mine-vip-card">
             <header>
               <img :src="homeAiAssets.vipFontLogo" alt="AI装修大师 VIP" />
-              <button type="button" @click="showToast('VIP 开通待接入')">立即开通</button>
+              <button type="button" @click="openOverlay('vip')">立即开通</button>
             </header>
             <div>
               <article v-for="(privilege, index) in vipPrivileges" :key="privilege.label">
@@ -268,11 +268,11 @@
           </section>
 
           <section class="mine-shortcuts" aria-label="快捷入口">
-            <button type="button" @click="showToast('邀请好友待接入')">
+            <button type="button" @click="openOverlay('invite')">
               <img :src="homeAiAssets.inviteCardBg" alt="" />
               <span>邀请好友</span>
             </button>
-            <button type="button" @click="showToast('用户问卷待接入')">
+            <button type="button" @click="openOverlay('questionnaire')">
               <img :src="homeAiAssets.questionnaireIcon" alt="" />
               <span>用户问卷</span>
             </button>
@@ -306,6 +306,92 @@
           <span>{{ tab.label }}</span>
         </button>
       </nav>
+
+      <section v-if="overlayView !== 'none'" class="native-overlay" role="dialog" aria-modal="true">
+        <section class="native-sheet">
+          <header>
+            <button type="button" class="sheet-close" aria-label="关闭" @click="closeOverlay">
+              <ChevronLeft :size="20" />
+            </button>
+            <strong>{{ overlayTitle }}</strong>
+            <span></span>
+          </header>
+
+          <section v-if="overlayView === 'discoverList'" class="discover-list-page">
+            <article v-for="item in selectedDiscoverItems" :key="item.id">
+              <img :src="item.coverUrl" :alt="item.title" />
+              <span>{{ item.title }}</span>
+            </article>
+          </section>
+
+          <section v-else-if="overlayView === 'diamond'" class="diamond-page">
+            <div class="diamond-balance">
+              <img :src="homeAiAssets.diamond" alt="" />
+              <strong>{{ snapshot.user.diamondCount }}</strong>
+              <span>当前钻石</span>
+            </div>
+            <button type="button" class="yellow-action" @click="selectDiamondPack">充值 60 钻石</button>
+            <section class="plain-list">
+              <h3>明细</h3>
+              <p>暂无钻石变动记录</p>
+            </section>
+          </section>
+
+          <section v-else-if="overlayView === 'vip'" class="vip-page">
+            <img class="vip-page-logo" :src="homeAiAssets.vipFontLogo" alt="AI装修大师 VIP" />
+            <div class="vip-plan-list">
+              <button
+                v-for="plan in vipPlans"
+                :key="plan.key"
+                type="button"
+                :class="{ active: selectedVipPlan === plan.key }"
+                @click="selectedVipPlan = plan.key"
+              >
+                <strong>{{ plan.label }}</strong>
+                <span>{{ plan.price }}</span>
+              </button>
+            </div>
+            <section class="vip-benefit-list">
+              <article v-for="(privilege, index) in vipPrivileges" :key="privilege.label">
+                <img :src="homeAiAssets.vipPrivileges[index]" alt="" />
+                <span>{{ privilege.label }}</span>
+              </article>
+            </section>
+            <button type="button" class="yellow-action" @click="confirmVipPlan">立即开通</button>
+          </section>
+
+          <section v-else-if="overlayView === 'invite'" class="invite-page">
+            <img :src="homeAiAssets.inviteCardBg" alt="" />
+            <h2>邀请好友一起装修设计</h2>
+            <p>好友通过邀请进入后，可一起查看 AI 装修灵感和设计结果。</p>
+            <button type="button" class="yellow-action" @click="showToast('邀请海报已生成')">生成邀请海报</button>
+          </section>
+
+          <section v-else-if="overlayView === 'questionnaire'" class="questionnaire-page">
+            <article v-for="question in questionnaire" :key="question.key">
+              <h3>{{ question.title }}</h3>
+              <div>
+                <button
+                  v-for="option in question.options"
+                  :key="option"
+                  type="button"
+                  :class="{ active: questionnaireAnswers[question.key] === option }"
+                  @click="questionnaireAnswers[question.key] = option"
+                >
+                  {{ option }}
+                </button>
+              </div>
+            </article>
+            <button type="button" class="yellow-action" @click="submitQuestionnaire">提交问卷</button>
+          </section>
+
+          <section v-else class="settings-page">
+            <button type="button" @click="showToast('已打开用户服务协议')">用户服务协议</button>
+            <button type="button" @click="showToast('已打开隐私政策')">隐私政策</button>
+            <button type="button" @click="resetLocalExperience">恢复首启体验</button>
+          </section>
+        </section>
+      </section>
     </section>
 
     <p v-if="toastMessage" class="toast-message" :class="toastKind">{{ toastMessage }}</p>
@@ -345,6 +431,8 @@ if (resetParams.get('__homeai_reset') === '1') {
   window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
 }
 const session = createReplicaSession(homeAiReplicaConfig.appId);
+type OverlayView = 'none' | 'discoverList' | 'diamond' | 'vip' | 'invite' | 'questionnaire' | 'settings';
+
 const activeTab = ref<MainTab>('home');
 const environment = ref<ReplicaEnvironment>(session.environment);
 const demoMode = ref(session.demoMode);
@@ -373,6 +461,10 @@ const selectedImageName = ref('');
 const selectedStyle = ref('现代简约');
 const activeDiscoverTab = ref<'interior' | 'exterior'>('interior');
 const generationPhase = ref<'idle' | 'queued' | 'processing' | 'done'>('idle');
+const overlayView = ref<OverlayView>('none');
+const selectedDiscoverSectionKey = ref('');
+const selectedVipPlan = ref('monthly');
+const questionnaireAnswers = ref<Record<string, string>>({});
 let generationPhaseTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
@@ -422,6 +514,16 @@ const vipPrivileges = [
   { label: '高品质作品' },
   { label: '免排队加速' },
   { label: '无广告' },
+];
+const vipPlans = [
+  { key: 'monthly', label: '月度会员', price: '¥18' },
+  { key: 'quarterly', label: '季度会员', price: '¥45' },
+  { key: 'yearly', label: '年度会员', price: '¥128' },
+];
+const questionnaire = [
+  { key: 'role', title: '你的装修身份', options: ['业主', '设计师', '先看看'] },
+  { key: 'space', title: '最想设计的空间', options: ['卧室', '客厅', '厨房'] },
+  { key: 'style', title: '偏好的装修风格', options: ['现代简约', '奶油风', '新中式'] },
 ];
 
 const tabs = computed(() => [
@@ -509,6 +611,26 @@ const generationCardSubtitle = computed(() => {
 const activeDiscoverSections = computed(() => {
   // 发现页 APK 以室内/外观分段和横向图库为主，保留 tab key 兜底可避免接口异常导致空白。
   return snapshot.value.discoverTabs.find((tab) => tab.key === activeDiscoverTab.value)?.sections ?? snapshot.value.discoverTabs[0]?.sections ?? [];
+});
+const selectedDiscoverSection = computed(() => activeDiscoverSections.value.find((section) => section.key === selectedDiscoverSectionKey.value));
+const selectedDiscoverItems = computed(() => selectedDiscoverSection.value?.items ?? activeDiscoverSections.value.flatMap((section) => section.items));
+const overlayTitle = computed(() => {
+  if (overlayView.value === 'discoverList') {
+    return selectedDiscoverSection.value?.title ?? '发现';
+  }
+  if (overlayView.value === 'diamond') {
+    return '钻石明细';
+  }
+  if (overlayView.value === 'vip') {
+    return 'AI装修大师 VIP';
+  }
+  if (overlayView.value === 'invite') {
+    return '邀请好友';
+  }
+  if (overlayView.value === 'questionnaire') {
+    return '用户问卷';
+  }
+  return '设置';
 });
 
 function persistEnvironment() {
@@ -598,6 +720,49 @@ function showToast(message: string) {
       toastMessage.value = '';
     }
   }, 2600);
+}
+
+function openOverlay(view: OverlayView) {
+  overlayView.value = view;
+}
+
+function closeOverlay() {
+  overlayView.value = 'none';
+}
+
+function openDiscoverSection(sectionKey: string) {
+  selectedDiscoverSectionKey.value = sectionKey;
+  openOverlay('discoverList');
+}
+
+function selectDiamondPack() {
+  // 复刻充值入口的正向反馈，不在本地伪造真实余额，避免和账号数据产生冲突。
+  showToast('已选择 60 钻石充值包');
+}
+
+function confirmVipPlan() {
+  const plan = vipPlans.find((item) => item.key === selectedVipPlan.value);
+  showToast(`已选择${plan?.label ?? '会员'}方案`);
+}
+
+function submitQuestionnaire() {
+  const answeredCount = questionnaire.filter((question) => questionnaireAnswers.value[question.key]).length;
+  if (answeredCount < questionnaire.length) {
+    showToast('请完成问卷后再提交');
+    return;
+  }
+  showToast('问卷已提交');
+  closeOverlay();
+}
+
+function resetLocalExperience() {
+  localStorage.removeItem(PRIVACY_STORAGE_KEY);
+  localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+  localStorage.removeItem(GUIDE_STORAGE_KEY);
+  privacyVisible.value = true;
+  onboardingVisible.value = true;
+  guideVisible.value = false;
+  closeOverlay();
 }
 
 function acceptPrivacy() {
@@ -768,6 +933,7 @@ button {
 }
 
 .phone-shell {
+  position: relative;
   width: min(100%, 430px);
   height: min(900px, calc(100vh - 44px));
   min-height: 700px;
@@ -2357,6 +2523,257 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.native-overlay {
+  position: absolute;
+  inset: 30px 0 0;
+  z-index: 15;
+  display: grid;
+  align-items: end;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.native-sheet {
+  min-height: min(82%, 680px);
+  max-height: calc(100% - 16px);
+  display: grid;
+  grid-template-rows: 54px 1fr;
+  overflow: hidden;
+  border-radius: 22px 22px 0 0;
+  background: #fff;
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.18);
+}
+
+.native-sheet > header {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  padding: 0 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.native-sheet > header strong {
+  overflow: hidden;
+  color: #171717;
+  font-size: 17px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-close {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #171717;
+  background: transparent;
+}
+
+.discover-list-page,
+.diamond-page,
+.vip-page,
+.invite-page,
+.questionnaire-page,
+.settings-page {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.discover-list-page {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px;
+}
+
+.discover-list-page article {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.discover-list-page img {
+  width: 100%;
+  aspect-ratio: 0.75;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #ececec;
+}
+
+.discover-list-page span {
+  overflow: hidden;
+  color: #202020;
+  font-size: 13px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diamond-page,
+.vip-page,
+.invite-page,
+.questionnaire-page,
+.settings-page {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.diamond-balance {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  border-radius: 16px;
+  background: #fff9d8;
+}
+
+.diamond-balance img {
+  width: 44px;
+  height: 44px;
+}
+
+.diamond-balance strong {
+  color: #171717;
+  font-size: 36px;
+  line-height: 1;
+}
+
+.diamond-balance span,
+.plain-list p,
+.invite-page p {
+  margin: 0;
+  color: #777;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.yellow-action {
+  min-height: 50px;
+  border: 0;
+  border-radius: 25px;
+  color: #161616;
+  background: #fff500;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.plain-list {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f7f7f7;
+}
+
+.plain-list h3,
+.questionnaire-page h3,
+.invite-page h2 {
+  margin: 0;
+  color: #171717;
+}
+
+.vip-page-logo {
+  width: 176px;
+  justify-self: center;
+}
+
+.vip-plan-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vip-plan-list button {
+  min-height: 86px;
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  border: 1px solid #ead7ad;
+  border-radius: 14px;
+  color: #3f2c12;
+  background: #fff8e8;
+}
+
+.vip-plan-list button.active {
+  border-color: #24190e;
+  background: #ffe9a8;
+}
+
+.vip-plan-list strong {
+  font-size: 13px;
+}
+
+.vip-plan-list span {
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.vip-benefit-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.vip-benefit-list article {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-radius: 12px;
+  background: #f8f4ea;
+  color: #5c421f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.vip-benefit-list img {
+  width: 30px;
+  height: 30px;
+}
+
+.invite-page img {
+  width: 100%;
+  max-height: 230px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.questionnaire-page article {
+  display: grid;
+  gap: 10px;
+}
+
+.questionnaire-page article > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.questionnaire-page article button,
+.settings-page button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  color: #272727;
+  background: #f3f3f3;
+  font-weight: 850;
+}
+
+.questionnaire-page article button.active {
+  color: #161616;
+  background: #fff500;
+}
+
+.settings-page button {
+  text-align: left;
+  padding: 0 14px;
+  background: #f7f7f7;
 }
 
 .bottom-nav {

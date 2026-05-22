@@ -1,6 +1,6 @@
 # 装修 APP APK-H5 每日差异对齐
 
-- 状态：已完成第 1 轮循环差异修复与复跑截图
+- 状态：已完成第 2 轮循环差异修复与入口冒烟
 - 当前基准：
   - APK 包名：`com.wanmeixiangsu.android.homeai`
   - APK 版本：`5.27.0`
@@ -11,13 +11,16 @@
   - 发现页改为 `室内 / 外观` 分段与卧室、客厅、厨房横向图库
   - 我的页改为头像、钻石明细、VIP 权益、邀请好友、用户问卷和空作品态
   - 补齐 `living_room`、`bedroom` 的 APK hash 路由语义
+  - 清除用户可见的 `待接入` 占位提示，补齐发现全部列表、钻石明细、VIP 方案、邀请海报、用户问卷和设置弹层
 - 本轮验证：
   - `pnpm test`
   - `pnpm build`
   - Playwright + 系统 Chrome 采集 H5 首页、设计页、发现页、我的页截图
+  - Playwright + 系统 Chrome 冒烟：钻石、VIP、邀请、问卷提交、发现查看全部
 - 对比产物：
   - APK 基准：`ai/compare-runs/2026-05-22-rerun/`
   - 本轮 H5：`ai/compare-runs/2026-05-22-loop-1/`
+  - 入口冒烟：`ai/compare-runs/2026-05-22-loop-2/`
 - 遗留差异：
   - 首页、发现页部分真实素材仍与 APK 不一致，当前先复用仓库已有空间类素材
   - 桌面截图包含 `phone-shell` 外框，像素指标只作为趋势参考

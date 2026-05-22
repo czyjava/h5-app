@@ -1,7 +1,7 @@
 import { homeAiAssets } from './assets';
 import type { HomeAiSnapshot } from './types';
 
-export const demoSnapshot: HomeAiSnapshot = {
+const localFeatureSnapshot: Pick<HomeAiSnapshot, 'banners' | 'features'> = {
   banners: [homeAiAssets.splashReplaceBg, homeAiAssets.splashColoringBg, homeAiAssets.surveyBg],
   features: [
     {
@@ -38,6 +38,23 @@ export const demoSnapshot: HomeAiSnapshot = {
       icon: homeAiAssets.defaultColor,
     },
   ],
+};
+
+export const liveSnapshot: HomeAiSnapshot = {
+  ...localFeatureSnapshot,
+  discover: [],
+  discoverTabs: [],
+  works: [],
+  user: {
+    nickname: '未登录',
+    userId: '',
+    diamondCount: 0,
+    vipLabel: '',
+  },
+};
+
+export const demoSnapshot: HomeAiSnapshot = {
+  ...localFeatureSnapshot,
   discover: [
     {
       title: '奶油风客厅',

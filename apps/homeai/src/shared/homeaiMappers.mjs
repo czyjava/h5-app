@@ -1,26 +1,10 @@
-const demoSnapshot = {
-  banners: [
-    '/assets/homeai/type_1_processed.png',
-    '/assets/homeai/type_2_processed.png',
-    '/assets/homeai/type_4_compare.webp',
-  ],
-  features: [],
-  discover: [
-    {
-      title: '现代客厅灵感',
-      subtitle: '上传户型照片，快速获得装修参考。',
-      coverUrl: '/assets/homeai/interior_guide_good.png',
-      tag: '室内',
-      buildingType: 'interior',
-      spaceType: 'living_room',
-    },
-  ],
+const mapperFallback = {
   works: [],
   user: {
-    nickname: '沉愿',
-    userId: 'homeai-demo',
+    nickname: '未登录',
+    userId: '',
     diamondCount: 0,
-    vipLabel: 'AI装修大师 VIP',
+    vipLabel: '',
   },
 };
 
@@ -57,21 +41,21 @@ function normalizeImageUrl(value) {
 
 function mapDiscoverItem(raw, index) {
   const record = raw && typeof raw === 'object' ? raw : {};
-  const fallback = demoSnapshot.discover[index % demoSnapshot.discover.length];
+  const coverUrl = normalizeImageUrl(pickString(record, ['coverUrl', 'cover', 'imageUrl', 'image', 'url', 'thumbnailUrl']));
   return {
-    title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
-    subtitle: pickString(record, ['subTitle', 'subtitle', 'description', 'desc'], fallback.subtitle),
-    coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'cover', 'imageUrl', 'image', 'url', 'thumbnailUrl'], fallback.coverUrl)),
-    tag: pickString(record, ['tag', 'categoryTitle', 'spaceType'], fallback.tag),
-    buildingType: pickString(record, ['buildingType', 'buildingTypeCode'], fallback.buildingType),
-    spaceType: pickString(record, ['spaceType', 'spaceTypeCode'], fallback.spaceType),
+    title: pickString(record, ['title', 'name', 'templateName'], `灵感 ${index + 1}`),
+    subtitle: pickString(record, ['subTitle', 'subtitle', 'description', 'desc'], ''),
+    coverUrl,
+    tag: pickString(record, ['tag', 'categoryTitle', 'spaceType'], ''),
+    buildingType: pickString(record, ['buildingType', 'buildingTypeCode'], ''),
+    spaceType: pickString(record, ['spaceType', 'spaceTypeCode'], ''),
   };
 }
 
 function mapWorkItem(raw, index) {
   const record = raw && typeof raw === 'object' ? raw : {};
   // 我的页 APK 默认空作品；只有真实列表返回数据时，才用兜底字段补齐单条作品信息。
-  const fallback = demoSnapshot.works[index % demoSnapshot.works.length] ?? {
+  const fallback = mapperFallback.works[index % mapperFallback.works.length] ?? {
     id: `work-${index}`,
     title: '作品',
     status: 'FINISHED',
@@ -90,29 +74,46 @@ function mapWorkItem(raw, index) {
 function mapUser(raw) {
   const record = raw && typeof raw === 'object' ? raw : {};
   return {
-    nickname: pickString(record, ['nickname', 'nickName', 'name'], demoSnapshot.user.nickname),
-    userId: pickString(record, ['userId', 'id'], demoSnapshot.user.userId),
-    diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? demoSnapshot.user.diamondCount),
-    vipLabel: pickString(record, ['vipLabel', 'vipName'], demoSnapshot.user.vipLabel),
+    nickname: pickString(record, ['nickname', 'nickName', 'name'], mapperFallback.user.nickname),
+    userId: pickString(record, ['userId', 'id'], mapperFallback.user.userId),
+    diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? mapperFallback.user.diamondCount),
+    vipLabel: pickString(record, ['vipLabel', 'vipName'], mapperFallback.user.vipLabel),
   };
 }
 
-export function normalizeHomeAiSnapshot({ user, generationList, recommendList } = {}) {
-  const snapshot = structuredClone(demoSnapshot);
-
-  if (user) {
-    snapshot.user = mapUser(user);
+function buildDiscoverTabs(discover) {
+  const indoorItems = discover.filter((item) => item.buildingType !== 'exterior' && item.buildingType !== 'garden');
+  const exteriorItems = discover.filter((item) => item.buildingType === 'exterior' || item.buildingType === 'garden');
+  const makeSection = (key, title, items) => ({
+    key,
+    title,
+    items: items.map((item, index) => ({
+      id: `${key}-${index}`,
+      title: item.title,
+      coverUrl: item.coverUrl,
+    })),
+  });
+  const tabs = [];
+  if (indoorItems.length > 0) {
+    tabs.push({ key: 'interior', label: '室内', sections: [makeSection('interior', '室内', indoorItems)] });
   }
+  if (exteriorItems.length > 0) {
+    tabs.push({ key: 'exterior', label: '外观', sections: [makeSection('exterior', '外观', exteriorItems)] });
+  }
+  return tabs;
+}
 
+export function normalizeHomeAiSnapshot({ user, generationList, recommendList } = {}) {
   const works = pickArray(generationList).map(mapWorkItem).filter((item) => item.coverUrl);
-  snapshot.works = works.length > 0 ? works.slice(0, 8) : [];
-
   const configJson = recommendList && typeof recommendList === 'object' ? recommendList.configJson : '';
   const parsedRecommend = typeof configJson === 'string' && configJson.trim() ? JSON.parse(configJson) : recommendList;
   const discover = pickArray(parsedRecommend).map(mapDiscoverItem).filter((item) => item.coverUrl);
-  if (discover.length > 0) {
-    snapshot.discover = discover.slice(0, 12);
-  }
+  const normalizedDiscover = discover.slice(0, 12);
 
-  return snapshot;
+  return {
+    user: user ? mapUser(user) : mapperFallback.user,
+    works: works.length > 0 ? works.slice(0, 8) : [],
+    discover: normalizedDiscover,
+    discoverTabs: buildDiscoverTabs(normalizedDiscover),
+  };
 }

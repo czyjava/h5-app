@@ -222,7 +222,7 @@
             <strong>发现内容加载中</strong>
             <span>正在根据当前环境同步推荐内容，请稍候。</span>
           </section>
-          <section v-else class="discover-shelves">
+          <section v-else-if="activeDiscoverSections.length > 0" class="discover-shelves">
             <article v-for="section in activeDiscoverSections" :key="section.key" class="discover-shelf">
               <header>
                 <h2>{{ section.title }}</h2>
@@ -232,6 +232,10 @@
                 <img v-for="item in section.items" :key="item.id" :src="item.coverUrl" :alt="item.title" />
               </div>
             </article>
+          </section>
+          <section v-else class="state-card">
+            <strong>暂无服务端推荐内容</strong>
+            <span>当前实时接口没有返回发现页数据，已按空态展示。</span>
           </section>
         </section>
 
@@ -322,6 +326,7 @@
               <img :src="item.coverUrl" :alt="item.title" />
               <span>{{ item.title }}</span>
             </article>
+            <p v-if="selectedDiscoverItems.length === 0">暂无服务端推荐内容</p>
           </section>
 
           <section v-else-if="overlayView === 'diamond'" class="diamond-page">
@@ -330,16 +335,17 @@
               <strong>{{ snapshot.user.diamondCount }}</strong>
               <span>当前钻石</span>
             </div>
-            <button type="button" class="yellow-action" @click="selectDiamondPack">充值 60 钻石</button>
+            <button v-if="demoMode" type="button" class="yellow-action" @click="selectDiamondPack">充值 60 钻石</button>
             <section class="plain-list">
               <h3>明细</h3>
-              <p>暂无钻石变动记录</p>
+              <p>{{ demoMode ? '暂无钻石变动记录' : '暂无服务端钻石明细或充值套餐数据' }}</p>
             </section>
           </section>
 
           <section v-else-if="overlayView === 'vip'" class="vip-page">
             <img class="vip-page-logo" :src="homeAiAssets.vipFontLogo" alt="AI装修大师 VIP" />
-            <div class="vip-plan-list">
+            <template v-if="demoMode">
+              <div class="vip-plan-list">
               <button
                 v-for="plan in vipPlans"
                 :key="plan.key"
@@ -350,39 +356,50 @@
                 <strong>{{ plan.label }}</strong>
                 <span>{{ plan.price }}</span>
               </button>
-            </div>
-            <section class="vip-benefit-list">
-              <article v-for="(privilege, index) in vipPrivileges" :key="privilege.label">
-                <img :src="homeAiAssets.vipPrivileges[index]" alt="" />
-                <span>{{ privilege.label }}</span>
-              </article>
+              </div>
+              <section class="vip-benefit-list">
+                <article v-for="(privilege, index) in vipPrivileges" :key="privilege.label">
+                  <img :src="homeAiAssets.vipPrivileges[index]" alt="" />
+                  <span>{{ privilege.label }}</span>
+                </article>
+              </section>
+              <button type="button" class="yellow-action" @click="confirmVipPlan">立即开通</button>
+            </template>
+            <section v-else class="plain-list">
+              <h3>暂无服务端会员方案</h3>
+              <p>当前实时接口没有返回会员商品或权益配置，未展示本地模拟价格。</p>
             </section>
-            <button type="button" class="yellow-action" @click="confirmVipPlan">立即开通</button>
           </section>
 
           <section v-else-if="overlayView === 'invite'" class="invite-page">
             <img :src="homeAiAssets.inviteCardBg" alt="" />
             <h2>邀请好友一起装修设计</h2>
-            <p>好友通过邀请进入后，可一起查看 AI 装修灵感和设计结果。</p>
-            <button type="button" class="yellow-action" @click="showToast('邀请海报已生成')">生成邀请海报</button>
+            <p>{{ demoMode ? '好友通过邀请进入后，可一起查看 AI 装修灵感和设计结果。' : '暂无服务端邀请配置，未生成本地模拟海报。' }}</p>
+            <button v-if="demoMode" type="button" class="yellow-action" @click="showToast('邀请海报已生成')">生成邀请海报</button>
           </section>
 
           <section v-else-if="overlayView === 'questionnaire'" class="questionnaire-page">
-            <article v-for="question in questionnaire" :key="question.key">
-              <h3>{{ question.title }}</h3>
-              <div>
-                <button
-                  v-for="option in question.options"
-                  :key="option"
-                  type="button"
-                  :class="{ active: questionnaireAnswers[question.key] === option }"
-                  @click="questionnaireAnswers[question.key] = option"
-                >
-                  {{ option }}
-                </button>
-              </div>
-            </article>
-            <button type="button" class="yellow-action" @click="submitQuestionnaire">提交问卷</button>
+            <template v-if="demoMode">
+              <article v-for="question in questionnaire" :key="question.key">
+                <h3>{{ question.title }}</h3>
+                <div>
+                  <button
+                    v-for="option in question.options"
+                    :key="option"
+                    type="button"
+                    :class="{ active: questionnaireAnswers[question.key] === option }"
+                    @click="questionnaireAnswers[question.key] = option"
+                  >
+                    {{ option }}
+                  </button>
+                </div>
+              </article>
+              <button type="button" class="yellow-action" @click="submitQuestionnaire">提交问卷</button>
+            </template>
+            <section v-else class="plain-list">
+              <h3>暂无服务端问卷配置</h3>
+              <p>当前实时接口没有返回问卷题目，未展示本地模拟选项。</p>
+            </section>
           </section>
 
           <section v-else class="settings-page">
@@ -404,19 +421,19 @@ import { ChevronLeft, ChevronRight, Gem, Settings, WandSparkles, X } from 'lucid
 import {
   createReplicaSession,
   persistReplicaAuthToken,
-  persistReplicaDemoMode,
   persistReplicaEnvironment,
   type ReplicaEnvironment,
 } from '@wmxs/h5-replica-common/client';
 import { ReplicaProxyLifecycleOverlay } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
-import { demoSnapshot } from '../shared/demoData';
+import { demoSnapshot, liveSnapshot } from '../shared/demoData';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
 import { buildHomeAiHashRoute, getFeatureNativePath, parseHomeAiHashRoute } from '../shared/navigation';
 import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
 
 const API_DEBUG_HASH = '#/api-debug';
+const DEMO_QUERY_PARAM = '__homeai_demo';
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
 const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
 const GUIDE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:guide-complete`;
@@ -431,13 +448,14 @@ if (resetParams.get('__homeai_reset') === '1') {
   window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
 }
 const session = createReplicaSession(homeAiReplicaConfig.appId);
+const explicitDemoMode = resetParams.get(DEMO_QUERY_PARAM) === '1';
 type OverlayView = 'none' | 'discoverList' | 'diamond' | 'vip' | 'invite' | 'questionnaire' | 'settings';
 
 const activeTab = ref<MainTab>('home');
 const environment = ref<ReplicaEnvironment>(session.environment);
-const demoMode = ref(session.demoMode);
+const demoMode = ref(explicitDemoMode);
 const authTokenDraft = ref(session.authToken);
-const snapshot = ref<HomeAiSnapshot>(structuredClone(demoSnapshot));
+const snapshot = ref<HomeAiSnapshot>(structuredClone(demoMode.value ? demoSnapshot : liveSnapshot));
 const apiState = ref<HomeAiApiState>({
   mode: demoMode.value ? 'demo' : 'live',
   environmentLabel: environment.value,
@@ -637,10 +655,6 @@ function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
 }
 
-function persistDemoModeState() {
-  persistReplicaDemoMode(homeAiReplicaConfig.appId, demoMode.value);
-}
-
 function saveToken() {
   persistReplicaAuthToken(homeAiReplicaConfig.appId, authTokenDraft.value);
 }
@@ -828,7 +842,12 @@ function resetDesign() {
 }
 
 function mockUpload() {
-  // 首版复刻只保存交互态，真实上传接口后续通过透明代理逐项对齐原 APP。
+  if (!demoMode.value) {
+    console.warn('[HomeAI App] 实时模式未伪造上传结果', { featureCode: selectedFeatureCode.value });
+    showToast('实时模式未收到上传接口返回，未创建本地作品');
+    return;
+  }
+  // 显式 demo 模式才模拟本地上传态，避免实时模式把本地文件名当成服务端结果。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
   console.info('[HomeAI App] 模拟选择空间照片', { featureCode: selectedFeatureCode.value, imageName: selectedImageName.value });
 }
@@ -853,7 +872,6 @@ function nextDesignStep() {
 
 async function reload() {
   persistEnvironment();
-  persistDemoModeState();
   saveToken();
   updateApiState();
 
@@ -876,9 +894,9 @@ async function reload() {
       snapshot.value = maybeSnapshot;
     }
     apiState.value = {
-      mode: 'demo',
+      mode: 'live',
       environmentLabel: environment.value,
-      lastError: error instanceof Error ? error.message : '接口请求失败，已展示演示数据',
+      lastError: error instanceof Error ? error.message : '接口请求失败，已展示实时空态',
     };
   } finally {
     snapshotLoading.value = false;

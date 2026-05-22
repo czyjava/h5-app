@@ -7,7 +7,7 @@ import {
   type ReplicaRequestParamValue,
 } from '@wmxs/h5-replica-common/client';
 import { homeAiReplicaConfig } from '../../app.config';
-import { demoSnapshot } from './demoData';
+import { liveSnapshot } from './demoData';
 import { normalizeHomeAiSnapshot } from './homeaiMappers';
 import type { HomeAiSnapshot } from './types';
 
@@ -86,7 +86,7 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     } catch (error) {
       const message = apiErrorMessage(error);
       errors.push(`${label}: ${message}`);
-      console.warn('[HomeAI API] 接口降级到演示数据', redactObject({ label, message }));
+      console.warn('[HomeAI API] 接口请求失败，保留实时空态', redactObject({ label, message }));
       return null;
     }
   };
@@ -109,14 +109,11 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
 
   const mappedSnapshot = normalizeHomeAiSnapshot({ user, generationList, recommendList });
   const snapshot: HomeAiSnapshot = {
-    ...demoSnapshot,
+    ...liveSnapshot,
     ...mappedSnapshot,
-    banners: demoSnapshot.banners,
-    features: demoSnapshot.features,
-    // 接口无数据时保留更贴近 APK 的本地演示数据。
-    discover: mappedSnapshot.discover.length > 0 ? mappedSnapshot.discover : demoSnapshot.discover,
-    works: mappedSnapshot.works.length > 0 ? mappedSnapshot.works : demoSnapshot.works,
-    user: mappedSnapshot.user ?? demoSnapshot.user,
+    // 首页入口属于本地复刻壳的静态导航；接口内容只来自 mappedSnapshot，不再用 demo 数据兜底。
+    banners: liveSnapshot.banners,
+    features: liveSnapshot.features,
   };
 
   if (errors.length > 0) {

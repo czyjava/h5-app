@@ -1,22 +1,12 @@
-import type { DiscoverItem, HomeAiSnapshot, UserSummary, WorkItem } from './types';
+import type { DiscoverItem, DiscoverTab, HomeAiSnapshot, UserSummary, WorkItem } from './types';
 
-const mapperFallback: Pick<HomeAiSnapshot, 'discover' | 'works' | 'user'> = {
-  discover: [
-    {
-      title: '现代客厅灵感',
-      subtitle: '上传户型照片，快速获得装修参考。',
-      coverUrl: '/assets/homeai/interior_guide_good.png',
-      tag: '室内',
-      buildingType: 'interior',
-      spaceType: 'living_room',
-    },
-  ],
+const mapperFallback: Pick<HomeAiSnapshot, 'works' | 'user'> = {
   works: [],
   user: {
-    nickname: '沉愿',
-    userId: 'homeai-demo',
+    nickname: '未登录',
+    userId: '',
     diamondCount: 0,
-    vipLabel: 'AI装修大师 VIP',
+    vipLabel: '',
   },
 };
 
@@ -53,14 +43,14 @@ function normalizeImageUrl(value: string) {
 
 function mapDiscoverItem(raw: unknown, index: number): DiscoverItem {
   const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const fallback = mapperFallback.discover[index % mapperFallback.discover.length];
+  const coverUrl = normalizeImageUrl(pickString(record, ['coverUrl', 'cover', 'imageUrl', 'image', 'url', 'thumbnailUrl']));
   return {
-    title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
-    subtitle: pickString(record, ['subTitle', 'subtitle', 'description', 'desc'], fallback.subtitle),
-    coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'cover', 'imageUrl', 'image', 'url', 'thumbnailUrl'], fallback.coverUrl)),
-    tag: pickString(record, ['tag', 'categoryTitle', 'spaceType'], fallback.tag),
-    buildingType: pickString(record, ['buildingType', 'buildingTypeCode'], fallback.buildingType),
-    spaceType: pickString(record, ['spaceType', 'spaceTypeCode'], fallback.spaceType),
+    title: pickString(record, ['title', 'name', 'templateName'], `灵感 ${index + 1}`),
+    subtitle: pickString(record, ['subTitle', 'subtitle', 'description', 'desc'], ''),
+    coverUrl,
+    tag: pickString(record, ['tag', 'categoryTitle', 'spaceType'], ''),
+    buildingType: pickString(record, ['buildingType', 'buildingTypeCode'], ''),
+    spaceType: pickString(record, ['spaceType', 'spaceTypeCode'], ''),
   };
 }
 
@@ -93,6 +83,28 @@ function mapUser(raw: unknown): UserSummary {
   };
 }
 
+function buildDiscoverTabs(discover: DiscoverItem[]): DiscoverTab[] {
+  const indoorItems = discover.filter((item) => item.buildingType !== 'exterior' && item.buildingType !== 'garden');
+  const exteriorItems = discover.filter((item) => item.buildingType === 'exterior' || item.buildingType === 'garden');
+  const makeSection = (key: string, title: string, items: DiscoverItem[]) => ({
+    key,
+    title,
+    items: items.map((item, index) => ({
+      id: `${key}-${index}`,
+      title: item.title,
+      coverUrl: item.coverUrl,
+    })),
+  });
+  const tabs: DiscoverTab[] = [];
+  if (indoorItems.length > 0) {
+    tabs.push({ key: 'interior', label: '室内', sections: [makeSection('interior', '室内', indoorItems)] });
+  }
+  if (exteriorItems.length > 0) {
+    tabs.push({ key: 'exterior', label: '外观', sections: [makeSection('exterior', '外观', exteriorItems)] });
+  }
+  return tabs;
+}
+
 export function normalizeHomeAiSnapshot({
   user,
   generationList,
@@ -101,7 +113,7 @@ export function normalizeHomeAiSnapshot({
   user?: unknown;
   generationList?: unknown;
   recommendList?: unknown;
-} = {}): Pick<HomeAiSnapshot, 'discover' | 'works' | 'user'> {
+} = {}): Pick<HomeAiSnapshot, 'discover' | 'discoverTabs' | 'works' | 'user'> {
   const configJson = recommendList && typeof recommendList === 'object' ? (recommendList as Record<string, unknown>).configJson : '';
   const parsedRecommend = typeof configJson === 'string' && configJson.trim() ? JSON.parse(configJson) : recommendList;
   const works = pickArray(generationList).map(mapWorkItem).filter((item) => item.coverUrl);
@@ -110,6 +122,7 @@ export function normalizeHomeAiSnapshot({
   return {
     user: user ? mapUser(user) : mapperFallback.user,
     works: works.length > 0 ? works.slice(0, 8) : [],
-    discover: discover.length > 0 ? discover.slice(0, 12) : mapperFallback.discover,
+    discover: discover.slice(0, 12),
+    discoverTabs: buildDiscoverTabs(discover.slice(0, 12)),
   };
 }

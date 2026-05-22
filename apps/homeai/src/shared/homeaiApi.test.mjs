@@ -34,10 +34,12 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads with fallba
   assert.equal(snapshot.discover[0].tag, '室内');
 });
 
-test('normalizeHomeAiSnapshot keeps native empty mine defaults without account payload', () => {
+test('normalizeHomeAiSnapshot keeps live empty defaults without account payload', () => {
   const snapshot = normalizeHomeAiSnapshot();
 
-  assert.equal(snapshot.user.nickname, '沉愿');
+  assert.equal(snapshot.user.nickname, '未登录');
   assert.equal(snapshot.user.diamondCount, 0);
   assert.deepEqual(snapshot.works, []);
+  assert.deepEqual(snapshot.discover, []);
+  assert.deepEqual(snapshot.discoverTabs, []);
 });

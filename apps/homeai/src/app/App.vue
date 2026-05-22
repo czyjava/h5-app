@@ -344,17 +344,29 @@
 
           <section v-else-if="overlayView === 'vip'" class="vip-page">
             <img class="vip-page-logo" :src="homeAiAssets.vipFontLogo" alt="AI装修大师 VIP" />
-            <template v-if="demoMode">
+            <section v-if="vipLoading" class="plain-list">
+              <h3>会员方案加载中</h3>
+              <p>正在读取服务端售卖单元商品列表。</p>
+            </section>
+            <section v-else-if="vipError" class="plain-list">
+              <h3>会员方案加载失败</h3>
+              <p>{{ vipError }}</p>
+              <button type="button" class="yellow-action" @click="void reloadVipPlans()">重试</button>
+            </section>
+            <template v-else-if="currentVipPlans.length > 0">
               <div class="vip-plan-list">
               <button
-                v-for="plan in vipPlans"
+                v-for="plan in currentVipPlans"
                 :key="plan.key"
                 type="button"
                 :class="{ active: selectedVipPlan === plan.key }"
                 @click="selectedVipPlan = plan.key"
               >
                 <strong>{{ plan.label }}</strong>
-                <span>{{ plan.price }}</span>
+                <span>
+                  {{ plan.price }}
+                  <small v-if="plan.originalPrice">{{ plan.originalPrice }}</small>
+                </span>
               </button>
               </div>
               <section class="vip-benefit-list">
@@ -367,7 +379,7 @@
             </template>
             <section v-else class="plain-list">
               <h3>暂无服务端会员方案</h3>
-              <p>当前实时接口没有返回会员商品或权益配置，未展示本地模拟价格。</p>
+              <p>当前实时接口没有返回可购买商品。</p>
             </section>
           </section>
 
@@ -428,9 +440,9 @@ import { ReplicaProxyLifecycleOverlay } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot, liveSnapshot } from '../shared/demoData';
-import { loadHomeAiSnapshot } from '../shared/homeaiApi';
+import { createHomeAiVipOrder, loadHomeAiSnapshot, loadHomeAiVipPlans } from '../shared/homeaiApi';
 import { buildHomeAiHashRoute, getFeatureNativePath, parseHomeAiHashRoute } from '../shared/navigation';
-import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
+import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, HomeAiVipPlan, MainTab } from '../shared/types';
 
 const API_DEBUG_HASH = '#/api-debug';
 const DEMO_QUERY_PARAM = '__homeai_demo';
@@ -482,6 +494,9 @@ const generationPhase = ref<'idle' | 'queued' | 'processing' | 'done'>('idle');
 const overlayView = ref<OverlayView>('none');
 const selectedDiscoverSectionKey = ref('');
 const selectedVipPlan = ref('monthly');
+const liveVipPlans = ref<HomeAiVipPlan[]>([]);
+const vipLoading = ref(false);
+const vipError = ref('');
 const questionnaireAnswers = ref<Record<string, string>>({});
 let generationPhaseTimer: number | null = null;
 
@@ -533,11 +548,11 @@ const vipPrivileges = [
   { label: '免排队加速' },
   { label: '无广告' },
 ];
-const vipPlans = [
+const demoVipPlans: HomeAiVipPlan[] = [
   { key: 'monthly', label: '月度会员', price: '¥18' },
   { key: 'quarterly', label: '季度会员', price: '¥45' },
   { key: 'yearly', label: '年度会员', price: '¥128' },
-];
+].map((plan) => ({ ...plan, originalPrice: '', tokenCount: 0, channelCode: 'demo', paymentOptions: [] }));
 const questionnaire = [
   { key: 'role', title: '你的装修身份', options: ['业主', '设计师', '先看看'] },
   { key: 'space', title: '最想设计的空间', options: ['卧室', '客厅', '厨房'] },
@@ -630,6 +645,8 @@ const activeDiscoverSections = computed(() => {
   // 发现页 APK 以室内/外观分段和横向图库为主，保留 tab key 兜底可避免接口异常导致空白。
   return snapshot.value.discoverTabs.find((tab) => tab.key === activeDiscoverTab.value)?.sections ?? snapshot.value.discoverTabs[0]?.sections ?? [];
 });
+const currentVipPlans = computed(() => (demoMode.value ? demoVipPlans : liveVipPlans.value));
+const selectedVipPlanDetail = computed(() => currentVipPlans.value.find((item) => item.key === selectedVipPlan.value) ?? currentVipPlans.value[0]);
 const selectedDiscoverSection = computed(() => activeDiscoverSections.value.find((section) => section.key === selectedDiscoverSectionKey.value));
 const selectedDiscoverItems = computed(() => selectedDiscoverSection.value?.items ?? activeDiscoverSections.value.flatMap((section) => section.items));
 const overlayTitle = computed(() => {
@@ -738,6 +755,9 @@ function showToast(message: string) {
 
 function openOverlay(view: OverlayView) {
   overlayView.value = view;
+  if (view === 'vip' && !demoMode.value) {
+    void reloadVipPlans();
+  }
 }
 
 function closeOverlay() {
@@ -754,9 +774,57 @@ function selectDiamondPack() {
   showToast('已选择 60 钻石充值包');
 }
 
-function confirmVipPlan() {
-  const plan = vipPlans.find((item) => item.key === selectedVipPlan.value);
-  showToast(`已选择${plan?.label ?? '会员'}方案`);
+async function reloadVipPlans() {
+  if (demoMode.value || vipLoading.value) {
+    return;
+  }
+  vipLoading.value = true;
+  vipError.value = '';
+  try {
+    const plans = await loadHomeAiVipPlans({
+      authToken: authTokenDraft.value,
+      environment: environment.value,
+    });
+    liveVipPlans.value = plans;
+    selectedVipPlan.value = plans[0]?.key ?? '';
+    console.info('[HomeAI App] 已加载服务端 VIP 商品', { count: plans.length, firstGoodsCode: plans[0]?.key ?? '' });
+  } catch (error) {
+    vipError.value = error instanceof Error ? error.message : '会员方案接口请求失败';
+    liveVipPlans.value = [];
+    console.warn('[HomeAI App] VIP 商品加载失败', { message: vipError.value });
+  } finally {
+    vipLoading.value = false;
+  }
+}
+
+async function confirmVipPlan() {
+  const plan = selectedVipPlanDetail.value;
+  if (!plan) {
+    showToast('暂无可开通的会员方案');
+    return;
+  }
+  if (demoMode.value) {
+    showToast(`已选择${plan.label}方案`);
+    return;
+  }
+  const paymentOption = plan.paymentOptions[0];
+  if (!paymentOption) {
+    showToast('当前会员方案没有可用支付方式');
+    return;
+  }
+  try {
+    await createHomeAiVipOrder(
+      {
+        authToken: authTokenDraft.value,
+        environment: environment.value,
+      },
+      plan,
+      paymentOption,
+    );
+    showToast(`已创建${plan.label}订单`);
+  } catch (error) {
+    showToast(error instanceof Error ? `创建订单失败：${error.message}` : '创建订单失败');
+  }
 }
 
 function submitQuestionnaire() {

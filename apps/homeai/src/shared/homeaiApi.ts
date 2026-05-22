@@ -8,8 +8,8 @@ import {
 } from '@wmxs/h5-replica-common/client';
 import { homeAiReplicaConfig } from '../../app.config';
 import { liveSnapshot } from './demoData';
-import { normalizeHomeAiSnapshot } from './homeaiMappers';
-import type { HomeAiSnapshot } from './types';
+import { normalizeHomeAiSnapshot, normalizeHomeAiVipPlans } from './homeaiMappers';
+import type { HomeAiSnapshot, HomeAiVipPlan, PaymentOption } from './types';
 
 interface ApiEnvelope<T = unknown> {
   data?: T;
@@ -120,4 +120,37 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     throw Object.assign(new Error(errors.join('；')), { snapshot });
   }
   return snapshot;
+}
+
+export async function loadHomeAiVipPlans(context: HomeAiRequestContext): Promise<HomeAiVipPlan[]> {
+  // VIP 商品必须从服务端售卖单元链路读取，避免本地价格与真实支付配置不一致。
+  const channel = await requestBusiness<{ channelCode?: string }>(homeAiReplicaConfig.endpoints.goodsChannelCode, context, {
+    params: { entrance: 'vip' },
+  });
+  const channelCode = channel && typeof channel === 'object' ? channel.channelCode : '';
+  if (!channelCode) {
+    throw new Error('会员售卖渠道为空');
+  }
+  const goodsList = await requestBusiness(homeAiReplicaConfig.endpoints.goodsList, context, {
+    params: { channelCode },
+  });
+  return normalizeHomeAiVipPlans(goodsList);
+}
+
+export async function createHomeAiVipOrder(
+  context: HomeAiRequestContext,
+  plan: HomeAiVipPlan,
+  paymentOption: PaymentOption,
+): Promise<unknown> {
+  // 下单只透传服务端商品列表返回的 goodsCode 和支付配置，不在 H5 本地拼外部商品 ID。
+  return requestBusiness(homeAiReplicaConfig.endpoints.orderCreate, context, {
+    method: 'POST',
+    form: {
+      channelCode: plan.channelCode,
+      goodsCode: plan.key,
+      tradeMainPlatform: paymentOption.tradeMainPlatform,
+      tradeSubPlatform: paymentOption.tradeSubPlatform,
+      entrance: 'vip',
+    },
+  });
 }

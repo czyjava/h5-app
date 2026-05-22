@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeHomeAiSnapshot } from './homeaiMappers.mjs';
+import { normalizeHomeAiSnapshot, normalizeHomeAiVipPlans } from './homeaiMappers.mjs';
 
 test('normalizeHomeAiSnapshot maps user, work, and discover payloads with fallbacks', () => {
   const snapshot = normalizeHomeAiSnapshot({
@@ -42,4 +42,35 @@ test('normalizeHomeAiSnapshot keeps live empty defaults without account payload'
   assert.deepEqual(snapshot.works, []);
   assert.deepEqual(snapshot.discover, []);
   assert.deepEqual(snapshot.discoverTabs, []);
+});
+
+test('normalizeHomeAiVipPlans maps service goods item list without local prices', () => {
+  const plans = normalizeHomeAiVipPlans({
+    itemList: [
+      {
+        channelCode: 'homeai_purchase_regenerate',
+        channelPrice: 198,
+        currencySymbol: '¥',
+        goodsCode: 'homeai_vip_365d',
+        goodsName: 'AI装修大师-年会员',
+        goodsPrice: 298,
+        paymentOptions: [
+          {
+            externalProductId: 'homeai_vip_365d_alipay',
+            tradeMainPlatform: 'alipay',
+            tradeSubPlatform: 'alipay_mobile',
+          },
+        ],
+        tokenCount: 3600,
+      },
+    ],
+  });
+
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].key, 'homeai_vip_365d');
+  assert.equal(plans[0].label, 'AI装修大师-年会员');
+  assert.equal(plans[0].price, '¥198');
+  assert.equal(plans[0].originalPrice, '¥298');
+  assert.equal(plans[0].tokenCount, 3600);
+  assert.equal(plans[0].paymentOptions[0].tradeSubPlatform, 'alipay_mobile');
 });

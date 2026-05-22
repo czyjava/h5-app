@@ -54,6 +54,22 @@ export interface UserSummary {
   vipLabel: string;
 }
 
+export interface PaymentOption {
+  externalProductId: string;
+  tradeMainPlatform: string;
+  tradeSubPlatform: string;
+}
+
+export interface HomeAiVipPlan {
+  key: string;
+  label: string;
+  price: string;
+  originalPrice: string;
+  tokenCount: number;
+  channelCode: string;
+  paymentOptions: PaymentOption[];
+}
+
 export interface HomeAiSnapshot {
   banners: string[];
   features: DesignFeature[];

@@ -1,4 +1,4 @@
-import type { DiscoverItem, DiscoverTab, HomeAiSnapshot, UserSummary, WorkItem } from './types';
+import type { DiscoverItem, DiscoverTab, HomeAiSnapshot, HomeAiVipPlan, PaymentOption, UserSummary, WorkItem } from './types';
 
 const mapperFallback: Pick<HomeAiSnapshot, 'works' | 'user'> = {
   works: [],
@@ -16,7 +16,7 @@ function pickArray(input: unknown): unknown[] {
   }
   if (input && typeof input === 'object') {
     const record = input as Record<string, unknown>;
-    return pickArray(record.list ?? record.items ?? record.records ?? record.data);
+    return pickArray(record.list ?? record.itemList ?? record.items ?? record.records ?? record.data);
   }
   return [];
 }
@@ -34,11 +34,42 @@ function pickString(input: Record<string, unknown>, keys: string[], fallback = '
   return fallback;
 }
 
+function pickNumber(input: Record<string, unknown>, keys: string[], fallback = 0) {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+      return Number(value);
+    }
+  }
+  return fallback;
+}
+
 function normalizeImageUrl(value: string) {
   if (!value) {
     return '';
   }
   return value.startsWith('//') ? `https:${value}` : value;
+}
+
+function mapPaymentOption(raw: unknown): PaymentOption | null {
+  const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const externalProductId = pickString(record, ['externalProductId']);
+  const tradeMainPlatform = pickString(record, ['tradeMainPlatform', 'tradePlatform']);
+  const tradeSubPlatform = pickString(record, ['tradeSubPlatform']);
+  if (!externalProductId || !tradeMainPlatform || !tradeSubPlatform) {
+    return null;
+  }
+  return { externalProductId, tradeMainPlatform, tradeSubPlatform };
+}
+
+function formatPrice(symbol: string, value: number) {
+  if (!value) {
+    return '';
+  }
+  return `${symbol}${Number.isInteger(value) ? value : value.toFixed(2)}`;
 }
 
 function mapDiscoverItem(raw: unknown, index: number): DiscoverItem {
@@ -125,4 +156,30 @@ export function normalizeHomeAiSnapshot({
     discover: discover.slice(0, 12),
     discoverTabs: buildDiscoverTabs(discover.slice(0, 12)),
   };
+}
+
+export function normalizeHomeAiVipPlans(raw: unknown): HomeAiVipPlan[] {
+  return pickArray(raw)
+    .map((item) => {
+      const record = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+      const goodsCode = pickString(record, ['goodsCode', 'code']);
+      const channelCode = pickString(record, ['channelCode']);
+      const currencySymbol = pickString(record, ['currencySymbol'], '¥');
+      const channelPrice = pickNumber(record, ['channelPrice', 'salePrice']);
+      const goodsPrice = pickNumber(record, ['goodsPrice']);
+      const paymentOptions = pickArray(record.paymentOptions).map(mapPaymentOption).filter((option): option is PaymentOption => Boolean(option));
+      if (!goodsCode || !channelCode || channelPrice <= 0) {
+        return null;
+      }
+      return {
+        key: goodsCode,
+        label: pickString(record, ['goodsName', 'name', 'title'], goodsCode),
+        price: formatPrice(currencySymbol, channelPrice),
+        originalPrice: goodsPrice > channelPrice ? formatPrice(currencySymbol, goodsPrice) : '',
+        tokenCount: pickNumber(record, ['tokenCount']),
+        channelCode,
+        paymentOptions,
+      };
+    })
+    .filter((plan): plan is HomeAiVipPlan => Boolean(plan));
 }

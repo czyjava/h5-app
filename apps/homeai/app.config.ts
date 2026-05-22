@@ -45,6 +45,8 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     communityPostRecommend: '/api/open/community/post/recommend.htm',
     userPermission: '/api/open/permission/get-user-permission.htm',
     goodsChannelCode: '/api/open/goods/get-channel-code.htm',
+    goodsList: '/api/open/goods/get-goods-list.htm',
+    orderCreate: '/api/open/order/create-order.htm',
     feedbackCreate: '/api/open/feedback/create.htm',
     upload: '/api/open/upload/upload.htm',
   },

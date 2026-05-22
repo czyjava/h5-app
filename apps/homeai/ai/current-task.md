@@ -24,3 +24,7 @@
 - 遗留差异：
   - 首页、发现页部分真实素材仍与 APK 不一致，当前先复用仓库已有空间类素材
   - 桌面截图包含 `phone-shell` 外框，像素指标只作为趋势参考
+- 2026-05-23 阻塞补记：
+  - `http://172.20.98.48:8000/` 在 `2026-05-23 10:01:59 +08:00` 不可访问，未获取今日最新 APK
+  - `adb devices -l` 启动守护进程时报 `Operation not permitted`，导致安装、抓包与 APK 复验未执行
+  - 今日仅完成 H5 基线复核与 `pnpm test` / `pnpm build` 验证，详见 `ai/compare-runs/2026-05-23-daily-blocked/report.md`

@@ -15,20 +15,12 @@ const demoSnapshot = {
       spaceType: 'living_room',
     },
   ],
-  works: [
-    {
-      id: 'demo-1',
-      title: '客厅改造',
-      status: 'FINISHED',
-      coverUrl: '/assets/homeai/type_1_processed.png',
-      createdAt: '2026-05-20',
-    },
-  ],
+  works: [],
   user: {
-    nickname: 'HomeAI 访客',
+    nickname: '沉愿',
     userId: 'homeai-demo',
-    diamondCount: 12,
-    vipLabel: '体验会员',
+    diamondCount: 0,
+    vipLabel: 'AI装修大师 VIP',
   },
 };
 
@@ -78,7 +70,14 @@ function mapDiscoverItem(raw, index) {
 
 function mapWorkItem(raw, index) {
   const record = raw && typeof raw === 'object' ? raw : {};
-  const fallback = demoSnapshot.works[index % demoSnapshot.works.length];
+  // 我的页 APK 默认空作品；只有真实列表返回数据时，才用兜底字段补齐单条作品信息。
+  const fallback = demoSnapshot.works[index % demoSnapshot.works.length] ?? {
+    id: `work-${index}`,
+    title: '作品',
+    status: 'FINISHED',
+    coverUrl: '',
+    createdAt: '',
+  };
   return {
     id: pickString(record, ['id', 'recordCode', 'code'], `work-${index}`),
     title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
@@ -106,9 +105,7 @@ export function normalizeHomeAiSnapshot({ user, generationList, recommendList } 
   }
 
   const works = pickArray(generationList).map(mapWorkItem).filter((item) => item.coverUrl);
-  if (works.length > 0) {
-    snapshot.works = works.slice(0, 8);
-  }
+  snapshot.works = works.length > 0 ? works.slice(0, 8) : [];
 
   const configJson = recommendList && typeof recommendList === 'object' ? recommendList.configJson : '';
   const parsedRecommend = typeof configJson === 'string' && configJson.trim() ? JSON.parse(configJson) : recommendList;

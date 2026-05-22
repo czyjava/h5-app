@@ -8,6 +8,7 @@ export interface DesignFeature {
   accent: string;
   guideImage: string;
   badImage?: string;
+  homeImage?: string;
   icon: string;
 }
 
@@ -18,6 +19,24 @@ export interface DiscoverItem {
   tag: string;
   buildingType: string;
   spaceType: string;
+}
+
+export interface DiscoverImageItem {
+  id: string;
+  title: string;
+  coverUrl: string;
+}
+
+export interface DiscoverSection {
+  key: string;
+  title: string;
+  items: DiscoverImageItem[];
+}
+
+export interface DiscoverTab {
+  key: 'interior' | 'exterior';
+  label: string;
+  sections: DiscoverSection[];
 }
 
 export interface WorkItem {
@@ -39,6 +58,7 @@ export interface HomeAiSnapshot {
   banners: string[];
   features: DesignFeature[];
   discover: DiscoverItem[];
+  discoverTabs: DiscoverTab[];
   works: WorkItem[];
   user: UserSummary;
 }

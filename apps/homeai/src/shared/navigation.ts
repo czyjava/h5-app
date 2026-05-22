@@ -8,15 +8,20 @@ export interface HomeAiHashRoute {
 
 const FEATURE_ROUTE_PATHS: Record<string, string> = {
   interior: 'default',
+  living_room: 'default',
+  bedroom: 'default',
   renovation: 'func_splash',
   garden: 'single_category',
   floor_plan: 'template_list',
 };
 
 // 原生 APK 使用功能路径承载首页入口，H5 侧统一映射为稳定的 featureCode。
-const NATIVE_PATH_TO_FEATURE: Record<string, string> = Object.fromEntries(
-  Object.entries(FEATURE_ROUTE_PATHS).map(([featureCode, nativePath]) => [nativePath, featureCode]),
-);
+const NATIVE_PATH_TO_FEATURE: Record<string, string> = {
+  default: 'interior',
+  func_splash: 'renovation',
+  single_category: 'garden',
+  template_list: 'floor_plan',
+};
 
 export function getFeatureNativePath(featureCode: string) {
   return FEATURE_ROUTE_PATHS[featureCode] ?? 'default';

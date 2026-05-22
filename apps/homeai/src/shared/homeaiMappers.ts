@@ -11,20 +11,12 @@ const mapperFallback: Pick<HomeAiSnapshot, 'discover' | 'works' | 'user'> = {
       spaceType: 'living_room',
     },
   ],
-  works: [
-    {
-      id: 'demo-1',
-      title: '客厅改造',
-      status: 'FINISHED',
-      coverUrl: '/assets/homeai/type_1_processed.png',
-      createdAt: '2026-05-20',
-    },
-  ],
+  works: [],
   user: {
-    nickname: 'HomeAI 访客',
+    nickname: '沉愿',
     userId: 'homeai-demo',
-    diamondCount: 12,
-    vipLabel: '体验会员',
+    diamondCount: 0,
+    vipLabel: 'AI装修大师 VIP',
   },
 };
 
@@ -74,7 +66,14 @@ function mapDiscoverItem(raw: unknown, index: number): DiscoverItem {
 
 function mapWorkItem(raw: unknown, index: number): WorkItem {
   const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const fallback = mapperFallback.works[index % mapperFallback.works.length];
+  // 我的页 APK 默认空作品；只有真实列表返回数据时，才用兜底字段补齐单条作品信息。
+  const fallback: WorkItem = mapperFallback.works[index % mapperFallback.works.length] ?? {
+    id: `work-${index}`,
+    title: '作品',
+    status: 'FINISHED',
+    coverUrl: '',
+    createdAt: '',
+  };
   return {
     id: pickString(record, ['id', 'recordCode', 'code'], `work-${index}`),
     title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
@@ -110,7 +109,7 @@ export function normalizeHomeAiSnapshot({
 
   return {
     user: user ? mapUser(user) : mapperFallback.user,
-    works: works.length > 0 ? works.slice(0, 8) : mapperFallback.works,
+    works: works.length > 0 ? works.slice(0, 8) : [],
     discover: discover.length > 0 ? discover.slice(0, 12) : mapperFallback.discover,
   };
 }

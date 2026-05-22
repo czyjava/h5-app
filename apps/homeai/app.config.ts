@@ -4,7 +4,7 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
   appId: 'homeai',
   displayName: '装修 APP',
   packageName: 'com.wanmeixiangsu.android.homeai',
-  version: '5.26.0',
+  version: '5.27.0',
   product: 'homeai',
   productCategory: 'homeai',
   hosts: {

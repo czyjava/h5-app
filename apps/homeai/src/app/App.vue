@@ -100,8 +100,12 @@
       <section v-else class="screen">
         <section v-if="activeTab === 'home'" class="page page-home native-home" @scroll.passive="isScrolled = true">
           <header class="home-native-head">
+            <div class="home-brand">
+              <strong>AI装修大师</strong>
+              <span>看见家的千万种可能</span>
+            </div>
             <button type="button" class="member-pill" @click="activeTab = 'mine'">
-              <span>👑</span>
+              <img :src="homeAiAssets.vipSmallIcon" alt="" />
               开通会员
             </button>
           </header>
@@ -127,11 +131,11 @@
         </section>
 
         <section v-else-if="activeTab === 'design'" class="page page-design">
-          <header class="page-header">
+          <header class="page-header" :class="{ 'upload-title': currentStep === 'upload' }">
             <button class="icon-button" type="button" aria-label="返回首页" @click="activeTab = 'home'">
               <ChevronLeft :size="20" />
             </button>
-            <strong>{{ selectedFeature.title }}</strong>
+            <strong>{{ currentStep === 'upload' ? '第一步' : selectedFeature.title }}</strong>
             <button class="icon-button" type="button" aria-label="重置设计" @click="resetDesign">
               <X :size="18" />
             </button>
@@ -142,23 +146,20 @@
           </div>
 
           <section v-if="currentStep === 'upload'" class="design-panel upload-panel">
-            <img class="upload-art" :src="selectedFeature.guideImage" alt="" />
-            <h2>上传空间照片</h2>
-            <p>HomeAI 会识别房间结构，再生成对应的装修方案。</p>
-            <button class="upload-zone" type="button" @click="mockUpload">
-              <img :src="homeAiAssets.upload" alt="" />
-              <span>{{ selectedImageName || '从相册选择图片' }}</span>
+            <h2>上传照片,AI生成设计方案</h2>
+            <button class="upload-dropzone" type="button" @click="mockUpload">
+              <span class="upload-plus">+</span>
+              <strong>{{ selectedImageName || '上传图片' }}</strong>
             </button>
-            <div class="guide-compare">
-              <figure>
-                <img :src="selectedFeature.guideImage" alt="" />
-                <figcaption>光线清晰</figcaption>
-              </figure>
-              <figure v-if="selectedFeature.badImage">
-                <img :src="selectedFeature.badImage" alt="" />
-                <figcaption>避免遮挡</figcaption>
-              </figure>
-            </div>
+            <section class="sample-strip" aria-label="参考示例">
+              <h3>参考示例</h3>
+              <div>
+                <figure v-for="item in uploadExamples" :key="item.id">
+                  <span>免费</span>
+                  <img :src="item.coverUrl" alt="" />
+                </figure>
+              </div>
+            </section>
           </section>
 
           <section v-else-if="currentStep === 'style'" class="design-panel style-panel">
@@ -197,101 +198,94 @@
             </div>
           </section>
 
-          <button class="bottom-action" :disabled="!canAdvanceDesignStep" type="button" @click="nextDesignStep">
+          <button class="bottom-action" :disabled="bottomActionDisabled" type="button" @click="nextDesignStep">
             {{ bottomActionLabel }}
           </button>
         </section>
 
         <section v-else-if="activeTab === 'discover'" class="page page-discover">
-          <header class="page-title-row">
-            <div>
-              <p>发现</p>
-              <h2>真实空间灵感库</h2>
-            </div>
-            <img :src="homeAiAssets.discoverScreen" alt="" />
+          <header class="discover-native-head">
+            <h1>发现</h1>
           </header>
-          <div class="category-tabs">
+          <div class="discover-segment">
             <button
-              v-for="category in discoverCategories"
-              :key="category"
-              :class="{ active: category === activeDiscoverCategory }"
+              v-for="tab in snapshot.discoverTabs"
+              :key="tab.key"
+              :class="{ active: tab.key === activeDiscoverTab }"
               type="button"
-              @click="activeDiscoverCategory = category"
+              @click="activeDiscoverTab = tab.key"
             >
-              {{ category }}
+              {{ tab.label }}
             </button>
           </div>
           <section v-if="snapshotLoading" class="state-card">
             <strong>发现内容加载中</strong>
             <span>正在根据当前环境同步推荐内容，请稍候。</span>
           </section>
-          <section v-else-if="filteredDiscover.length > 0" class="discover-grid">
-            <article v-for="item in filteredDiscover" :key="item.title" class="discover-card">
-              <img :src="item.coverUrl" alt="" />
-              <strong>{{ item.title }}</strong>
-              <span>{{ item.subtitle }}</span>
+          <section v-else class="discover-shelves">
+            <article v-for="section in activeDiscoverSections" :key="section.key" class="discover-shelf">
+              <header>
+                <h2>{{ section.title }}</h2>
+                <button type="button" @click="showToast(`${section.title} 全部内容待接入`)">查看全部</button>
+              </header>
+              <div>
+                <img v-for="item in section.items" :key="item.id" :src="item.coverUrl" :alt="item.title" />
+              </div>
             </article>
-          </section>
-          <section v-else class="state-card">
-            <strong>暂无灵感内容</strong>
-            <span>当前分类还没有可展示数据，可稍后重试或切回全部查看。</span>
           </section>
         </section>
 
-        <section v-else class="page page-mine">
-          <header class="profile-head">
-            <img :src="homeAiAssets.appLogo" alt="" />
+        <section v-else class="page page-mine native-mine">
+          <header class="mine-profile">
+            <img :src="homeAiAssets.defaultAvatar" alt="" />
             <div>
               <h2>{{ snapshot.user.nickname }}</h2>
-              <p>ID {{ snapshot.user.userId }}</p>
+              <button type="button" @click="showToast('钻石明细待接入')">
+                <img :src="homeAiAssets.diamond" alt="" />
+                {{ snapshot.user.diamondCount }}钻石
+                <span>查看明细</span>
+              </button>
             </div>
-            <span>{{ snapshot.user.vipLabel }}</span>
+            <button type="button" class="mine-icon" aria-label="充值钻石" @click="showToast('钻石充值待接入')">
+              <Gem :size="18" />
+            </button>
+            <button type="button" class="mine-icon" aria-label="设置" @click="showToast('设置入口待接入')">
+              <Settings :size="18" />
+            </button>
           </header>
 
-          <section class="vip-card">
-            <img :src="homeAiAssets.vipCardBg" alt="" />
+          <section class="mine-vip-card">
+            <header>
+              <img :src="homeAiAssets.vipFontLogo" alt="AI装修大师 VIP" />
+              <button type="button" @click="showToast('VIP 开通待接入')">立即开通</button>
+            </header>
             <div>
-              <img :src="homeAiAssets.vipFontLogo" alt="VIP" />
-              <strong>{{ snapshot.user.diamondCount }} 钻石</strong>
-              <span>会员权益与余额信息来自原 APP 资源结构</span>
+              <article v-for="(privilege, index) in vipPrivileges" :key="privilege.label">
+                <img :src="homeAiAssets.vipPrivileges[index]" alt="" />
+                <span>{{ privilege.label }}</span>
+              </article>
             </div>
           </section>
 
-          <section class="settings-shell" aria-label="设置">
-            <header>
-              <h2>设置</h2>
-              <small>{{ apiState.environmentLabel }} · {{ apiState.mode }}</small>
-            </header>
-            <ReplicaApiModePanel
-              :auth-token="authTokenDraft"
-              :sms-login-enabled="false"
-              empty-token-label="未配置"
-              :reload-handler="reload"
-              :clear-token-handler="clearLogin"
-              @update:auth-token="updateAuthToken"
-              @notice="showToast"
-              @error="showToast"
-            />
-            <ReplicaSettingsPanel
-              :environments="environmentOptions"
-              :active-environment="environment"
-              :switching-environment="switchingEnvironment"
-              :rows="settingRows"
-              @choose-environment="chooseEnvironment"
-              @row-click="handleSettingRow"
-            />
-            <p v-if="apiState.lastError" class="settings-error">{{ apiState.lastError }}</p>
+          <section class="mine-shortcuts" aria-label="快捷入口">
+            <button type="button" @click="showToast('邀请好友待接入')">
+              <img :src="homeAiAssets.inviteCardBg" alt="" />
+              <span>邀请好友</span>
+            </button>
+            <button type="button" @click="showToast('用户问卷待接入')">
+              <img :src="homeAiAssets.questionnaireIcon" alt="" />
+              <span>用户问卷</span>
+            </button>
           </section>
 
-          <section class="work-list">
-            <h3>我的作品</h3>
+          <section class="work-list native-work-list">
+            <h3>作品</h3>
             <section v-if="snapshotLoading" class="state-card compact">
               <strong>作品列表加载中</strong>
               <span>正在同步生成记录与账户信息。</span>
             </section>
-            <section v-else-if="snapshot.works.length === 0" class="state-card compact">
-              <strong>还没有作品</strong>
-              <span>上传空间照片并完成生成后，结果会出现在这里。</span>
+            <section v-else-if="snapshot.works.length === 0" class="mine-empty-state">
+              <strong>这里什么都没有</strong>
             </section>
             <template v-else>
               <article v-for="work in snapshot.works" :key="work.id" class="work-row">
@@ -314,15 +308,13 @@
       </nav>
     </section>
 
-    <ReplicaProxyLifecycleOverlay />
-
     <p v-if="toastMessage" class="toast-message" :class="toastKind">{{ toastMessage }}</p>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronLeft, ChevronRight, WandSparkles, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Gem, Settings, WandSparkles, X } from 'lucide-vue-next';
 import {
   createReplicaSession,
   persistReplicaAuthToken,
@@ -330,12 +322,7 @@ import {
   persistReplicaEnvironment,
   type ReplicaEnvironment,
 } from '@wmxs/h5-replica-common/client';
-import {
-  ReplicaApiModePanel,
-  ReplicaProxyLifecycleOverlay,
-  ReplicaSettingsPanel,
-  type ReplicaSettingsRow,
-} from '@wmxs/h5-replica-common/ui';
+import { ReplicaProxyLifecycleOverlay } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
@@ -369,7 +356,6 @@ const apiState = ref<HomeAiApiState>({
   lastError: '',
 });
 const apiDebugPage = ref(window.location.hash === API_DEBUG_HASH);
-const switchingEnvironment = ref(false);
 const toastMessage = ref('');
 const toastKind = ref<'notice' | 'error'>('notice');
 const snapshotLoading = ref(false);
@@ -385,7 +371,7 @@ const selectedFeatureCode = ref('interior');
 const designStep = ref(0);
 const selectedImageName = ref('');
 const selectedStyle = ref('现代简约');
-const activeDiscoverCategory = ref('全部');
+const activeDiscoverTab = ref<'interior' | 'exterior'>('interior');
 const generationPhase = ref<'idle' | 'queued' | 'processing' | 'done'>('idle');
 let generationPhaseTimer: number | null = null;
 
@@ -432,21 +418,10 @@ const designTools = [
   { label: '材质', icon: homeAiAssets.texture },
   { label: '擦除', icon: homeAiAssets.erase },
 ];
-const environmentOptions = [
-  {
-    key: 'production' as const,
-    label: '生产环境',
-    host: new URL(homeAiReplicaConfig.hosts.business.productionTarget).host,
-  },
-  {
-    key: 'test' as const,
-    label: '测试环境',
-    host: new URL(homeAiReplicaConfig.hosts.business.testTarget ?? homeAiReplicaConfig.hosts.business.productionTarget).host,
-  },
-];
-const settingRows: ReplicaSettingsRow[] = [
-  { key: 'profile', label: '编辑资料', icon: 'profile' },
-  { key: 'feedback', label: '意见反馈', icon: 'feedback' },
+const vipPrivileges = [
+  { label: '高品质作品' },
+  { label: '免排队加速' },
+  { label: '无广告' },
 ];
 
 const tabs = computed(() => [
@@ -467,7 +442,7 @@ const homeCards = computed(() =>
   // 首页入口复用各功能的装修参考图，避免误用 APK 中其他功能域的演示素材。
   snapshot.value.features.map((feature) => ({
     ...feature,
-    image: feature.guideImage,
+    image: feature.homeImage ?? feature.guideImage,
   })),
 );
 const bootFlowVisible = computed(() => privacyVisible.value || onboardingVisible.value || guideVisible.value);
@@ -482,15 +457,19 @@ const canAdvanceDesignStep = computed(() => {
   }
   return true;
 });
+const bottomActionDisabled = computed(() => currentStep.value === 'result' && generationPhase.value !== 'done');
 const bottomActionLabel = computed(() => {
   if (designStep.value === designSteps.length - 1) {
     return generationPhase.value === 'done' ? '再做一张' : '生成中...';
   }
-  if (currentStep.value === 'upload' && !selectedImageName.value) {
-    return '先上传照片';
-  }
   return '下一步';
 });
+const uploadExamples = computed(() => [
+  { id: 'current-guide', coverUrl: selectedFeature.value.guideImage },
+  { id: 'current-bad', coverUrl: selectedFeature.value.badImage ?? homeAiAssets.typeCards.compare },
+  { id: 'living-room', coverUrl: homeAiAssets.guide.interiorBad },
+  { id: 'kitchen', coverUrl: homeAiAssets.guide.floorPlanGood },
+]);
 const generationTitle = computed(() => {
   if (generationPhase.value === 'queued') {
     return '正在创建生成任务';
@@ -527,12 +506,9 @@ const generationCardSubtitle = computed(() => {
   }
   return '当前为 H5 演示态，真实生成接口可在 Network 面板中对照代理请求。';
 });
-const discoverCategories = computed(() => ['全部', ...Array.from(new Set(snapshot.value.discover.map((item) => item.tag)))]);
-const filteredDiscover = computed(() => {
-  if (activeDiscoverCategory.value === '全部') {
-    return snapshot.value.discover;
-  }
-  return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
+const activeDiscoverSections = computed(() => {
+  // 发现页 APK 以室内/外观分段和横向图库为主，保留 tab key 兜底可避免接口异常导致空白。
+  return snapshot.value.discoverTabs.find((tab) => tab.key === activeDiscoverTab.value)?.sections ?? snapshot.value.discoverTabs[0]?.sections ?? [];
 });
 
 function persistEnvironment() {
@@ -622,47 +598,6 @@ function showToast(message: string) {
       toastMessage.value = '';
     }
   }, 2600);
-}
-
-function updateAuthToken(token: string) {
-  authTokenDraft.value = token;
-  saveToken();
-}
-
-async function clearLogin() {
-  updateAuthToken('');
-  await reload();
-}
-
-async function chooseEnvironment(nextEnvironment: ReplicaEnvironment) {
-  if (nextEnvironment === environment.value || switchingEnvironment.value) {
-    return;
-  }
-
-  environment.value = nextEnvironment;
-  switchingEnvironment.value = true;
-  try {
-    await reload();
-    showToast(`已切换到${environmentOptions.find((option) => option.key === nextEnvironment)?.label ?? nextEnvironment}`);
-  } finally {
-    switchingEnvironment.value = false;
-  }
-}
-
-function handleSettingRow(row: ReplicaSettingsRow) {
-  if (row.key === 'profile') {
-    showToast('编辑资料入口已保留，后续接入真实业务接口');
-    return;
-  }
-  if (row.key === 'feedback') {
-    showToast('反馈入口已保留，后续接入真实业务接口');
-    return;
-  }
-  showToast(`${row.label} 暂未接入`);
-}
-
-function chooseRole(role: string) {
-  showToast(`已选择：${role}`);
 }
 
 function acceptPrivacy() {
@@ -1283,10 +1218,33 @@ button {
 }
 
 .home-native-head {
-  height: 50px;
+  min-height: 56px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-brand {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.home-brand strong {
+  color: #161616;
+  font-size: 23px;
+  line-height: 1.12;
+  font-weight: 950;
+}
+
+.home-brand span {
+  overflow: hidden;
+  color: #4e5967;
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .member-pill {
@@ -1297,11 +1255,17 @@ button {
   padding: 0 13px;
   border: 0;
   border-radius: 19px;
-  color: #2f250c;
-  background: rgba(255, 236, 153, 0.92);
+  color: #fff4c4;
+  background: rgba(30, 24, 18, 0.84);
   font-size: 13px;
   font-weight: 900;
-  box-shadow: 0 8px 18px rgba(144, 113, 34, 0.14);
+  box-shadow: 0 8px 18px rgba(28, 23, 17, 0.16);
+}
+
+.member-pill img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
 }
 
 .native-feature-list {
@@ -1629,7 +1593,7 @@ button {
 
 .page-design {
   padding-bottom: 86px;
-  background: linear-gradient(180deg, #f7fbff, #eaf2fb);
+  background: #f8f8f8;
 }
 
 .page-header,
@@ -1643,6 +1607,15 @@ button {
 
 .page-header {
   height: 48px;
+}
+
+.page-header.upload-title {
+  position: relative;
+  justify-content: center;
+}
+
+.page-header.upload-title .icon-button {
+  visibility: hidden;
 }
 
 .page-header strong {
@@ -1667,18 +1640,19 @@ button {
 .step-indicator {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 8px 0 16px;
+  gap: 7px;
+  margin: 6px 2px 20px;
 }
 
 .step-indicator span {
-  height: 5px;
-  border-radius: 99px;
-  background: #d5dee9;
+  height: 6px;
+  transform: skewX(-24deg);
+  border-radius: 1px;
+  background: #d0d0d0;
 }
 
 .step-indicator span.active {
-  background: #235bff;
+  background: #171717;
 }
 
 .design-panel {
@@ -1692,10 +1666,25 @@ button {
   box-shadow: 0 18px 32px rgba(49, 79, 120, 0.11);
 }
 
+.upload-panel {
+  min-height: 0;
+  padding: 4px 0 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .design-panel h2 {
   margin: 0;
   color: #13243b;
   font-size: 22px;
+}
+
+.upload-panel h2 {
+  margin-top: 18px;
+  color: #171717;
+  font-size: 20px;
+  text-align: center;
 }
 
 .design-panel p {
@@ -1729,6 +1718,82 @@ button {
 .upload-zone img {
   width: 42px;
   height: 42px;
+}
+
+.upload-dropzone {
+  min-height: 270px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  margin-top: 10px;
+  border: 1.5px dashed #b8b8b8;
+  border-radius: 12px;
+  color: #202020;
+  background: #fff;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.upload-plus {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #1f1f1f;
+  background: #fff500;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.sample-strip {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.sample-strip h3 {
+  margin: 0;
+  color: #161616;
+  font-size: 16px;
+}
+
+.sample-strip > div {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(118px, 38%);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.sample-strip figure {
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  border-radius: 10px;
+  background: #ececec;
+}
+
+.sample-strip figure span {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 1;
+  padding: 3px 6px;
+  border-radius: 10px;
+  color: #151515;
+  background: #fff500;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.sample-strip img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 0.82;
+  object-fit: cover;
 }
 
 .guide-compare {
@@ -1843,17 +1908,115 @@ button {
   left: 16px;
   right: 16px;
   bottom: 18px;
+  min-height: 54px;
+  border-radius: 27px;
+  color: #161616;
+  background: #fff500;
+  font-size: 18px;
+  box-shadow: none;
 }
 
 .bottom-action:disabled {
-  color: #526075;
-  background: linear-gradient(135deg, #d5dfec, #c3cfdd);
+  color: #5e5e5e;
+  background: #d0d0d0;
   box-shadow: none;
 }
 
 .page-discover,
 .page-mine {
   background: #f6f8fb;
+}
+
+.page-discover {
+  padding: 14px 16px 96px;
+  background: #fff;
+}
+
+.discover-native-head {
+  padding: 8px 0 10px;
+}
+
+.discover-native-head h1 {
+  margin: 0;
+  color: #171717;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.discover-segment {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+  width: 176px;
+  margin-bottom: 16px;
+  padding: 3px;
+  border-radius: 18px;
+  background: #f0f0f0;
+}
+
+.discover-segment button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 15px;
+  color: #777;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.discover-segment button.active {
+  color: #161616;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.discover-shelves {
+  display: grid;
+  gap: 22px;
+}
+
+.discover-shelf {
+  display: grid;
+  gap: 10px;
+}
+
+.discover-shelf header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.discover-shelf h2 {
+  margin: 0;
+  color: #181818;
+  font-size: 20px;
+}
+
+.discover-shelf header button {
+  border: 0;
+  color: #878787;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.discover-shelf > div {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(130px, 42%);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.discover-shelf img {
+  width: 100%;
+  aspect-ratio: 0.74;
+  display: block;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #ececec;
 }
 
 .page-title-row {
@@ -1952,55 +2115,156 @@ button {
   white-space: nowrap;
 }
 
-.profile-head {
-  padding: 14px;
-  border-radius: 20px;
-  color: #fff;
-  background: linear-gradient(135deg, #1b2b46, #244d82);
+.native-mine {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px 16px 96px;
+  background: #f7f7f7;
 }
 
-.profile-head > img {
+.mine-profile {
+  display: grid;
+  grid-template-columns: 58px 1fr 38px 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 4px;
+}
+
+.mine-profile > img {
   width: 58px;
   height: 58px;
-  border-radius: 16px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
-.profile-head div {
+.mine-profile div {
   min-width: 0;
-  flex: 1;
+  display: grid;
+  gap: 7px;
 }
 
-.profile-head h2,
-.profile-head p {
+.mine-profile h2 {
+  overflow: hidden;
   margin: 0;
+  color: #181818;
+  font-size: 21px;
+  line-height: 1.18;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.profile-head p {
-  margin-top: 5px;
-  color: rgba(255, 255, 255, 0.7);
+.mine-profile div button {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  color: #555;
+  background: transparent;
   font-size: 13px;
+  font-weight: 850;
 }
 
-.profile-head > span {
-  flex: 0 0 auto;
-  padding: 7px 10px;
-  border-radius: 13px;
-  color: #2a220f;
-  background: #ffe092;
+.mine-profile div button img {
+  width: 16px;
+  height: 16px;
+}
+
+.mine-profile div button span {
+  color: #8a8a8a;
+}
+
+.mine-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #202020;
+  background: #fff;
+}
+
+.mine-vip-card {
+  min-height: 132px;
+  display: grid;
+  align-content: space-between;
+  gap: 18px;
+  padding: 17px 16px 14px;
+  border-radius: 16px;
+  color: #4b3517;
+  background:
+    linear-gradient(90deg, rgba(255, 238, 185, 0.9), rgba(246, 202, 121, 0.7)),
+    url("/assets/homeai/vip_card_bg.png") center / cover no-repeat;
+}
+
+.mine-vip-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mine-vip-card header img {
+  width: 138px;
+  max-width: 62%;
+  height: auto;
+}
+
+.mine-vip-card header button {
+  min-height: 30px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 15px;
+  color: #ffe9b0;
+  background: #322315;
   font-size: 12px;
   font-weight: 900;
 }
 
-.vip-card {
-  position: relative;
-  min-height: 124px;
-  overflow: hidden;
-  margin-top: 12px;
-  border-radius: 20px;
-  color: #3f2c12;
+.mine-vip-card > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
 }
 
-.vip-card > img {
+.mine-vip-card article {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #5c421f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mine-vip-card article img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.mine-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.mine-shortcuts button {
+  position: relative;
+  min-height: 72px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  color: #202020;
+  background: #fff;
+  text-align: left;
+}
+
+.mine-shortcuts img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -2008,20 +2272,13 @@ button {
   object-fit: cover;
 }
 
-.vip-card div {
+.mine-shortcuts span {
   position: relative;
   z-index: 1;
-  display: grid;
-  gap: 7px;
-  padding: 18px;
-}
-
-.vip-card div img {
-  width: 96px;
-}
-
-.vip-card strong {
-  font-size: 23px;
+  display: inline-block;
+  padding: 16px 14px;
+  font-size: 16px;
+  font-weight: 950;
 }
 
 .settings-shell {
@@ -2052,6 +2309,25 @@ button {
 
 .work-list {
   padding-bottom: 6px;
+}
+
+.native-work-list {
+  margin-top: 4px;
+  gap: 14px;
+}
+
+.native-work-list h3 {
+  color: #181818;
+  font-size: 20px;
+}
+
+.mine-empty-state {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  color: #8d8d8d;
+  font-size: 14px;
+  font-weight: 850;
 }
 
 .work-row {
@@ -2104,7 +2380,7 @@ button {
 }
 
 .bottom-nav button.active {
-  color: #235bff;
+  color: #161616;
 }
 
 .bottom-nav img {

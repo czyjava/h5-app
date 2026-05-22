@@ -22,7 +22,7 @@ export type OverlayName =
   | 'profileEdit'
   | 'profileQuickAction'
   | null;
-export type ProfileQuickActionType = 'invite' | 'education' | 'demo' | 'activity';
+export type ProfileQuickActionType = 'invite' | 'education' | 'demo' | 'password';
 export type FirstLaunchStep = 'survey' | 'advert' | 'done';
 export type WorkMediaStatus = 'checking' | 'ready' | 'missing';
 export type WorkDownloadStatus = 'idle' | 'preparing' | 'downloaded';
@@ -218,6 +218,16 @@ export async function selectChannel(channelKey: string) {
 
 export function switchTab(tab: AppTab) {
   appState.activeTab = tab;
+  appState.activeOverlay = null;
+}
+
+export function openCaptureEntry(source = 'unknown') {
+  if (!sessionState.authToken) {
+    console.info('[camera] 未登录访问绘画扫描入口，展示登录前置页', { source });
+  } else {
+    console.info('[camera] 已登录访问绘画扫描入口', { source });
+  }
+  appState.activeTab = 'capture';
   appState.activeOverlay = null;
 }
 

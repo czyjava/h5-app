@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AppTab } from '@/entities/magicpen/types';
-import { appState, switchTab } from '@/app/model';
+import { appState, openCaptureEntry, switchTab } from '@/app/model';
 import cameraIcon from '@/assets/magicpen/icon_tab_camera.png';
 import drawIcon from '@/assets/magicpen/icon_tab_draw.png';
 import drawIconSelected from '@/assets/magicpen/icon_tab_draw_selected.png';
@@ -40,7 +40,7 @@ function tabIcon(tab: (typeof tabs)[number]) {
       class="bottom-nav__camera"
       :class="{ active: appState.activeTab === 'capture' }"
       aria-label="拍摄创作"
-      @click="switchTab('capture')"
+      @click="openCaptureEntry('bottom-nav')"
     >
       <img :src="cameraIcon" alt="" />
     </button>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { BookOpenCheck, Clipboard, Flame, Gift, MonitorPlay, ShieldCheck, Sparkles } from 'lucide-vue-next';
-import { appState, closeOverlay, showToast, switchTab } from '@/app/model';
+import { BookOpenCheck, Clipboard, Gift, KeyRound, MonitorPlay, ShieldCheck, Sparkles } from 'lucide-vue-next';
+import { appState, closeOverlay, showToast } from '@/app/model';
 import { sessionState, setDemoMode } from '@/entities/session/model';
 
 const schoolName = ref('');
@@ -24,10 +24,10 @@ const actionMeta = computed(() => {
       title: '演示模式',
       subtitle: '一键切换到脱敏演示资料，方便投屏或给别人看页面。',
     },
-    activity: {
-      icon: Flame,
-      title: '活动中心',
-      subtitle: '查看当前可参与的创作活动和奖励任务。',
+    password: {
+      icon: KeyRound,
+      title: '口令福利',
+      subtitle: '输入活动口令后可查看对应奖励说明。',
     },
   };
   return metas[appState.selectedProfileQuickAction];
@@ -60,9 +60,9 @@ function toggleDemoMode() {
   closeOverlay();
 }
 
-function openActivity() {
-  switchTab('inspiration');
-  showToast('已切到灵感活动内容');
+function claimPasswordBenefit() {
+  showToast('口令福利入口已记录，当前不会提交真实兑换');
+  console.info('[profile] 打开口令福利本地入口');
 }
 </script>
 
@@ -117,20 +117,20 @@ function openActivity() {
       <article>
         <Sparkles :size="22" />
         <div>
-          <strong>灵感同款挑战</strong>
-          <span>发布同款作品，赢取限时钻石奖励。</span>
+          <strong>输入口令兑换福利</strong>
+          <span>H5 仅展示入口，不记录真实口令和兑换凭据。</span>
         </div>
       </article>
       <article>
         <Gift :size="22" />
         <div>
-          <strong>好友助力奖励</strong>
-          <span>邀请好友完成首次创作后解锁奖励。</span>
+          <strong>限时福利说明</strong>
+          <span>真实奖励以 APP 服务端配置为准。</span>
         </div>
       </article>
-      <button class="primary-button" @click="openActivity">
-        <Flame :size="18" />
-        <span>去参加活动</span>
+      <button class="primary-button" @click="claimPasswordBenefit">
+        <KeyRound :size="18" />
+        <span>查看口令福利</span>
       </button>
     </div>
   </section>

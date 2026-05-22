@@ -800,6 +800,17 @@ img {
   font-weight: 800;
 }
 
+.section-title-row strong {
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #5f3910;
+  background: #ffd886;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
 .coloring-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2269,6 +2280,53 @@ img {
   backdrop-filter: none;
 }
 
+.camera-top > span {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.camera-login-gate {
+  grid-template-rows: 76px minmax(0, 1fr);
+}
+
+.camera-login-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 26px 20px 24px;
+  overflow: auto;
+}
+
+.camera-login-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  color: #6bd4ff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.camera-login-panel h1,
+.camera-login-panel p {
+  margin: 0;
+}
+
+.camera-login-panel h1 {
+  font-size: 29px;
+  line-height: 1.1;
+}
+
+.camera-login-panel p {
+  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.45;
+}
+
+.camera-login-panel .api-login-panel {
+  margin-top: 8px;
+  background: #171a21;
+}
+
 .camera-preview {
   position: relative;
   min-height: 0;
@@ -2443,6 +2501,17 @@ img {
   line-height: 1.06;
 }
 
+.profile-login-state {
+  margin: 4px 0 7px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.profile-page--logged-out .profile-hero {
+  align-items: start;
+}
+
 .diamond-pill {
   padding: 7px 12px;
   color: #fff;
@@ -2503,7 +2572,7 @@ img {
 }
 
 .quick-actions {
-  gap: 10px;
+  gap: 8px;
   margin: 0 -16px 14px 0;
   padding-right: 16px;
   scrollbar-width: none;
@@ -2514,10 +2583,13 @@ img {
 }
 
 .quick-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 36px;
-  padding: 0 17px;
+  padding: 0 10px;
   background: rgba(255, 255, 255, 0.14);
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .quick-actions button.active {
@@ -2747,16 +2819,27 @@ img {
 }
 
 .crown-button {
-  width: 48px;
-  height: 48px;
-  background: transparent;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 11px 0 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.82);
   box-shadow: none;
   backdrop-filter: none;
 }
 
 .crown-button img {
-  width: 42px;
-  height: 42px;
+  width: 23px;
+  height: 23px;
+}
+
+.crown-button span {
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .home-card-list {

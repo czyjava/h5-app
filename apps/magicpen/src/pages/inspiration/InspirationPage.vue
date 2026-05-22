@@ -41,7 +41,7 @@ import RemoteImage from '@/shared/ui/RemoteImage.vue';
             </button>
             <button class="remake-button" @click="openCreator(post)">
               <WandSparkles :size="18" />
-              <span>做同款 {{ compactNumber(post.remakes) }}次</span>
+              <span>做同款 {{ compactNumber(Math.min(post.remakes, 99)) }}次</span>
             </button>
           </div>
         </div>

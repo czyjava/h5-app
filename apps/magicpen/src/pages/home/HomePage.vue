@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { appState, openCreator, switchTab } from '@/app/model';
+import { appState, openCaptureEntry, openCreator } from '@/app/model';
 import type { HomeCard } from '@/entities/magicpen/types';
 import RemoteImage from '@/shared/ui/RemoteImage.vue';
 import homeLogo from '@/assets/magicpen/home_logo.png';
@@ -34,8 +34,9 @@ function badgeLabel(card: HomeCard, index: number) {
       <h1 class="brand-logo-title">
         <img :src="homeLogo" alt="神笔绘画" />
       </h1>
-      <button class="icon-button crown-button" aria-label="会员权益" @click="appState.activeOverlay = 'wallet'">
+      <button class="crown-button" aria-label="会员权益" @click="appState.activeOverlay = 'wallet'">
         <img :src="vipCrown" alt="" />
+        <span>开通会员</span>
       </button>
     </header>
 
@@ -46,7 +47,7 @@ function badgeLabel(card: HomeCard, index: number) {
         class="home-feature-card"
         :class="`theme-${card.theme}`"
         :style="cardStyle(card)"
-        @click="card.theme === 'scan' ? switchTab('capture') : openCreator(card)"
+        @click="card.theme === 'scan' ? openCaptureEntry('home-card') : openCreator(card)"
       >
         <span class="corner-badge">{{ badgeLabel(card, index) }}</span>
         <div class="home-feature-card__content">

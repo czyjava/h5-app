@@ -6,9 +6,9 @@ import {
   closeColoringUnlockSheet,
   isColoringCardLocked,
   isVipAvailable,
+  openCaptureEntry,
   openColoringCanvas,
   showToast,
-  switchTab,
   unlockColoringCard,
 } from '@/app/model';
 import type { ColoringCard, InteractiveScene } from '@/entities/magicpen/types';
@@ -153,7 +153,7 @@ function goToCardMakerCamera() {
   showCardMakerSheet.value = false;
   showToast('已进入拍摄页制作涂色卡');
   console.info('[coloring] 制作涂色卡跳转拍摄入口');
-  switchTab('capture');
+  openCaptureEntry('coloring-card-maker');
 }
 </script>
 
@@ -202,7 +202,8 @@ function goToCardMakerCamera() {
 
     <section class="coloring-grid-section">
       <div class="section-title-row">
-        <h2>{{ currentLevel.title }}·水果蔬菜</h2>
+        <h2>入门·水果蔬菜</h2>
+        <strong>待开始</strong>
         <span>{{ coloringProgress }}</span>
       </div>
       <div class="coloring-grid">

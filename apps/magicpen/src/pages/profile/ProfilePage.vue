@@ -4,8 +4,10 @@ import {
   CalendarDays,
   Gem,
   GraduationCap,
+  Gift,
   Grid3X3,
   Headphones,
+  KeyRound,
   LogIn,
   Settings,
   Sparkles,
@@ -60,18 +62,31 @@ const replicaProfile: UserProfile = {
   level: 'L1 新手画师',
 };
 
-const useReplicaProfile = computed(
-  () => sessionState.demoMode || (!sessionState.authToken && !appState.snapshot.profile.nickname),
-);
+const isLoggedIn = computed(() => Boolean(sessionState.authToken));
+const useReplicaProfile = computed(() => sessionState.demoMode);
 
-// 未登录时使用模拟器截图里的复刻态资料，只服务视觉还原；真实登录凭证仍只走用户主动登录。
+// 演示模式才使用脱敏模拟资料；默认未登录态保持空资料，以对齐 APP 5.26.0 截图。
 const displayProfile = computed(() => (useReplicaProfile.value ? replicaProfile : appState.snapshot.profile));
-const profileName = computed(() => displayProfile.value.nickname || '未登录');
+const profileName = computed(() => {
+  if (!isLoggedIn.value && !useReplicaProfile.value) {
+    return '点击登录';
+  }
+  return displayProfile.value.nickname || '点击登录';
+});
 const vipExpireLabel = computed(() =>
-  displayProfile.value.vipExpire ? `${displayProfile.value.vipExpire}到期` : '按月订阅',
+  displayProfile.value.vipExpire ? `${displayProfile.value.vipExpire}到期` : '立即开通',
 );
+const profileQuickActions = [
+  { key: 'invite', label: '邀请有礼', icon: Gift },
+  { key: 'education', label: '教育优惠', icon: GraduationCap },
+  { key: 'demo', label: '演示模式', icon: Sparkles },
+  { key: 'password', label: '口令福利', icon: KeyRound },
+] as const;
 
 const displayWorks = computed<UserWork[]>(() => {
+  if (!isLoggedIn.value && !useReplicaProfile.value) {
+    return [];
+  }
   if (appState.snapshot.works.length || sessionState.authToken) {
     return appState.snapshot.works;
   }
@@ -109,6 +124,9 @@ const visibleWorkFilters = computed(() =>
 );
 
 const profileGridItems = computed<ProfileGridItem[]>(() => {
+  if (!isLoggedIn.value && !useReplicaProfile.value) {
+    return [];
+  }
   if (activeProfileTab.value === 'posts') {
     return appState.snapshot.posts.slice(0, 12).map((post) => ({
       id: `post-${post.id}`,
@@ -151,19 +169,25 @@ function openProfileGridItem(item: ProfileGridItem) {
 </script>
 
 <template>
-  <section class="profile-page page-scroll" :class="{ 'profile-page--replica': useReplicaProfile }">
+  <section
+    class="profile-page page-scroll"
+    :class="{ 'profile-page--replica': useReplicaProfile, 'profile-page--logged-out': !isLoggedIn && !useReplicaProfile }"
+  >
     <header class="profile-hero">
       <RemoteImage v-if="displayProfile.avatar" :src="displayProfile.avatar" alt="用户头像" />
       <span v-else class="profile-avatar-fallback">
         <UserRound :size="34" />
       </span>
       <div>
-        <h1>{{ profileName }}</h1>
+        <h1 @click="!isLoggedIn && !useReplicaProfile ? (appState.activeOverlay = 'settings') : undefined">
+          {{ profileName }}
+        </h1>
+        <p v-if="!isLoggedIn && !useReplicaProfile" class="profile-login-state">当前账号未登录</p>
         <button v-if="!sessionState.authToken" class="profile-login-button" @click="appState.activeOverlay = 'settings'">
           <LogIn :size="16" />
-          <span>登录同步数据</span>
+          <span>手机号登录</span>
         </button>
-        <button class="diamond-pill" @click="openDiamondDetail">
+        <button v-if="isLoggedIn || useReplicaProfile" class="diamond-pill" @click="openDiamondDetail">
           <Gem :size="18" />
           <span>{{ displayProfile.diamonds }}钻石 | 查看明细</span>
         </button>
@@ -190,10 +214,15 @@ function openProfileGridItem(item: ProfileGridItem) {
     </section>
 
     <div class="quick-actions">
-      <button @click="openProfileQuickAction('invite')">🎁 邀请有礼</button>
-      <button @click="openProfileQuickAction('education')">🎓 教育优惠</button>
-      <button :class="{ active: sessionState.demoMode }" @click="openProfileQuickAction('demo')">🖥️ 演示模式</button>
-      <button @click="openProfileQuickAction('activity')">🔥 活动</button>
+      <button
+        v-for="action in profileQuickActions"
+        :key="action.key"
+        :class="{ active: action.key === 'demo' && sessionState.demoMode }"
+        @click="openProfileQuickAction(action.key)"
+      >
+        <component :is="action.icon" :size="18" />
+        <span>{{ action.label }}</span>
+      </button>
     </div>
 
     <section class="work-section">
@@ -247,7 +276,9 @@ function openProfileGridItem(item: ProfileGridItem) {
           <span>{{ item.title }}</span>
         </button>
       </div>
-      <div v-else class="work-empty">暂无内容</div>
+      <div v-else class="work-empty">
+        {{ !isLoggedIn && !useReplicaProfile ? '当前账号未登录' : '暂无内容' }}
+      </div>
     </section>
   </section>
 </template>

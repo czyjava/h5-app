@@ -7,8 +7,10 @@ import {
   Crop,
   HelpCircle,
   ImagePlus,
+  LogIn,
   RotateCcw,
   Save,
+  ShieldCheck,
   Shirt,
   Sparkles,
   Squirrel,
@@ -16,6 +18,8 @@ import {
   Waves,
 } from 'lucide-vue-next';
 import { showToast, switchTab } from '@/app/model';
+import { sessionState } from '@/entities/session/model';
+import ApiModePanel from '@/features/api-mode/ApiModePanel.vue';
 
 const modes = [
   { key: 'scan', label: '扫描绘画', template: '扫描模板', description: '识别线稿边界后进入校正' },
@@ -97,7 +101,29 @@ function resetScanFlow() {
 </script>
 
 <template>
-  <section class="camera-page">
+  <section v-if="!sessionState.authToken" class="camera-page camera-login-gate">
+    <header class="camera-top">
+      <button class="icon-button" aria-label="返回" @click="switchTab('home')">
+        <ArrowLeft :size="28" />
+      </button>
+      <span>绘画扫描</span>
+    </header>
+
+    <div class="camera-login-panel">
+      <span class="camera-login-icon">
+        <ShieldCheck :size="42" />
+      </span>
+      <h1>手机快捷登录</h1>
+      <p>登录后可使用绘画扫描、拍照校正和作品同步。</p>
+      <ApiModePanel />
+      <button class="secondary-button" @click="switchTab('home')">
+        <LogIn :size="18" />
+        <span>先返回首页</span>
+      </button>
+    </div>
+  </section>
+
+  <section v-else class="camera-page">
     <header class="camera-top">
       <button class="icon-button" aria-label="返回" @click="switchTab('home')">
         <ArrowLeft :size="28" />

@@ -1,6 +1,6 @@
 # 装修 APP APK-H5 每日差异对齐
 
-- 状态：已完成第 2 轮循环差异修复与入口冒烟
+- 状态：已完成 2026-05-23 继续对比修复与复验
 - 当前基准：
   - APK 包名：`com.wanmeixiangsu.android.homeai`
   - APK 版本：`5.27.0`
@@ -28,3 +28,10 @@
   - `http://172.20.98.48:8000/` 在 `2026-05-23 10:01:59 +08:00` 不可访问，未获取今日最新 APK
   - `adb devices -l` 启动守护进程时报 `Operation not permitted`，导致安装、抓包与 APK 复验未执行
   - 今日仅完成 H5 基线复核与 `pnpm test` / `pnpm build` 验证，详见 `ai/compare-runs/2026-05-23-daily-blocked/report.md`
+- 2026-05-23 继续对比：
+  - 内网 APK 下载页和 `adb` 均已恢复，已下载 `zhuangxiu_app` BuildNo `2688`，确认包名 `com.wanmeixiangsu.android.homeai`、版本 `5.27.0`、版本码 `500052700`
+  - 已在 `codex_pixel_30` 采集隐私弹窗、身份问卷、来源问卷、首页、设计页、发现页、我的页 APK 截图与 UI 树
+  - 已修复来源问卷 `朋友分享` 缺失、AI 来源文案不一致、身份问卷标题缺句、未登录我的页、未登录发现页兜底结构和 VIP 卡标题差异
+  - 新增静态回归测试覆盖 APK 5.27.0 来源问卷、未登录我的页和发现页兜底结构
+  - 验证通过：`pnpm test`、`pnpm build`、Playwright + 系统 Chrome 采集修复后 H5 截图
+  - 本轮产物：`ai/compare-runs/2026-05-23-continue/`

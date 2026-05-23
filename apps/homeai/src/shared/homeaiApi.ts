@@ -114,6 +114,9 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     // 首页入口属于本地复刻壳的静态导航；接口内容只来自 mappedSnapshot，不再用 demo 数据兜底。
     banners: liveSnapshot.banners,
     features: liveSnapshot.features,
+    // APK 未登录态仍有发现推荐；接口为空或失败时只保留这部分本地结构，不伪造账号和作品。
+    discover: mappedSnapshot.discover.length > 0 ? mappedSnapshot.discover : liveSnapshot.discover,
+    discoverTabs: mappedSnapshot.discoverTabs.length > 0 ? mappedSnapshot.discoverTabs : liveSnapshot.discoverTabs,
   };
 
   if (errors.length > 0) {

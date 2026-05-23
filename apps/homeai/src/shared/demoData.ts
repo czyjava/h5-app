@@ -40,21 +40,7 @@ const localFeatureSnapshot: Pick<HomeAiSnapshot, 'banners' | 'features'> = {
   ],
 };
 
-export const liveSnapshot: HomeAiSnapshot = {
-  ...localFeatureSnapshot,
-  discover: [],
-  discoverTabs: [],
-  works: [],
-  user: {
-    nickname: '未登录',
-    userId: '',
-    diamondCount: 0,
-    vipLabel: '',
-  },
-};
-
-export const demoSnapshot: HomeAiSnapshot = {
-  ...localFeatureSnapshot,
+const localDiscoverSnapshot: Pick<HomeAiSnapshot, 'discover' | 'discoverTabs'> = {
   discover: [
     {
       title: '奶油风客厅',
@@ -139,6 +125,24 @@ export const demoSnapshot: HomeAiSnapshot = {
       ],
     },
   ],
+};
+
+export const liveSnapshot: HomeAiSnapshot = {
+  ...localFeatureSnapshot,
+  // APK 未登录态仍展示发现页推荐，账号和作品数据才保持实时空态。
+  ...localDiscoverSnapshot,
+  works: [],
+  user: {
+    nickname: '未登录',
+    userId: '',
+    diamondCount: 0,
+    vipLabel: '',
+  },
+};
+
+export const demoSnapshot: HomeAiSnapshot = {
+  ...localFeatureSnapshot,
+  ...localDiscoverSnapshot,
   works: [],
   user: {
     nickname: '沉愿',

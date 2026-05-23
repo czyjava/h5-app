@@ -42,9 +42,8 @@
           <button v-if="onboardingStep === 'source'" type="button" class="text-button" @click="onboardingStep = 'role'">上一步</button>
           <button type="button" class="text-button skip" @click="completeOnboarding">暂时跳过</button>
           <img :src="homeAiAssets.loginTitle" alt="欢迎使用AI装修大师" />
-          <strong v-if="onboardingStep === 'role'">为了更好地为您服务，可以告诉我您的身份吗？</strong>
+          <strong v-if="onboardingStep === 'role'">为了更好地为您服务，可以告诉我您的身份吗？我们会为您推荐最合适的功能。</strong>
           <strong v-else>您是如何找到我们的？</strong>
-          <span v-if="onboardingStep === 'source'">选择一个来源，帮助 HomeAI 后续推荐更合适的入口。</span>
         </header>
 
         <section v-if="onboardingStep === 'role'" class="role-question">
@@ -240,17 +239,18 @@
         </section>
 
         <section v-else class="page page-mine native-mine">
-          <header class="mine-profile">
+          <header class="mine-profile" :class="{ 'logged-out': !isLoggedIn }">
             <img :src="homeAiAssets.defaultAvatar" alt="" />
             <div>
-              <h2>{{ snapshot.user.nickname }}</h2>
-              <button type="button" @click="openOverlay('diamond')">
+              <h2>{{ isLoggedIn ? snapshot.user.nickname : '点击登录' }}</h2>
+              <button v-if="isLoggedIn" type="button" @click="openOverlay('diamond')">
                 <img :src="homeAiAssets.diamond" alt="" />
                 {{ snapshot.user.diamondCount }}钻石
                 <span>查看明细</span>
               </button>
+              <button v-else type="button" class="login-summary" @click="promptLogin">登录后获取更多功能信息</button>
             </div>
-            <button type="button" class="mine-icon" aria-label="充值钻石" @click="openOverlay('diamond')">
+            <button v-if="isLoggedIn" type="button" class="mine-icon" aria-label="充值钻石" @click="openOverlay('diamond')">
               <Gem :size="18" />
             </button>
             <button type="button" class="mine-icon" aria-label="设置" @click="openOverlay('settings')">
@@ -260,7 +260,7 @@
 
           <section class="mine-vip-card">
             <header>
-              <img :src="homeAiAssets.vipFontLogo" alt="AI装修大师 VIP" />
+              <strong>超多会员特权等你体验</strong>
               <button type="button" @click="openOverlay('vip')">立即开通</button>
             </header>
             <div>
@@ -288,8 +288,12 @@
               <strong>作品列表加载中</strong>
               <span>正在同步生成记录与账户信息。</span>
             </section>
-            <section v-else-if="snapshot.works.length === 0" class="mine-empty-state">
-              <strong>这里什么都没有</strong>
+            <section v-else-if="snapshot.works.length === 0" class="mine-empty-state" :class="{ 'logged-out': !isLoggedIn }">
+              <template v-if="!isLoggedIn">
+                <strong>当前账号未登录</strong>
+                <button type="button" @click="promptLogin">点击登录</button>
+              </template>
+              <strong v-else>这里什么都没有</strong>
             </section>
             <template v-else>
               <article v-for="work in snapshot.works" :key="work.id" class="work-row">
@@ -512,8 +516,9 @@ const sourceOptions = [
   { label: '小红书', icon: '红', color: '#ff2442' },
   { label: '抖音', icon: '抖', color: '#171b20' },
   { label: '微信视频号', icon: '微', color: '#19c465' },
+  { label: '朋友分享', icon: '友', color: '#ffb84d' },
   { label: '应用商店搜索', icon: '搜', color: '#3aa7f4' },
-  { label: '问的 AI，如豆包/千问/文心一言等', icon: 'AI', color: '#e9edf5' },
+  { label: '问的AI，如豆包/千问/文心一言（百度）/kimi/夸克/元宝等', icon: 'AI', color: '#e9edf5' },
 ];
 const guideSlides = [
   {
@@ -573,6 +578,7 @@ const tabs = computed(() => [
 const selectedFeature = computed<DesignFeature>(
   () => snapshot.value.features.find((feature) => feature.code === selectedFeatureCode.value) ?? snapshot.value.features[0],
 );
+const isLoggedIn = computed(() => Boolean(snapshot.value.user.userId));
 const homeCards = computed(() =>
   // 首页入口复用各功能的装修参考图，避免误用 APK 中其他功能域的演示素材。
   snapshot.value.features.map((feature) => ({
@@ -751,6 +757,12 @@ function showToast(message: string) {
       toastMessage.value = '';
     }
   }, 2600);
+}
+
+function promptLogin() {
+  // H5 复刻只保留未登录入口语义；真实验证码登录链路仍以 APK 原生流程为准。
+  console.info('[HomeAI App] 点击未登录入口', { page: 'mine' });
+  showToast('请在 APP 登录后继续体验账号功能');
 }
 
 function openOverlay(view: OverlayView) {
@@ -2383,6 +2395,10 @@ button {
   padding: 8px 0 4px;
 }
 
+.mine-profile.logged-out {
+  grid-template-columns: 58px 1fr 38px;
+}
+
 .mine-profile > img {
   width: 58px;
   height: 58px;
@@ -2428,6 +2444,12 @@ button {
   color: #8a8a8a;
 }
 
+.mine-profile .login-summary {
+  color: #8a8a8a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .mine-icon {
   width: 38px;
   height: 38px;
@@ -2459,10 +2481,12 @@ button {
   gap: 10px;
 }
 
-.mine-vip-card header img {
-  width: 138px;
-  max-width: 62%;
-  height: auto;
+.mine-vip-card header strong {
+  min-width: 0;
+  color: #4a3215;
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 950;
 }
 
 .mine-vip-card header button {
@@ -2577,9 +2601,27 @@ button {
   min-height: 160px;
   display: grid;
   place-items: center;
+  gap: 10px;
   color: #8d8d8d;
   font-size: 14px;
   font-weight: 850;
+}
+
+.mine-empty-state.logged-out {
+  align-content: center;
+}
+
+.mine-empty-state.logged-out strong {
+  color: #8d8d8d;
+  font-size: 15px;
+}
+
+.mine-empty-state.logged-out button {
+  border: 0;
+  color: #181818;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 900;
 }
 
 .work-row {

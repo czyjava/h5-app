@@ -35,3 +35,11 @@
   - 新增静态回归测试覆盖 APK 5.27.0 来源问卷、未登录我的页和发现页兜底结构
   - 验证通过：`pnpm test`、`pnpm build`、Playwright + 系统 Chrome 采集修复后 H5 截图
   - 本轮产物：`ai/compare-runs/2026-05-23-continue/`
+- 2026-05-26 每日差异：
+  - 已下载 `zhuangxiu_app` BuildNo `2707`，确认包名 `com.wanmeixiangsu.android.homeai`、版本 `5.27.0`、版本码 `500052700`
+  - 最新 APK 首屏已切换为手机号验证码登录门面，支持左上返回首页；旧的隐私/问卷/引导首启链路不再是默认路径
+  - 已将 H5 首屏改为 APK 同款登录门面，保留 `请输入手机号 / 验证码登录 / 其他登录方式 / 微信登录` 与游客返回首页语义
+  - 新增静态回归测试覆盖登录门面关键文案与游客回退入口
+  - 验证通过：`pnpm test`、`pnpm build`
+  - 抓包已确认 `config`、`auth`、`pixel-studio` 域名访问，但 mitm 证书未被模拟器信任，HTTPS 请求细节仍待后续补抓
+  - 本轮产物：`ai/compare-runs/2026-05-26-daily/`

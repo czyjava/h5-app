@@ -1,0 +1,3 @@
+{"capturedAt": "2026-05-25T18:03:25.514922+00:00", "method": "GET", "scheme": "http", "host": "connectivitycheck.gstatic.com", "path": "/generate_204", "queryKeys": [], "requestBodyKeys": [], "statusCode": 204, "responseContentType": "", "responseKeys": []}
+{"capturedAt": "2026-05-25T18:03:29.760738+00:00", "method": "GET", "scheme": "http", "host": "connectivitycheck.gstatic.com", "path": "/generate_204", "queryKeys": [], "requestBodyKeys": [], "statusCode": 204, "responseContentType": "", "responseKeys": []}
+{"capturedAt": "2026-05-25T18:03:54.667832+00:00", "method": "GET", "scheme": "http", "host": "connectivitycheck.gstatic.com", "path": "/generate_204", "queryKeys": [], "requestBodyKeys": [], "statusCode": 204, "responseContentType": "", "responseKeys": []}

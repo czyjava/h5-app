@@ -2,98 +2,42 @@
   <ReplicaProxyLifecycleOverlay v-if="apiDebugPage" page-mode />
 
   <main v-else class="app-frame">
-    <section class="phone-shell" :class="{ onboarding: bootFlowVisible, guide: guideVisible }" aria-label="装修 APP H5 复刻">
+    <section class="phone-shell" :class="{ 'entry-gate': entryGateVisible }" aria-label="装修 APP H5 复刻">
       <header class="status-bar">
         <span>9:41</span>
         <span class="status-icons">5G 100%</span>
       </header>
 
-      <section v-if="privacyVisible" class="privacy-page">
-        <div class="launch-brand">
+      <section v-if="entryGateVisible" class="entry-login-page">
+        <button type="button" class="entry-back" aria-label="返回首页" @click="dismissEntryGate">
+          <ChevronLeft :size="28" />
+        </button>
+        <section class="entry-brand">
           <img :src="homeAiAssets.appLogo" alt="" />
           <span>
             <strong>AI装修大师</strong>
-            <small>看见家的万千种可能</small>
+            <small>看见家的千万种可能</small>
           </span>
-        </div>
-
-        <section class="privacy-dialog" role="dialog" aria-modal="true" aria-label="个人信息保护指引">
-          <h1>个人信息保护指引</h1>
-          <p>
-            感谢您信任并使用AI装修大师！我们十分重视您的个人信息和隐私保护。为了更好地保障您的个人权益，请您仔细阅读
-            <a href="#" @click.prevent>《用户服务协议》</a>
-            和
-            <a href="#" @click.prevent>《隐私政策》</a>
-            。
-          </p>
-          <p>
-            这将帮助您详细了解我们对信息的收集、使用方式，以便您更好地了解我们的服务并作出适当选择。如您同意用户服务协议和隐私政策，请单击“同意并继续”。
-          </p>
-          <p>若点击“不同意”，则相关服务不可用。后续您可以在 我的-右上角设置图标-隐私政策 中查看。</p>
-          <footer>
-            <button type="button" class="privacy-secondary" @click="showToast('需要同意隐私政策后才能继续体验')">不同意</button>
-            <button type="button" class="privacy-primary" @click="acceptPrivacy">同意并继续</button>
-          </footer>
         </section>
-      </section>
-
-      <section v-else-if="onboardingVisible" class="onboarding-page">
-        <header class="onboarding-hero">
-          <button v-if="onboardingStep === 'source'" type="button" class="text-button" @click="onboardingStep = 'role'">上一步</button>
-          <button type="button" class="text-button skip" @click="completeOnboarding">暂时跳过</button>
-          <img :src="homeAiAssets.loginTitle" alt="欢迎使用AI装修大师" />
-          <strong v-if="onboardingStep === 'role'">为了更好地为您服务，可以告诉我您的身份吗？我们会为您推荐最合适的功能。</strong>
-          <strong v-else>您是如何找到我们的？</strong>
-        </header>
-
-        <section v-if="onboardingStep === 'role'" class="role-question">
-          <button v-for="role in roles" :key="role.label" type="button" class="role-card" @click="selectOnboardingRole(role.label)">
-            <img :src="role.image" alt="" />
-            <span>
-              <strong>{{ role.label }}</strong>
-              <small>{{ role.subtitle }}</small>
-            </span>
-            <ChevronRight :size="26" />
+        <label class="entry-phone-field">
+          <span>+86</span>
+          <input v-model.trim="entryPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" />
+        </label>
+        <button type="button" class="entry-login-button" :disabled="!canSubmitEntryLogin" @click="submitEntryLogin">验证码登录</button>
+        <label class="entry-agreement">
+          <input v-model="entryAgreementChecked" type="checkbox" />
+          <span>我已阅读并同意「AI装修大师」的</span>
+          <button type="button" @click="showToast('已打开用户协议')">用户协议</button>
+          <span>和</span>
+          <button type="button" @click="showToast('已打开隐私政策')">隐私政策</button>
+        </label>
+        <section class="entry-other-login" aria-label="其他登录方式">
+          <span>其他登录方式</span>
+          <button type="button" class="entry-wechat-button" @click="submitWechatLogin">
+            <span class="entry-wechat-icon">微</span>
+            <small>微信登录</small>
           </button>
         </section>
-
-        <section v-else class="source-question">
-          <button
-            v-for="source in sourceOptions"
-            :key="source.label"
-            type="button"
-            :class="{ active: selectedSource === source.label }"
-            @click="selectedSource = source.label"
-          >
-            <span class="source-icon" :style="{ '--source-bg': source.color }">{{ source.icon }}</span>
-            <strong>{{ source.label }}</strong>
-            <span class="radio-dot" aria-hidden="true"></span>
-          </button>
-        </section>
-
-        <footer v-if="onboardingStep === 'source'" class="onboarding-actions">
-          <button type="button" class="secondary-button" @click="onboardingStep = 'role'">上一步</button>
-          <button type="button" class="next-button" :disabled="onboardingStep === 'source' && !selectedSource" @click="finishOnboardingStep">
-            下一步
-          </button>
-        </footer>
-      </section>
-
-      <section v-else-if="guideVisible" class="guide-page">
-        <div class="guide-visual">
-          <img class="guide-poster" :src="activeGuide.poster" alt="" />
-          <span class="original-badge">
-            <img :src="activeGuide.original" alt="" />
-            <strong>原图</strong>
-          </span>
-        </div>
-        <section class="guide-copy">
-          <strong>{{ activeGuide.title }}</strong>
-          <span>{{ activeGuide.subtitle }}</span>
-        </section>
-        <button type="button" class="guide-next" @click="nextGuide">
-          {{ guideStep === guideSlides.length - 1 ? '开始体验' : '下一步' }}
-        </button>
       </section>
 
       <section v-else class="screen">
@@ -308,7 +252,7 @@
         </section>
       </section>
 
-      <nav v-if="!bootFlowVisible" class="bottom-nav">
+      <nav v-if="!entryGateVisible" class="bottom-nav">
         <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
           <img :src="tab.icon" alt="" />
           <span>{{ tab.label }}</span>
@@ -433,7 +377,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronLeft, ChevronRight, Gem, Settings, WandSparkles, X } from 'lucide-vue-next';
+import { ChevronLeft, Gem, Settings, WandSparkles, X } from 'lucide-vue-next';
 import {
   createReplicaSession,
   persistReplicaAuthToken,
@@ -450,15 +394,14 @@ import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, HomeAiVipPlan, Main
 
 const API_DEBUG_HASH = '#/api-debug';
 const DEMO_QUERY_PARAM = '__homeai_demo';
-const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
-const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
-const GUIDE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:guide-complete`;
+const ENTRY_GATE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:entry-gate-dismissed`;
 const resetParams = new URLSearchParams(window.location.search);
 if (resetParams.get('__homeai_reset') === '1') {
-  // 本地复刻对比时需要反复回到首启态；该参数只清理本应用的本地演示状态。
-  localStorage.removeItem(PRIVACY_STORAGE_KEY);
-  localStorage.removeItem(ONBOARDING_STORAGE_KEY);
-  localStorage.removeItem(GUIDE_STORAGE_KEY);
+  // 本地复刻对比时需要反复回到 APK 当前首屏；顺手清理旧首启链路遗留状态，避免影响本轮对照。
+  localStorage.removeItem(ENTRY_GATE_STORAGE_KEY);
+  localStorage.removeItem(`${homeAiReplicaConfig.appId}:privacy-accepted`);
+  localStorage.removeItem(`${homeAiReplicaConfig.appId}:onboarding-complete`);
+  localStorage.removeItem(`${homeAiReplicaConfig.appId}:guide-complete`);
   resetParams.delete('__homeai_reset');
   const nextSearch = resetParams.toString();
   window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
@@ -482,13 +425,9 @@ const toastMessage = ref('');
 const toastKind = ref<'notice' | 'error'>('notice');
 const snapshotLoading = ref(false);
 const isScrolled = ref(false);
-const privacyVisible = ref(localStorage.getItem(PRIVACY_STORAGE_KEY) !== '1');
-const onboardingVisible = ref(localStorage.getItem(ONBOARDING_STORAGE_KEY) !== '1');
-const guideVisible = ref(localStorage.getItem(GUIDE_STORAGE_KEY) !== '1' && !privacyVisible.value && !onboardingVisible.value);
-const guideStep = ref(0);
-const onboardingStep = ref<'role' | 'source'>('role');
-const selectedRole = ref('');
-const selectedSource = ref('');
+const entryGateVisible = ref(localStorage.getItem(ENTRY_GATE_STORAGE_KEY) !== '1');
+const entryPhone = ref('');
+const entryAgreementChecked = ref(false);
 const selectedFeatureCode = ref('interior');
 const designStep = ref(0);
 const selectedImageName = ref('');
@@ -506,42 +445,6 @@ let generationPhaseTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
-const roles = [
-  { label: '我是业主', subtitle: 'Owner', image: homeAiAssets.surveyOwner },
-  { label: '我是设计师', subtitle: 'Design', image: homeAiAssets.surveyDesigner },
-  { label: '我先看看', subtitle: 'Take A Look', image: homeAiAssets.surveyCurios },
-];
-const sourceOptions = [
-  { label: '设计师/装修公司推荐', icon: '荐', color: '#a9adff' },
-  { label: '小红书', icon: '红', color: '#ff2442' },
-  { label: '抖音', icon: '抖', color: '#171b20' },
-  { label: '微信视频号', icon: '微', color: '#19c465' },
-  { label: '朋友分享', icon: '友', color: '#ffb84d' },
-  { label: '应用商店搜索', icon: '搜', color: '#3aa7f4' },
-  { label: '问的AI，如豆包/千问/文心一言（百度）/kimi/夸克/元宝等', icon: 'AI', color: '#e9edf5' },
-];
-const guideSlides = [
-  {
-    title: '开启设计之旅',
-    subtitle: '上传任意房间照片，AI 即刻智能识别空间',
-    ...homeAiAssets.guideVideos[0],
-  },
-  {
-    title: '定义你的风格',
-    subtitle: '海量风格模板随心换，轻松找到你的理想型',
-    ...homeAiAssets.guideVideos[1],
-  },
-  {
-    title: '打造极致细节',
-    subtitle: '自由调整风格配色，一键改善生活细节',
-    ...homeAiAssets.guideVideos[2],
-  },
-  {
-    title: '见证家的蜕变',
-    subtitle: '高清效果图秒生成，装修效果提前预见',
-    ...homeAiAssets.guideVideos[3],
-  },
-];
 const designTools = [
   { label: '涂抹', icon: homeAiAssets.paint },
   { label: '换色', icon: homeAiAssets.color },
@@ -586,8 +489,7 @@ const homeCards = computed(() =>
     image: feature.homeImage ?? feature.guideImage,
   })),
 );
-const bootFlowVisible = computed(() => privacyVisible.value || onboardingVisible.value || guideVisible.value);
-const activeGuide = computed(() => guideSlides[guideStep.value] ?? guideSlides[0]);
+const canSubmitEntryLogin = computed(() => entryAgreementChecked.value && /^1\d{10}$/.test(entryPhone.value));
 const currentStep = computed(() => designSteps[designStep.value]);
 const canAdvanceDesignStep = computed(() => {
   if (currentStep.value === 'upload') {
@@ -722,7 +624,7 @@ function applyHashRoute() {
           ? { page: 'mine' }
           : { page: 'home' },
   );
-  if (window.location.hash === nextHash || apiDebugPage.value || bootFlowVisible.value) {
+  if (window.location.hash === nextHash || apiDebugPage.value || entryGateVisible.value) {
     return;
   }
   console.info('[HomeAI App] 同步页面路由', { tab: activeTab.value, hash: nextHash });
@@ -850,61 +752,33 @@ function submitQuestionnaire() {
 }
 
 function resetLocalExperience() {
-  localStorage.removeItem(PRIVACY_STORAGE_KEY);
-  localStorage.removeItem(ONBOARDING_STORAGE_KEY);
-  localStorage.removeItem(GUIDE_STORAGE_KEY);
-  privacyVisible.value = true;
-  onboardingVisible.value = true;
-  guideVisible.value = false;
+  localStorage.removeItem(ENTRY_GATE_STORAGE_KEY);
+  entryPhone.value = '';
+  entryAgreementChecked.value = false;
+  entryGateVisible.value = true;
   closeOverlay();
 }
 
-function acceptPrivacy() {
-  // 隐私弹窗只模拟原 APP 首次启动链路，确认态保存在本地，避免重复打扰。
-  localStorage.setItem(PRIVACY_STORAGE_KEY, '1');
-  privacyVisible.value = false;
-  onboardingVisible.value = localStorage.getItem(ONBOARDING_STORAGE_KEY) !== '1';
-  guideVisible.value = !onboardingVisible.value && localStorage.getItem(GUIDE_STORAGE_KEY) !== '1';
+function dismissEntryGate() {
+  // 当前 APK 可从登录页返回首页浏览；H5 同步持久化该状态，避免每次切 tab 都重回首屏门面。
+  localStorage.setItem(ENTRY_GATE_STORAGE_KEY, '1');
+  entryGateVisible.value = false;
+  console.info('[HomeAI App] 已关闭登录门面，进入首页浏览');
+  applyHashRoute();
 }
 
-function selectOnboardingRole(role: string) {
-  selectedRole.value = role;
-  onboardingStep.value = 'source';
+function submitEntryLogin() {
+  if (!entryAgreementChecked.value) {
+    showToast('请先勾选用户协议和隐私政策');
+    return;
+  }
+  console.info('[HomeAI App] 点击验证码登录', { phoneLength: entryPhone.value.length });
+  showToast('请在 APK 中继续完成验证码登录');
 }
 
-function completeOnboarding() {
-  // 首屏问卷只影响演示流入口，不把身份或来源写入业务接口，避免产生无意义用户数据。
-  localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
-  onboardingVisible.value = false;
-  if (localStorage.getItem(GUIDE_STORAGE_KEY) !== '1') {
-    guideVisible.value = true;
-    guideStep.value = 0;
-    return;
-  }
-  showToast(selectedRole.value ? `已记录：${selectedRole.value}` : '已进入首页');
-}
-
-function finishOnboardingStep() {
-  if (onboardingStep.value === 'role') {
-    onboardingStep.value = 'source';
-    return;
-  }
-
-  if (!selectedSource.value) {
-    showToast('请选择一个来源，或点击上一步返回');
-    return;
-  }
-  completeOnboarding();
-}
-
-function nextGuide() {
-  if (guideStep.value < guideSlides.length - 1) {
-    guideStep.value += 1;
-    return;
-  }
-  localStorage.setItem(GUIDE_STORAGE_KEY, '1');
-  guideVisible.value = false;
-  showToast(selectedRole.value ? `已记录：${selectedRole.value}` : '已进入首页');
+function submitWechatLogin() {
+  console.info('[HomeAI App] 点击微信登录');
+  showToast('微信登录仅在 APK 原生环境中可用');
 }
 
 function selectFeature(code: string) {
@@ -996,7 +870,7 @@ onUnmounted(() => {
   window.removeEventListener('popstate', syncStateFromHash);
 });
 
-watch([activeTab, selectedFeatureCode, bootFlowVisible], () => {
+watch([activeTab, selectedFeatureCode, entryGateVisible], () => {
   applyHashRoute();
 });
 </script>
@@ -1042,6 +916,186 @@ button {
   border-radius: 34px;
   background: #f6f8fb;
   box-shadow: 0 28px 60px rgba(31, 55, 83, 0.28);
+}
+
+.entry-login-page {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto auto auto 1fr;
+  gap: 22px;
+  padding: 22px 20px 30px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 30% 8%, rgba(255, 231, 190, 0.68), transparent 26%),
+    linear-gradient(180deg, #fff8ef 0%, #ffffff 42%, #f7f8fb 100%);
+}
+
+.entry-back {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 19px;
+  color: #1a2130;
+  background: transparent;
+}
+
+.entry-brand {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 76px 0 30px;
+  text-align: center;
+}
+
+.entry-brand img {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+}
+
+.entry-brand span {
+  display: grid;
+  gap: 6px;
+}
+
+.entry-brand strong {
+  color: #202634;
+  font-size: 27px;
+  font-weight: 900;
+}
+
+.entry-brand small {
+  color: #8b909c;
+  font-size: 15px;
+}
+
+.entry-phone-field {
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 0 24px;
+  border: 1px solid #dde2ea;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 28px rgba(223, 196, 156, 0.18);
+}
+
+.entry-phone-field span {
+  color: #252d3c;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.entry-phone-field input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  color: #252d3c;
+  background: transparent;
+  font-size: 19px;
+}
+
+.entry-phone-field input::placeholder {
+  color: #babec7;
+}
+
+.entry-login-button {
+  min-height: 68px;
+  border: 0;
+  border-radius: 999px;
+  color: #5b5b4f;
+  background: linear-gradient(180deg, #fff8a7 0%, #ffef56 100%);
+  box-shadow: 0 18px 32px rgba(255, 216, 89, 0.26);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.entry-login-button:disabled {
+  color: #b7b4a4;
+  filter: saturate(0.75);
+}
+
+.entry-agreement {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  align-items: center;
+  color: #6d7280;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.entry-agreement input {
+  width: 22px;
+  height: 22px;
+  margin: 0 6px 0 0;
+  accent-color: #ffcb33;
+}
+
+.entry-agreement button {
+  padding: 0;
+  border: 0;
+  color: #d7912f;
+  background: transparent;
+}
+
+.entry-other-login {
+  align-self: end;
+  display: grid;
+  justify-items: center;
+  gap: 28px;
+  padding: 18px 0 24px;
+}
+
+.entry-other-login > span {
+  position: relative;
+  color: #b3b7c0;
+  font-size: 15px;
+}
+
+.entry-other-login > span::before,
+.entry-other-login > span::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 54px;
+  height: 1px;
+  background: #eceef3;
+}
+
+.entry-other-login > span::before {
+  right: calc(100% + 14px);
+}
+
+.entry-other-login > span::after {
+  left: calc(100% + 14px);
+}
+
+.entry-wechat-button {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  color: #8e949f;
+  background: transparent;
+}
+
+.entry-wechat-icon {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #12b84b;
+  background: #f0f2f5;
+  font-size: 27px;
+  font-weight: 900;
 }
 
 .phone-shell.onboarding {

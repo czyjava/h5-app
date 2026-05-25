@@ -32,6 +32,36 @@ assertIncludes(
   '未登录访问拍摄页时需要展示 APP 5.26.0 的登录前置页',
 );
 assertIncludes(
+  'src/pages/camera/CameraPage.vue',
+  '请输入手机号',
+  '拍摄页未登录态需要提供与 APP 5.27.0 一致的手机号输入框',
+);
+assertIncludes(
+  'src/pages/camera/CameraPage.vue',
+  '验证码登录',
+  '拍摄页未登录态主按钮需要对齐 APP 5.27.0 文案',
+);
+assertIncludes(
+  'src/pages/camera/CameraPage.vue',
+  '其他登录方式',
+  '拍摄页未登录态需要展示其他登录方式分隔文案',
+);
+assertIncludes(
+  'src/pages/camera/CameraPage.vue',
+  '微信登录',
+  '拍摄页未登录态需要保留微信登录入口占位',
+);
+assertIncludes(
+  'src/pages/camera/CameraPage.vue',
+  '我已阅读并同意',
+  '拍摄页未登录态需要展示协议确认文案',
+);
+assertMatches(
+  'src/pages/camera/CameraPage.vue',
+  /sendLoginSmsCode|loginWithSmsCode/,
+  '拍摄页未登录态需要复用真实短信登录接口，而不是只展示静态说明',
+);
+assertIncludes(
   'src/pages/profile/ProfilePage.vue',
   'isLoggedIn',
   '我的页需要区分真实登录、演示模式和未登录态',

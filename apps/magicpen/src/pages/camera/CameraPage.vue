@@ -7,19 +7,20 @@ import {
   Crop,
   HelpCircle,
   ImagePlus,
-  LogIn,
+  LoaderCircle,
+  MessageCircleMore,
   RotateCcw,
   Save,
-  ShieldCheck,
   Shirt,
   Sparkles,
   Squirrel,
   Sun,
   Waves,
 } from 'lucide-vue-next';
-import { showToast, switchTab } from '@/app/model';
-import { sessionState } from '@/entities/session/model';
-import ApiModePanel from '@/features/api-mode/ApiModePanel.vue';
+import { bootstrapApp, showToast, switchTab } from '@/app/model';
+import { sessionState, setAuthToken } from '@/entities/session/model';
+import { loginWithSmsCode, sendLoginSmsCode } from '@/shared/api/authApi';
+import homeLogo from '@/assets/magicpen/home_logo.png';
 
 const modes = [
   { key: 'scan', label: '扫描绘画', template: '扫描模板', description: '识别线稿边界后进入校正' },
@@ -51,6 +52,13 @@ const stepItems = computed(() => [
   { key: 'saved', label: '保存结果' },
 ]);
 const previewImage = computed(() => importedImage.value || (scanStep.value === 'ready' ? '' : mockCapturedImage));
+const loginPhoneNumber = ref('');
+const loginSmsCode = ref('');
+const loginSmsId = ref('');
+const loginSmsPhoneNumber = ref('');
+const sendingLoginCode = ref(false);
+const loggingIn = ref(false);
+const agreedPolicy = ref(false);
 const resultHint = computed(() => {
   if (scanStep.value === 'saved') {
     return '已保存到 H5 本地结果，可返回继续创作';
@@ -63,6 +71,74 @@ const resultHint = computed(() => {
   }
   return `${activeMode.value.template} · 单图固定模式`;
 });
+
+async function sendCaptureLoginCode() {
+  const phoneNumber = loginPhoneNumber.value.trim();
+  if (!phoneNumber) {
+    showToast('请输入手机号');
+    return;
+  }
+
+  sendingLoginCode.value = true;
+  try {
+    const response = await sendLoginSmsCode(phoneNumber);
+    loginSmsId.value = response.smsId ?? '';
+    loginSmsPhoneNumber.value = phoneNumber;
+    // 内部测试环境可能直接回传验证码，这里仅回填输入框，不写入日志。
+    loginSmsCode.value = response.smsCode ?? loginSmsCode.value;
+    console.info('[camera] 已触发拍摄入口短信验证码发送', {
+      hasSmsId: Boolean(loginSmsId.value),
+      phoneTail: phoneNumber.slice(-4),
+    });
+    showToast('验证码已发送');
+  } catch (error) {
+    showToast(error instanceof Error ? `发送验证码失败：${error.message}` : '发送验证码失败');
+  } finally {
+    sendingLoginCode.value = false;
+  }
+}
+
+async function loginFromCaptureGate() {
+  const phoneNumber = loginPhoneNumber.value.trim();
+  const smsCode = loginSmsCode.value.trim();
+  if (!phoneNumber) {
+    showToast('请输入手机号');
+    return;
+  }
+  if (!smsCode) {
+    showToast('请输入验证码');
+    return;
+  }
+  if (!agreedPolicy.value) {
+    showToast('请先阅读并同意用户协议与隐私政策');
+    return;
+  }
+  if (!loginSmsId.value || loginSmsPhoneNumber.value !== phoneNumber) {
+    showToast('请先发送验证码');
+    return;
+  }
+
+  loggingIn.value = true;
+  try {
+    const userInfo = await loginWithSmsCode(phoneNumber, smsCode, loginSmsId.value);
+    setAuthToken(userInfo.authToken ?? '');
+    console.info('[camera] 拍摄入口短信登录成功并刷新数据', {
+      hasToken: Boolean(userInfo.authToken),
+      phoneTail: phoneNumber.slice(-4),
+    });
+    await bootstrapApp();
+    showToast('登录成功');
+  } catch (error) {
+    showToast(error instanceof Error ? `登录失败：${error.message}` : '登录失败');
+  } finally {
+    loggingIn.value = false;
+  }
+}
+
+function openWechatLoginPlaceholder() {
+  console.info('[camera] 点击微信登录占位入口');
+  showToast('H5 原型暂不接入微信登录');
+}
 
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
@@ -110,15 +186,45 @@ function resetScanFlow() {
     </header>
 
     <div class="camera-login-panel">
-      <span class="camera-login-icon">
-        <ShieldCheck :size="42" />
-      </span>
-      <h1>手机快捷登录</h1>
-      <p>登录后可使用绘画扫描、拍照校正和作品同步。</p>
-      <ApiModePanel />
-      <button class="secondary-button" @click="switchTab('home')">
-        <LogIn :size="18" />
-        <span>先返回首页</span>
+      <div class="camera-login-brand">
+        <img :src="homeLogo" alt="神笔绘画" />
+        <strong>为童心注入生命力</strong>
+      </div>
+      <label class="camera-login-field">
+        <span>+86</span>
+        <input v-model="loginPhoneNumber" inputmode="tel" autocomplete="tel" placeholder="请输入手机号" />
+      </label>
+      <button class="camera-login-submit" :disabled="loggingIn" @click="loginFromCaptureGate">
+        <LoaderCircle v-if="loggingIn" :size="20" class="camera-login-loading" />
+        <span>{{ loggingIn ? '登录中' : '验证码登录' }}</span>
+      </button>
+      <div class="camera-login-agreement">
+        <label>
+          <input v-model="agreedPolicy" type="checkbox" />
+          <span>我已阅读并同意「神笔绘画」的用户协议和隐私政策</span>
+        </label>
+      </div>
+      <div class="camera-login-code-row">
+        <input
+          v-model="loginSmsCode"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="短信验证码"
+        />
+        <button class="camera-login-send-code" :disabled="sendingLoginCode" @click="sendCaptureLoginCode">
+          {{ sendingLoginCode ? '发送中' : '发送验证码' }}
+        </button>
+      </div>
+      <div class="camera-login-divider">
+        <span />
+        <strong>其他登录方式</strong>
+        <span />
+      </div>
+      <button class="camera-login-wechat" @click="openWechatLoginPlaceholder">
+        <span class="camera-login-wechat__icon">
+          <MessageCircleMore :size="28" />
+        </span>
+        <span>微信登录</span>
       </button>
     </div>
   </section>

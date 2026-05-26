@@ -43,3 +43,12 @@
   - 验证通过：`pnpm test`、`pnpm build`
   - 抓包已确认 `config`、`auth`、`pixel-studio` 域名访问，但 mitm 证书未被模拟器信任，HTTPS 请求细节仍待后续补抓
   - 本轮产物：`ai/compare-runs/2026-05-26-daily/`
+- 2026-05-26 全链路补跑：
+  - 按全链路标准重新下载 BuildNo `2707`，安装 APK，修复/确认模拟器 mitm 证书信任后完成 HTTPS 抓包
+  - 使用验证平台完成 APK 与 H5 的测试账号短信登录，验证码和完整手机号不写入报告、日志或提交内容
+  - 已补齐 H5 真实短信登录链路：`login-sms/check`、验证码输入、`login-sms/login`、token 会话保存、登录后重载数据
+  - 已修复登录后 `current-user` 走错业务域的问题，改为与 APK 一致的 `auth` 域
+  - 已增强公共脱敏逻辑，覆盖 JSON 里的 `smsId/smsCode/phone/authToken`、短信正文和任意 11 位手机号
+  - 复验通过：H5 `h5LoggedIn=true`、`hasAuthCurrentUser200=true`、`hasBusinessCurrentUser=false`
+  - 验证通过：`pnpm test`、`pnpm build`
+  - 本轮产物：`ai/compare-runs/2026-05-26-full-chain/`

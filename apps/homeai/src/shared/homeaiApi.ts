@@ -25,6 +25,7 @@ export interface HomeAiRequestContext {
 
 interface RequestOptions {
   method?: 'GET' | 'POST';
+  hostKey?: 'auth' | 'business';
   params?: Record<string, ReplicaRequestParamValue>;
   form?: Record<string, ReplicaRequestParamValue>;
 }
@@ -33,8 +34,12 @@ function apiErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '接口请求失败';
 }
 
-async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
-  const host = homeAiReplicaConfig.hosts.business;
+async function requestReplicaHost<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
+  const hostKey = options.hostKey ?? 'business';
+  const host = homeAiReplicaConfig.hosts[hostKey];
+  if (!host) {
+    throw new Error(`缺少 ${hostKey} host 配置`);
+  }
   const url = new URL(`${host.proxyPrefix}${path}`, window.location.origin);
   const commonQuery = buildReplicaCommonQuery(homeAiReplicaConfig, {
     authToken: context.authToken,
@@ -52,8 +57,8 @@ async function requestBusiness<T>(path: string, context: HomeAiRequestContext, o
 
   const hasBody = options.method === 'POST';
   const body = hasBody ? encodeReplicaFormParams(options.form) : undefined;
-  // 业务日志统一脱敏，只记录接口路径和参数摘要，避免 authToken 等敏感信息进入控制台。
-  console.info('[HomeAI API] 请求业务接口', redactObject({ path, method: options.method ?? 'GET', params: options.params, form: options.form }));
+  // 接口日志统一脱敏，只记录接口路径、域类型和参数摘要，避免 authToken 等敏感信息进入控制台。
+  console.info('[HomeAI API] 请求接口', redactObject({ hostKey, path, method: options.method ?? 'GET', params: options.params, form: options.form }));
   const response = await fetch(url.toString(), {
     method: options.method ?? 'GET',
     headers: hasBody
@@ -65,7 +70,7 @@ async function requestBusiness<T>(path: string, context: HomeAiRequestContext, o
   });
   const rawText = await response.text();
   const payload = rawText ? (JSON.parse(rawText) as ApiEnvelope<T>) : ({} as ApiEnvelope<T>);
-  console.info('[HomeAI API] 业务接口响应', { path, status: response.status, ok: response.ok });
+  console.info('[HomeAI API] 接口响应', { hostKey, path, status: response.status, ok: response.ok });
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -75,6 +80,14 @@ async function requestBusiness<T>(path: string, context: HomeAiRequestContext, o
     throw new Error(payload.message || `业务错误：${errorCode}`);
   }
   return (payload.data ?? payload) as T;
+}
+
+async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
+  return requestReplicaHost(path, context, { ...options, hostKey: 'business' });
+}
+
+async function requestAuth<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
+  return requestReplicaHost(path, context, { ...options, hostKey: 'auth' });
 }
 
 export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise<HomeAiSnapshot> {
@@ -92,7 +105,8 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
   };
 
   const [user, generationList, recommendList] = await Promise.all([
-    context.authToken ? safeLoad('currentUser', () => requestBusiness(homeAiReplicaConfig.endpoints.currentUser, context)) : Promise.resolve(null),
+    // APK 登录后从 auth 域读取当前用户资料，H5 复刻也保持相同域名和签名链路。
+    context.authToken ? safeLoad('currentUser', () => requestAuth(homeAiReplicaConfig.endpoints.currentUser, context)) : Promise.resolve(null),
     context.authToken
       ? safeLoad('generationList', () =>
           requestBusiness(homeAiReplicaConfig.endpoints.generationList, context, {

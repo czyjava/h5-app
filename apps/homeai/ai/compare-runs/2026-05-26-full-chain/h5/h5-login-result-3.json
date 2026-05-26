@@ -1,0 +1,590 @@
+{
+  "h5LoggedIn": true,
+  "hasAuthCurrentUser200": true,
+  "hasBusinessCurrentUser": false,
+  "bodyHasMine": true,
+  "bodyPreview": "9:41\n5G 100%\nAI装修大师\n看见家的千万种可能\n开通会员\n室内设计\nAI智能设计，探索千万种装修风格\n去试试\n客厅设计\n精致生活从客厅开始，AI 设计一步到位\n去试试\n卧室设计\n卧室毛坯焕新颜，定制静谧休憩居所\n去试试\n首页\n设计\n发现\n我的",
+  "apiRecords": [
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/main.ts",
+      "queryKeys": [
+        "t"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@vite/client",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/node_modules/.vite/deps/vue.js",
+      "queryKeys": [
+        "v"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/node_modules/.pnpm/vite@7.3.3_@types+node@24.12.4/node_modules/vite/dist/client/env.mjs",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/node_modules/.vite/deps/chunk-RM3TPNJ6.js",
+      "queryKeys": [
+        "v"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/app/App.vue",
+      "queryKeys": [
+        "t"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/client.ts",
+      "queryKeys": [
+        "t"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/index.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/shared/navigation.mjs",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/app/App.vue",
+      "queryKeys": [
+        "vue",
+        "type",
+        "index",
+        "scoped",
+        "lang.css"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/app.config.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@id/__x00__plugin-vue:export-helper",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/types.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/shared/assets.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/network/replicaNetwork.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/session.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/shared/demoData.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaApiModePanel.vue",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/auth/smsAuth.ts",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaJsonTree.vue",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaProxyLifecycleOverlay.vue",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaSettingsPanel.vue",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaApiModePanel.vue",
+      "queryKeys": [
+        "vue",
+        "type",
+        "index",
+        "scoped",
+        "lang.css"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaJsonTree.vue",
+      "queryKeys": [
+        "vue",
+        "type",
+        "index",
+        "scoped",
+        "lang.css"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/redaction.ts",
+      "queryKeys": [
+        "t"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/shared/homeaiApi.ts",
+      "queryKeys": [
+        "t"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaProxyLifecycleOverlay.vue",
+      "queryKeys": [
+        "vue",
+        "type",
+        "index",
+        "scoped",
+        "lang.css"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/node_modules/.vite/deps/lucide-vue-next.js",
+      "queryKeys": [
+        "v"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/@fs/Users/chenzhiyuan/work/codes/wmxs/h5-app/common/src/ui/ReplicaSettingsPanel.vue",
+      "queryKeys": [
+        "vue",
+        "type",
+        "index",
+        "scoped",
+        "lang.css"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/src/shared/homeaiMappers.mjs",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/small_logo.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/homeai-business/api/open/recommend/list.htm",
+      "queryKeys": [
+        "_system",
+        "_clv",
+        "_wmLang",
+        "_pkgName",
+        "_vendor",
+        "_operator",
+        "_product",
+        "_productCategory",
+        "_manufacturer",
+        "_platform",
+        "_renyuan",
+        "_appName",
+        "_systemVersion",
+        "_launch",
+        "_version",
+        "_network",
+        "moduleParam"
+      ],
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "host": "localhost:5176",
+      "path": "/homeai-auth/api/open/v3/login-sms/check.htm",
+      "queryKeys": [
+        "_system",
+        "_clv",
+        "_wmLang",
+        "_pkgName",
+        "_vendor",
+        "_product",
+        "_productCategory",
+        "_platform",
+        "_renyuan",
+        "_appName",
+        "_version",
+        "_network"
+      ],
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "host": "localhost:5176",
+      "path": "/homeai-auth/api/open/v3/login-sms/login.htm",
+      "queryKeys": [
+        "_system",
+        "_clv",
+        "_wmLang",
+        "_pkgName",
+        "_vendor",
+        "_product",
+        "_productCategory",
+        "_platform",
+        "_renyuan",
+        "_appName",
+        "_version",
+        "_network"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/vip_small_icon.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/interior_guide_good.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/interior_guide_bad.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/floor_plan_guide_good.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_home_selected.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_design_normal.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_discover_normal.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_profile_normal.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/page_bg_home.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/homeai-business/api/open/recommend/list.htm",
+      "queryKeys": [
+        "_system",
+        "_clv",
+        "_wmLang",
+        "_pkgName",
+        "_vendor",
+        "_operator",
+        "_product",
+        "_productCategory",
+        "_manufacturer",
+        "_platform",
+        "_renyuan",
+        "_appName",
+        "_systemVersion",
+        "_launch",
+        "_version",
+        "_network",
+        "authToken:<sensitive>",
+        "moduleParam"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/homeai-business/api/open/generation/list.htm",
+      "queryKeys": [
+        "_system",
+        "_clv",
+        "_wmLang",
+        "_pkgName",
+        "_vendor",
+        "_operator",
+        "_product",
+        "_productCategory",
+        "_manufacturer",
+        "_platform",
+        "_renyuan",
+        "_appName",
+        "_systemVersion",
+        "_launch",
+        "_version",
+        "_network",
+        "authToken:<sensitive>",
+        "page",
+        "pageSize"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/homeai-auth/api/open/v2/user/current-user.htm",
+      "queryKeys": [
+        "_system",
+        "_clv",
+        "_wmLang",
+        "_pkgName",
+        "_vendor",
+        "_operator",
+        "_product",
+        "_productCategory",
+        "_manufacturer",
+        "_platform",
+        "_renyuan",
+        "_appName",
+        "_systemVersion",
+        "_launch",
+        "_version",
+        "_network",
+        "authToken:<sensitive>"
+      ],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_home_normal.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_design_selected.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/renovation_guide_good.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/garden_guide_good.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/floor_plan_guide_bad.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_discover_selected.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ic_default_avatar.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ic_zuanshi_credit.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ic_vip_privilege_1.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ic_vip_privilege_2.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ic_vip_privilege_3.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/ha_ic_profile_selected.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/research_questionnaire_banner_illustration.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/vip_card_bg.png",
+      "queryKeys": [],
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "host": "localhost:5176",
+      "path": "/assets/homeai/invite_card_bg.png",
+      "queryKeys": [],
+      "status": 200
+    }
+  ]
+}

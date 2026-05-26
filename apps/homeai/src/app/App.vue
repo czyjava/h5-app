@@ -19,18 +19,36 @@
             <small>看见家的千万种可能</small>
           </span>
         </section>
-        <label class="entry-phone-field">
-          <span>+86</span>
-          <input v-model.trim="entryPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" />
-        </label>
-        <button type="button" class="entry-login-button" :disabled="!canSubmitEntryLogin" @click="submitEntryLogin">验证码登录</button>
-        <label class="entry-agreement">
-          <input v-model="entryAgreementChecked" type="checkbox" />
-          <span>我已阅读并同意「AI装修大师」的</span>
-          <button type="button" @click="showToast('已打开用户协议')">用户协议</button>
-          <span>和</span>
-          <button type="button" @click="showToast('已打开隐私政策')">隐私政策</button>
-        </label>
+        <section v-if="entryLoginStep === 'phone'" class="entry-login-step">
+          <label class="entry-phone-field">
+            <span>+86</span>
+            <input v-model.trim="entryPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" />
+          </label>
+          <button type="button" class="entry-login-button" :disabled="!canSubmitEntryLogin" @click="sendEntrySmsCode">
+            {{ entrySendingCode ? '发送中...' : '验证码登录' }}
+          </button>
+          <label class="entry-agreement">
+            <input v-model="entryAgreementChecked" type="checkbox" />
+            <span>我已阅读并同意「AI装修大师」的</span>
+            <button type="button" @click="showToast('已打开用户协议')">用户协议</button>
+            <span>和</span>
+            <button type="button" @click="showToast('已打开隐私政策')">隐私政策</button>
+          </label>
+        </section>
+
+        <section v-else class="entry-login-step entry-code-step">
+          <p>验证码已发送至 +86 {{ maskedEntryPhone }}</p>
+          <label class="entry-code-field" aria-label="短信验证码">
+            <input v-model.trim="entrySmsCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="请输入验证码" />
+            <span v-for="index in 6" :key="index">{{ entrySmsCodeDigits[index - 1] }}</span>
+          </label>
+          <button type="button" class="entry-login-button" :disabled="!canSubmitEntryLogin" @click="loginWithEntrySmsCode">
+            {{ entryLoggingIn ? '登录中...' : '登录' }}
+          </button>
+          <button type="button" class="entry-resend-button" :disabled="entrySendingCode" @click="sendEntrySmsCode">
+            {{ entrySendingCode ? '重新发送中...' : '重新发送' }}
+          </button>
+        </section>
         <section class="entry-other-login" aria-label="其他登录方式">
           <span>其他登录方式</span>
           <button type="button" class="entry-wechat-button" @click="submitWechatLogin">
@@ -379,6 +397,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, Gem, Settings, WandSparkles, X } from 'lucide-vue-next';
 import {
+  createSmsAuthClient,
   createReplicaSession,
   persistReplicaAuthToken,
   persistReplicaEnvironment,
@@ -395,6 +414,7 @@ import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, HomeAiVipPlan, Main
 const API_DEBUG_HASH = '#/api-debug';
 const DEMO_QUERY_PARAM = '__homeai_demo';
 const ENTRY_GATE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:entry-gate-dismissed`;
+type EntryLoginStep = 'phone' | 'code';
 const resetParams = new URLSearchParams(window.location.search);
 if (resetParams.get('__homeai_reset') === '1') {
   // 本地复刻对比时需要反复回到 APK 当前首屏；顺手清理旧首启链路遗留状态，避免影响本轮对照。
@@ -407,6 +427,7 @@ if (resetParams.get('__homeai_reset') === '1') {
   window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
 }
 const session = createReplicaSession(homeAiReplicaConfig.appId);
+const smsAuthClient = createSmsAuthClient(homeAiReplicaConfig);
 const explicitDemoMode = resetParams.get(DEMO_QUERY_PARAM) === '1';
 type OverlayView = 'none' | 'discoverList' | 'diamond' | 'vip' | 'invite' | 'questionnaire' | 'settings';
 
@@ -426,8 +447,14 @@ const toastKind = ref<'notice' | 'error'>('notice');
 const snapshotLoading = ref(false);
 const isScrolled = ref(false);
 const entryGateVisible = ref(localStorage.getItem(ENTRY_GATE_STORAGE_KEY) !== '1');
+const entryLoginStep = ref<EntryLoginStep>('phone');
 const entryPhone = ref('');
+const entrySmsCode = ref('');
+const entrySmsId = ref('');
+const entrySmsPhone = ref('');
 const entryAgreementChecked = ref(false);
+const entrySendingCode = ref(false);
+const entryLoggingIn = ref(false);
 const selectedFeatureCode = ref('interior');
 const designStep = ref(0);
 const selectedImageName = ref('');
@@ -489,7 +516,13 @@ const homeCards = computed(() =>
     image: feature.homeImage ?? feature.guideImage,
   })),
 );
-const canSubmitEntryLogin = computed(() => entryAgreementChecked.value && /^1\d{10}$/.test(entryPhone.value));
+const canSubmitEntryPhone = computed(() => entryAgreementChecked.value && /^\d{11}$/.test(entryPhone.value));
+const canSubmitEntryCode = computed(() => /^\d{6}$/.test(entrySmsCode.value) && Boolean(entrySmsId.value) && entrySmsPhone.value === entryPhone.value);
+const canSubmitEntryLogin = computed(() =>
+  entryLoginStep.value === 'phone' ? canSubmitEntryPhone.value && !entrySendingCode.value : canSubmitEntryCode.value && !entryLoggingIn.value,
+);
+const entrySmsCodeDigits = computed(() => entrySmsCode.value.padEnd(6, ' ').slice(0, 6).split('').map((item) => (item === ' ' ? '' : item)));
+const maskedEntryPhone = computed(() => formatEntryPhone(entrySmsPhone.value || entryPhone.value));
 const currentStep = computed(() => designSteps[designStep.value]);
 const canAdvanceDesignStep = computed(() => {
   if (currentStep.value === 'upload') {
@@ -662,9 +695,15 @@ function showToast(message: string) {
 }
 
 function promptLogin() {
-  // H5 复刻只保留未登录入口语义；真实验证码登录链路仍以 APK 原生流程为准。
-  console.info('[HomeAI App] 点击未登录入口', { page: 'mine' });
-  showToast('请在 APP 登录后继续体验账号功能');
+  // 未登录状态点击“我的”登录入口时重新打开短信登录门面，保证 H5 也能执行完整登录链路。
+  entryLoginStep.value = 'phone';
+  entrySmsCode.value = '';
+  entrySmsId.value = '';
+  entrySmsPhone.value = '';
+  entryGateVisible.value = true;
+  localStorage.removeItem(ENTRY_GATE_STORAGE_KEY);
+  console.info('[HomeAI App] 点击未登录入口，打开短信登录门面', { page: 'mine' });
+  showToast('请使用验证码登录后继续体验账号功能');
 }
 
 function openOverlay(view: OverlayView) {
@@ -754,6 +793,10 @@ function submitQuestionnaire() {
 function resetLocalExperience() {
   localStorage.removeItem(ENTRY_GATE_STORAGE_KEY);
   entryPhone.value = '';
+  entrySmsCode.value = '';
+  entrySmsId.value = '';
+  entrySmsPhone.value = '';
+  entryLoginStep.value = 'phone';
   entryAgreementChecked.value = false;
   entryGateVisible.value = true;
   closeOverlay();
@@ -767,13 +810,68 @@ function dismissEntryGate() {
   applyHashRoute();
 }
 
-function submitEntryLogin() {
+function formatEntryPhone(phoneNumber: string) {
+  // 验证码页只展示首尾号段，避免自动化截图或录屏暴露完整手机号。
+  return phoneNumber.replace(/^(\d{3})\d{4}(\d{4})$/, '$1 **** $2');
+}
+
+async function sendEntrySmsCode() {
   if (!entryAgreementChecked.value) {
     showToast('请先勾选用户协议和隐私政策');
     return;
   }
-  console.info('[HomeAI App] 点击验证码登录', { phoneLength: entryPhone.value.length });
-  showToast('请在 APK 中继续完成验证码登录');
+  if (!/^\d{11}$/.test(entryPhone.value)) {
+    showToast('请输入 11 位手机号');
+    return;
+  }
+  entrySendingCode.value = true;
+  try {
+    const response = await smsAuthClient.sendCode(entryPhone.value);
+    entrySmsId.value = response.smsId ?? '';
+    entrySmsPhone.value = entryPhone.value;
+    // 内部测试环境可能直接返回验证码，只回填本地输入态，不进入日志、报告或持久化存储。
+    entrySmsCode.value = response.smsCode ?? '';
+    entryLoginStep.value = 'code';
+    console.info('[HomeAI App] 已触发短信验证码登录', {
+      hasSmsId: Boolean(entrySmsId.value),
+      phoneTail: entryPhone.value.slice(-4),
+    });
+    showToast('验证码已发送');
+  } catch (error) {
+    showToast(error instanceof Error ? `发送验证码失败：${error.message}` : '发送验证码失败');
+  } finally {
+    entrySendingCode.value = false;
+  }
+}
+
+async function loginWithEntrySmsCode() {
+  if (!entrySmsId.value || entrySmsPhone.value !== entryPhone.value) {
+    showToast('请先发送验证码');
+    return;
+  }
+  if (!/^\d{6}$/.test(entrySmsCode.value)) {
+    showToast('请输入 6 位验证码');
+    return;
+  }
+  entryLoggingIn.value = true;
+  try {
+    const userInfo = await smsAuthClient.login(entryPhone.value, entrySmsCode.value, entrySmsId.value);
+    authTokenDraft.value = userInfo.authToken ?? '';
+    persistReplicaAuthToken(homeAiReplicaConfig.appId, authTokenDraft.value);
+    localStorage.setItem(ENTRY_GATE_STORAGE_KEY, '1');
+    entryGateVisible.value = false;
+    console.info('[HomeAI App] 短信验证码登录成功', {
+      hasToken: Boolean(userInfo.authToken),
+      phoneTail: entryPhone.value.slice(-4),
+    });
+    await reload();
+    showToast('登录成功');
+    applyHashRoute();
+  } catch (error) {
+    showToast(error instanceof Error ? `登录失败：${error.message}` : '登录失败');
+  } finally {
+    entryLoggingIn.value = false;
+  }
 }
 
 function submitWechatLogin() {
@@ -972,6 +1070,11 @@ button {
   font-size: 15px;
 }
 
+.entry-login-step {
+  display: grid;
+  gap: 18px;
+}
+
 .entry-phone-field {
   min-height: 82px;
   display: grid;
@@ -1004,6 +1107,44 @@ button {
   color: #babec7;
 }
 
+.entry-code-step {
+  gap: 22px;
+}
+
+.entry-code-step p {
+  margin: 0;
+  color: #242936;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.entry-code-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.entry-code-field input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0.01;
+  border: 0;
+}
+
+.entry-code-field span {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #30323a;
+  border-radius: 15px;
+  color: #202634;
+  background: rgba(255, 255, 255, 0.94);
+  font-size: 24px;
+  font-weight: 900;
+}
+
 .entry-login-button {
   min-height: 68px;
   border: 0;
@@ -1018,6 +1159,20 @@ button {
 .entry-login-button:disabled {
   color: #b7b4a4;
   filter: saturate(0.75);
+}
+
+.entry-resend-button {
+  justify-self: center;
+  padding: 0;
+  border: 0;
+  color: #242936;
+  background: transparent;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.entry-resend-button:disabled {
+  color: #a8adb7;
 }
 
 .entry-agreement {

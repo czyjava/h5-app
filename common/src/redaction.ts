@@ -6,16 +6,21 @@ export function isSensitiveKey(key: string, pattern = DEFAULT_SENSITIVE_KEY_PATT
 }
 
 export function redactText(value: string) {
+  // 代理预览日志会同时出现 query/form 与 JSON 字符串，统一在文本层兜底脱敏，避免验证码和测试手机号落盘。
   return value
     .replace(/(authToken=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(token=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(password=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(phoneNumber=)[^&\s]+/gi, '$1已脱敏')
+    .replace(/(phone=)[^&\s]+/gi, '$1已脱敏')
+    .replace(/(mobile=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(smsId=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(smsCode=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(NECaptchaValidate=)[^&\s]+/gi, '$1已脱敏')
+    .replace(/"(authToken|token|password|phoneNumber|phone|mobile|smsId|smsCode|NECaptchaValidate|authorization|cookie|idCard|id_card)"\s*:\s*"[^"]*"/gi, '"$1":"已脱敏"')
+    .replace(/(验证码[:：]\s*)\d{6}/g, '$1已脱敏')
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer 已脱敏')
-    .replace(/1[3-9]\d{9}/g, '手机号已脱敏');
+    .replace(/(?<!\d)\d{11}(?!\d)/g, '手机号已脱敏');
 }
 
 export function redactValue(key: string, value: unknown): unknown {

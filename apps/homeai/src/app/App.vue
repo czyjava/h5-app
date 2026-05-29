@@ -319,6 +319,25 @@
             <p v-if="apiState.lastError" class="settings-error">{{ apiState.lastError }}</p>
           </section>
 
+          <section class="assistant-history-card">
+            <header>
+              <h3>AI 设计助手</h3>
+              <button type="button" :disabled="assistantHistoryLoading" @click="loadAssistantHistory">
+                {{ assistantHistoryVisible ? '刷新' : '查看历史' }}
+              </button>
+            </header>
+            <div v-if="assistantHistoryVisible" class="assistant-history-list">
+              <button v-for="sessionItem in assistantSessions" :key="sessionItem.sessionKey" type="button" @click="openAssistantHistory(sessionItem.sessionKey)">
+                <span>
+                  <strong>{{ sessionItem.summary || '设计助手会话' }}</strong>
+                  <small>{{ sessionItem.createTime || sessionItem.updateTime || '最近会话' }}</small>
+                </span>
+                <ChevronRight :size="18" />
+              </button>
+              <p v-if="!assistantSessions.length">{{ assistantHistoryLoading ? '加载中...' : '暂无历史会话' }}</p>
+            </div>
+          </section>
+
           <section class="work-list">
             <h3>我的作品</h3>
             <article v-for="work in snapshot.works" :key="work.id" class="work-row">
@@ -367,13 +386,14 @@ import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import {
   listDesignAssistantMessages,
+  listDesignAssistantSessions,
   resolveAssistantImageUrl,
   resolveAssistantText,
   sendDesignAssistantMessage,
   startDesignAssistantSession,
 } from '../shared/designAssistantApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
-import type { DesignAssistantMessage, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
+import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
 
 const API_DEBUG_HASH = '#/api-debug';
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
@@ -422,6 +442,9 @@ const assistantImageUrls = ref<string[]>([]);
 const assistantMessages = ref<Array<DesignAssistantMessage & { localId?: string }>>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
+const assistantHistoryVisible = ref(false);
+const assistantHistoryLoading = ref(false);
+const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -766,6 +789,28 @@ async function startManualAssistantSession() {
   } finally {
     assistantSending.value = false;
   }
+}
+
+async function loadAssistantHistory() {
+  assistantHistoryVisible.value = true;
+  if (demoMode.value || !authTokenDraft.value) {
+    assistantSessions.value = [];
+    return;
+  }
+  assistantHistoryLoading.value = true;
+  try {
+    assistantSessions.value = await listDesignAssistantSessions(getAssistantContext(), 'ASSISTANT_CHAT');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '历史会话加载失败');
+  } finally {
+    assistantHistoryLoading.value = false;
+  }
+}
+
+async function openAssistantHistory(sessionKey: string) {
+  assistantSessionKey.value = sessionKey;
+  activeTab.value = 'assistant';
+  await restoreAssistantMessages();
 }
 
 async function sendAssistantMessage() {
@@ -2283,6 +2328,81 @@ button {
   background: #fff0f0;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.assistant-history-card {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 14px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(36, 56, 86, 0.08);
+}
+
+.assistant-history-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.assistant-history-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.assistant-history-card header button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assistant-history-card header button:disabled {
+  background: #aeb8c8;
+}
+
+.assistant-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.assistant-history-list button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 11px;
+  color: #26324a;
+  background: #f4f7fb;
+  text-align: left;
+}
+
+.assistant-history-list span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.assistant-history-list strong,
+.assistant-history-list small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-history-list small,
+.assistant-history-list p {
+  margin: 0;
+  color: #7a879b;
+  font-size: 12px;
 }
 
 .work-list {

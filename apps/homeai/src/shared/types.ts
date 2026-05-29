@@ -78,6 +78,7 @@ export interface DesignAssistantMessagesResponse {
 }
 
 export interface DesignAssistantSessionsResponse {
+  items?: DesignAssistantSessionItem[];
   sessions?: DesignAssistantSessionItem[];
 }
 

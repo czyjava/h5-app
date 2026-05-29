@@ -365,7 +365,7 @@
       </section>
 
       <nav v-if="!bootFlowVisible && activeTab !== 'assistant'" class="bottom-nav">
-        <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
+        <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="switchTab(tab.key)">
           <img :src="tab.icon" alt="" />
           <span>{{ tab.label }}</span>
         </button>
@@ -694,6 +694,25 @@ function resetDesign() {
   selectedImageName.value = '';
 }
 
+function switchTab(tab: MainTab) {
+  if (tab === 'assistant') {
+    openAssistantHome();
+    return;
+  }
+  activeTab.value = tab;
+}
+
+function openAssistantHome() {
+  if (assistantSceneType.value !== 'ASSISTANT_CHAT') {
+    // 底部 AI 入口固定进入 AI 设计助手，避免沿用定制设计会话去发送普通咨询。
+    assistantSceneType.value = 'ASSISTANT_CHAT';
+    assistantWorkContext.value = null;
+    assistantSessionKey.value = '';
+    assistantMessages.value = [];
+  }
+  activeTab.value = 'assistant';
+}
+
 function mockUpload() {
   // 首版复刻只保存交互态，真实上传接口后续通过透明代理逐项对齐原 APP。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
@@ -894,15 +913,37 @@ function handleAssistantImageError() {
 }
 
 function openCustomDesignFromResult() {
+  const workContext = resolveCustomDesignWorkContext();
+  if (!workContext) {
+    showToast('请先生成或选择一个作品，再进入定制设计');
+    return false;
+  }
   assistantSceneType.value = 'CUSTOM_DESIGN';
-  assistantWorkContext.value = { workId: selectedFeature.value.code, templateId: selectedFeature.value.code };
+  assistantWorkContext.value = workContext;
+  assistantSessionKey.value = '';
+  assistantMessages.value = [];
   assistantInput.value = `请基于当前${selectedFeature.value.title}结果继续优化`;
   activeTab.value = 'assistant';
+  return true;
+}
+
+function resolveCustomDesignWorkContext() {
+  const realWork =
+    snapshot.value.works.find((work) => work.id && !work.id.startsWith('demo-')) ??
+    (demoMode.value ? snapshot.value.works.find((work) => work.id) : undefined);
+  if (!realWork) {
+    return null;
+  }
+  return {
+    workId: realWork.id,
+    templateId: realWork.templateId || selectedFeature.value.code,
+  };
 }
 
 function openCustomDesignFromFeedback() {
-  openCustomDesignFromResult();
-  assistantInput.value = '我不满意当前效果，请帮我换一种更自然、更高级的设计';
+  if (openCustomDesignFromResult()) {
+    assistantInput.value = '我不满意当前效果，请帮我换一种更自然、更高级的设计';
+  }
 }
 
 async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIKE' | 'DISLIKE') {

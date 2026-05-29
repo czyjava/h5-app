@@ -116,7 +116,7 @@ export async function listDesignAssistantSessions(
     context,
     { method: 'POST', form: compactForm({ sceneType, pageNo: 1, pageSize: 50 }) },
   );
-  return response.sessions ?? [];
+  return response.items ?? response.sessions ?? [];
 }
 
 export async function feedbackDesignAssistantMessage(context: HomeAiRequestContext, params: FeedbackParams) {

@@ -906,11 +906,15 @@ function openCustomDesignFromFeedback() {
 }
 
 async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIKE' | 'DISLIKE') {
-  if (!message.messageId || demoMode.value || !authTokenDraft.value) {
+  if (!message.messageId || !assistantSessionKey.value || demoMode.value || !authTokenDraft.value) {
     showToast('已记录反馈');
     return;
   }
-  await feedbackDesignAssistantMessage(getAssistantContext(), { messageId: message.messageId, feedback });
+  await feedbackDesignAssistantMessage(getAssistantContext(), {
+    sessionKey: assistantSessionKey.value,
+    messageId: message.messageId,
+    feedback,
+  });
   showToast('已记录反馈');
 }
 

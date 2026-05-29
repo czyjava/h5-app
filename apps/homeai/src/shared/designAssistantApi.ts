@@ -28,6 +28,7 @@ interface SendParams {
 }
 
 interface FeedbackParams {
+  sessionKey: string;
   messageId: string;
   feedback: 'LIKE' | 'DISLIKE';
   feedbackReason?: string;
@@ -101,7 +102,7 @@ export async function listDesignAssistantMessages(context: HomeAiRequestContext,
   const response = await requestBusiness<DesignAssistantMessagesResponse>(
     homeAiReplicaConfig.endpoints.designAssistantMessages,
     context,
-    { method: 'POST', form: { sessionKey, page: 1, limit: 100 } },
+    { method: 'POST', form: { sessionKey, pageNo: 1, pageSize: 100 } },
   );
   return response.messages ?? [];
 }
@@ -113,7 +114,7 @@ export async function listDesignAssistantSessions(
   const response = await requestBusiness<DesignAssistantSessionsResponse>(
     homeAiReplicaConfig.endpoints.designAssistantSessions,
     context,
-    { method: 'POST', form: compactForm({ sceneType, page: 1, limit: 50 }) },
+    { method: 'POST', form: compactForm({ sceneType, pageNo: 1, pageSize: 50 }) },
   );
   return response.sessions ?? [];
 }

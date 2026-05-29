@@ -210,10 +210,39 @@
             <strong>AI 设计助手</strong>
             <button class="assistant-new-button" type="button" @click="showToast('正在准备新的设计助手会话')">新会话</button>
           </header>
-          <section class="assistant-placeholder">
-            <span>AI</span>
-            <h2>设计助手</h2>
-            <p>可以咨询户型、风格、预算和软装搭配，也可以上传图片作为参考。</p>
+          <section class="assistant-chat">
+            <section v-if="assistantMessages.length === 0" class="assistant-empty">
+              <span>AI</span>
+              <h2>设计助手</h2>
+              <p>可以咨询户型、风格、预算和软装搭配，也可以上传图片作为参考。</p>
+              <div class="assistant-quick-list">
+                <button v-for="question in assistantQuickQuestions" :key="question" type="button" @click="useAssistantQuickQuestion(question)">
+                  {{ question }}
+                </button>
+              </div>
+            </section>
+            <section v-else class="assistant-message-list">
+              <article v-for="message in assistantMessages" :key="message.messageId || message.localId" class="assistant-message" :class="message.role === 'USER' ? 'user' : 'assistant'">
+                <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" />
+                <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
+                <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
+              </article>
+            </section>
+          </section>
+
+          <section class="assistant-composer">
+            <button type="button" aria-label="上传图片" @click="addAssistantImageAttachment">
+              <img :src="homeAiAssets.upload" alt="" />
+            </button>
+            <input v-model="assistantInput" type="text" placeholder="输入你的装修问题" @keydown.enter.prevent="sendLocalAssistantMessage" />
+            <button type="button" :disabled="!assistantInput.trim() && assistantImageUrls.length === 0" @click="sendLocalAssistantMessage">
+              发送
+            </button>
+            <div v-if="assistantImageUrls.length" class="assistant-attachment-strip">
+              <span v-for="url in assistantImageUrls" :key="url">
+                <img :src="url" alt="" />
+              </span>
+            </div>
           </section>
         </section>
 
@@ -336,8 +365,9 @@ import {
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
+import { resolveAssistantImageUrl, resolveAssistantText } from '../shared/designAssistantApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
-import type { DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
+import type { DesignAssistantMessage, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
 
 const API_DEBUG_HASH = '#/api-debug';
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
@@ -381,6 +411,9 @@ const designStep = ref(0);
 const selectedImageName = ref('');
 const selectedStyle = ref('现代简约');
 const activeDiscoverCategory = ref('全部');
+const assistantInput = ref('');
+const assistantImageUrls = ref<string[]>([]);
+const assistantMessages = ref<Array<DesignAssistantMessage & { localId?: string }>>([]);
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -425,6 +458,7 @@ const designTools = [
   { label: '材质', icon: homeAiAssets.texture },
   { label: '擦除', icon: homeAiAssets.erase },
 ];
+const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约适合什么配色？', '帮我规划玄关收纳', '预算有限先改哪里？'];
 const environmentOptions = [
   {
     key: 'production' as const,
@@ -612,6 +646,58 @@ function resetDesign() {
 function mockUpload() {
   // 首版复刻只保存交互态，真实上传接口后续通过透明代理逐项对齐原 APP。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
+}
+
+function createLocalAssistantMessage(role: 'USER' | 'ASSISTANT', text: string, imageUrl = '') {
+  const messageContent = imageUrl
+    ? { type: 'IMAGE', image: { large: imageUrl } }
+    : { type: 'TEXT', text: { text } };
+  return {
+    localId: `${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    role,
+    status: 'SUCCEEDED',
+    contentType: imageUrl ? 'IMAGE' : 'TEXT',
+    messageContent,
+    messageTime: Date.now(),
+  } satisfies DesignAssistantMessage & { localId: string };
+}
+
+function resolveAssistantMessageText(message: DesignAssistantMessage) {
+  return resolveAssistantText(message.messageContent);
+}
+
+function resolveAssistantMessageImage(message: DesignAssistantMessage) {
+  return resolveAssistantImageUrl(message.messageContent);
+}
+
+function useAssistantQuickQuestion(question: string) {
+  assistantInput.value = question;
+}
+
+function addAssistantImageAttachment() {
+  const nextImage = selectedFeature.value?.guideImage || homeAiAssets.guide.interiorGood;
+  if (!assistantImageUrls.value.includes(nextImage)) {
+    assistantImageUrls.value = [...assistantImageUrls.value, nextImage];
+  }
+  showToast('已添加一张图片附件');
+}
+
+function sendLocalAssistantMessage() {
+  const prompt = assistantInput.value.trim();
+  if (!prompt && assistantImageUrls.value.length === 0) {
+    return;
+  }
+  if (prompt) {
+    assistantMessages.value.push(createLocalAssistantMessage('USER', prompt));
+  }
+  assistantImageUrls.value.forEach((url) => {
+    assistantMessages.value.push(createLocalAssistantMessage('USER', '', url));
+  });
+  assistantMessages.value.push(
+    createLocalAssistantMessage('ASSISTANT', '我先收到了你的问题。下一步会接入同步接口，直接返回装修建议或设计图片。'),
+  );
+  assistantInput.value = '';
+  assistantImageUrls.value = [];
 }
 
 function nextDesignStep() {
@@ -1496,7 +1582,7 @@ button {
 
 .page-assistant {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   min-height: 0;
   padding: 12px 18px 18px;
   background: #f5f8fd;
@@ -1523,7 +1609,13 @@ button {
   font-weight: 800;
 }
 
-.assistant-placeholder {
+.assistant-chat {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 0;
+}
+
+.assistant-empty {
   align-self: center;
   display: grid;
   justify-items: center;
@@ -1532,7 +1624,7 @@ button {
   text-align: center;
 }
 
-.assistant-placeholder span {
+.assistant-empty > span {
   display: grid;
   place-items: center;
   width: 58px;
@@ -1544,16 +1636,143 @@ button {
   font-weight: 900;
 }
 
-.assistant-placeholder h2 {
+.assistant-empty h2 {
   margin: 0;
   font-size: 24px;
 }
 
-.assistant-placeholder p {
+.assistant-empty p {
   margin: 0;
   color: #647089;
   font-size: 14px;
   line-height: 1.7;
+}
+
+.assistant-quick-list {
+  width: 100%;
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.assistant-quick-list button {
+  min-height: 40px;
+  border: 1px solid rgba(52, 120, 246, 0.14);
+  border-radius: 14px;
+  color: #27344d;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.assistant-message-list {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding-bottom: 8px;
+}
+
+.assistant-message {
+  max-width: 84%;
+  display: grid;
+  gap: 7px;
+  padding: 11px 13px;
+  border-radius: 18px;
+  color: #20283a;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(32, 52, 82, 0.08);
+}
+
+.assistant-message.user {
+  justify-self: end;
+  color: #fff;
+  background: #3478f6;
+}
+
+.assistant-message img {
+  width: min(180px, 100%);
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.assistant-message p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+
+.assistant-message small {
+  color: #d43131;
+}
+
+.assistant-composer {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 56px;
+  gap: 8px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid rgba(101, 126, 153, 0.12);
+}
+
+.assistant-composer > button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 18px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.assistant-composer > button:disabled {
+  color: #97a3b7;
+  background: #e1e7f0;
+}
+
+.assistant-composer > button:first-child {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(52, 120, 246, 0.18);
+}
+
+.assistant-composer > button img {
+  width: 19px;
+  height: 19px;
+}
+
+.assistant-composer input {
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  border-radius: 20px;
+  padding: 0 14px;
+  outline: 0;
+  background: #fff;
+  font-size: 14px;
+  box-shadow: inset 0 0 0 1px rgba(101, 126, 153, 0.16);
+}
+
+.assistant-attachment-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.assistant-attachment-strip span {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.assistant-attachment-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .page-header,

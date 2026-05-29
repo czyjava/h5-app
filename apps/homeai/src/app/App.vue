@@ -229,7 +229,7 @@
             </section>
             <section v-else class="assistant-message-list">
               <article v-for="message in assistantMessages" :key="message.messageId || message.localId" class="assistant-message" :class="message.role === 'USER' ? 'user' : 'assistant'">
-                <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" />
+                <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" @error="handleAssistantImageError" />
                 <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
                 <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
                 <footer v-if="message.role === 'ASSISTANT' && message.messageId" class="assistant-message-actions">
@@ -840,6 +840,7 @@ async function sendAssistantMessage() {
     return;
   }
   if (demoMode.value || !authTokenDraft.value) {
+    showToast('当前为本地体验，配置登录 token 后走真实接口');
     sendLocalAssistantMessage();
     return;
   }
@@ -886,6 +887,10 @@ function openAssistantFromWork(work: WorkItem) {
   assistantWorkContext.value = { workId: work.id, templateId: work.templateId };
   activeTab.value = 'assistant';
   assistantInput.value = `请结合这个作品，给我一些${work.title}的装修优化建议`;
+}
+
+function handleAssistantImageError() {
+  showToast('图片加载失败，请稍后重试');
 }
 
 function openCustomDesignFromResult() {

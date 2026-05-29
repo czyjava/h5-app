@@ -47,5 +47,12 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     goodsChannelCode: '/api/open/goods/get-channel-code.htm',
     feedbackCreate: '/api/open/feedback/create.htm',
     upload: '/api/open/upload/upload.htm',
+    designAssistantStart: '/api/h5/homeai/design-assistant/start.htm',
+    designAssistantSend: '/api/h5/homeai/design-assistant/send.htm',
+    designAssistantSessions: '/api/h5/homeai/design-assistant/sessions.htm',
+    designAssistantMessages: '/api/h5/homeai/design-assistant/messages/list.htm',
+    designAssistantFeedback: '/api/h5/homeai/design-assistant/feedback.htm',
+    designAssistantRegenerate: '/api/h5/homeai/design-assistant/regenerate.htm',
+    designAssistantApplyDesign: '/api/h5/homeai/design-assistant/apply-design.htm',
   },
 };

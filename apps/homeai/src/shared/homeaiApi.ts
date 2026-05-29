@@ -33,7 +33,7 @@ function apiErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '接口请求失败';
 }
 
-async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
+export async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
   const host = homeAiReplicaConfig.hosts.business;
   const url = new URL(`${host.proxyPrefix}${path}`, window.location.origin);
   const commonQuery = buildReplicaCommonQuery(homeAiReplicaConfig, {

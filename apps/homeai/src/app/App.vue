@@ -208,7 +208,7 @@
               <ChevronLeft :size="20" />
             </button>
             <strong>AI 设计助手</strong>
-            <button class="assistant-new-button" type="button" @click="showToast('正在准备新的设计助手会话')">新会话</button>
+            <button class="assistant-new-button" type="button" :disabled="assistantSending" @click="startManualAssistantSession">新会话</button>
           </header>
           <section class="assistant-chat">
             <section v-if="assistantMessages.length === 0" class="assistant-empty">
@@ -235,8 +235,8 @@
               <img :src="homeAiAssets.upload" alt="" />
             </button>
             <input v-model="assistantInput" type="text" placeholder="输入你的装修问题" @keydown.enter.prevent="sendLocalAssistantMessage" />
-            <button type="button" :disabled="!assistantInput.trim() && assistantImageUrls.length === 0" @click="sendLocalAssistantMessage">
-              发送
+            <button type="button" :disabled="assistantSending || (!assistantInput.trim() && assistantImageUrls.length === 0)" @click="sendAssistantMessage">
+              {{ assistantSending ? '等待' : '发送' }}
             </button>
             <div v-if="assistantImageUrls.length" class="assistant-attachment-strip">
               <span v-for="url in assistantImageUrls" :key="url">
@@ -347,7 +347,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, WandSparkles, X } from 'lucide-vue-next';
 import {
   createReplicaSession,
@@ -365,7 +365,13 @@ import {
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
-import { resolveAssistantImageUrl, resolveAssistantText } from '../shared/designAssistantApi';
+import {
+  listDesignAssistantMessages,
+  resolveAssistantImageUrl,
+  resolveAssistantText,
+  sendDesignAssistantMessage,
+  startDesignAssistantSession,
+} from '../shared/designAssistantApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
 import type { DesignAssistantMessage, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
 
@@ -414,6 +420,8 @@ const activeDiscoverCategory = ref('全部');
 const assistantInput = ref('');
 const assistantImageUrls = ref<string[]>([]);
 const assistantMessages = ref<Array<DesignAssistantMessage & { localId?: string }>>([]);
+const assistantSessionKey = ref('');
+const assistantSending = ref(false);
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -662,6 +670,13 @@ function createLocalAssistantMessage(role: 'USER' | 'ASSISTANT', text: string, i
   } satisfies DesignAssistantMessage & { localId: string };
 }
 
+function getAssistantContext() {
+  return {
+    authToken: authTokenDraft.value,
+    environment: environment.value,
+  };
+}
+
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
   return resolveAssistantText(message.messageContent);
 }
@@ -682,6 +697,17 @@ function addAssistantImageAttachment() {
   showToast('已添加一张图片附件');
 }
 
+function appendAssistantWaitingMessage() {
+  assistantMessages.value.push({
+    localId: `ASSISTANT-PENDING-${Date.now()}`,
+    role: 'ASSISTANT',
+    status: 'PENDING',
+    contentType: 'TEXT',
+    messageContent: { type: 'TEXT', text: { text: '正在生成中...' } },
+    messageTime: Date.now(),
+  });
+}
+
 function sendLocalAssistantMessage() {
   const prompt = assistantInput.value.trim();
   if (!prompt && assistantImageUrls.value.length === 0) {
@@ -698,6 +724,88 @@ function sendLocalAssistantMessage() {
   );
   assistantInput.value = '';
   assistantImageUrls.value = [];
+}
+
+async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW' = 'APP_LAUNCH_FIRST_ENTER') {
+  if (demoMode.value || !authTokenDraft.value) {
+    return '';
+  }
+  if (assistantSessionKey.value && startReason !== 'MANUAL_NEW') {
+    return assistantSessionKey.value;
+  }
+  const response = await startDesignAssistantSession(getAssistantContext(), {
+    sceneType: 'ASSISTANT_CHAT',
+    startReason,
+    deviceId: `${homeAiReplicaConfig.appId}-h5`,
+  });
+  assistantSessionKey.value = response.sessionKey;
+  return response.sessionKey;
+}
+
+async function restoreAssistantMessages() {
+  if (demoMode.value || !authTokenDraft.value || !assistantSessionKey.value) {
+    return;
+  }
+  assistantMessages.value = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
+}
+
+async function startManualAssistantSession() {
+  if (demoMode.value || !authTokenDraft.value) {
+    assistantSessionKey.value = '';
+    assistantMessages.value = [];
+    showToast('已新建本地体验会话');
+    return;
+  }
+  assistantSending.value = true;
+  try {
+    await ensureAssistantSession('MANUAL_NEW');
+    assistantMessages.value = [];
+    showToast('已新建设计助手会话');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '新建会话失败');
+  } finally {
+    assistantSending.value = false;
+  }
+}
+
+async function sendAssistantMessage() {
+  const prompt = assistantInput.value.trim();
+  const imageUrls = [...assistantImageUrls.value];
+  if (!prompt && imageUrls.length === 0) {
+    return;
+  }
+  if (demoMode.value || !authTokenDraft.value) {
+    sendLocalAssistantMessage();
+    return;
+  }
+  assistantInput.value = '';
+  assistantImageUrls.value = [];
+  assistantMessages.value.push(createLocalAssistantMessage('USER', prompt || '图片附件', imageUrls[0] || ''));
+  appendAssistantWaitingMessage();
+  assistantSending.value = true;
+  try {
+    const sessionKey = await ensureAssistantSession();
+    await sendDesignAssistantMessage(getAssistantContext(), {
+      sessionKey,
+      prompt,
+      imageUrls,
+    });
+    await restoreAssistantMessages();
+  } catch (error) {
+    assistantMessages.value = assistantMessages.value.filter((message) => message.status !== 'PENDING');
+    assistantMessages.value.push({
+      localId: `ASSISTANT-FAILED-${Date.now()}`,
+      role: 'ASSISTANT',
+      status: 'FAILED',
+      contentType: 'TEXT',
+      messageContent: { type: 'TEXT', text: { text: '' } },
+      errorMessage: error instanceof Error ? error.message : '生成失败，请稍后再试',
+      messageTime: Date.now(),
+    });
+    showToast(error instanceof Error ? error.message : '发送失败');
+  } finally {
+    assistantSending.value = false;
+  }
 }
 
 function nextDesignStep() {
@@ -743,6 +851,20 @@ onMounted(() => {
   window.addEventListener('popstate', syncApiDebugPage);
   syncApiDebugPage();
   void reload();
+});
+
+watch(activeTab, (tab) => {
+  if (tab !== 'assistant') {
+    return;
+  }
+  void (async () => {
+    try {
+      await ensureAssistantSession();
+      await restoreAssistantMessages();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '设计助手会话初始化失败');
+    }
+  })();
 });
 
 onUnmounted(() => {

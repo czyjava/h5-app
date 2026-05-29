@@ -195,6 +195,8 @@
                 <span>真实生成接口可在 Network 面板中对照代理请求。</span>
               </div>
             </div>
+            <button class="custom-design-entry" type="button" @click="openCustomDesignFromResult">定制设计</button>
+            <button class="custom-design-entry secondary" type="button" @click="openCustomDesignFromFeedback">不满意，帮我修改</button>
           </section>
 
           <button class="bottom-action" type="button" @click="nextDesignStep">
@@ -207,7 +209,7 @@
             <button class="icon-button" type="button" aria-label="返回首页" @click="activeTab = 'home'">
               <ChevronLeft :size="20" />
             </button>
-            <strong>AI 设计助手</strong>
+            <strong>{{ assistantPageTitle }}</strong>
             <button class="assistant-new-button" type="button" :disabled="assistantSending" @click="startManualAssistantSession">新会话</button>
           </header>
           <section class="assistant-chat">
@@ -230,6 +232,12 @@
                 <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" />
                 <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
                 <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
+                <footer v-if="message.role === 'ASSISTANT' && message.messageId" class="assistant-message-actions">
+                  <button type="button" @click="feedbackAssistant(message, 'LIKE')">满意</button>
+                  <button type="button" @click="feedbackAssistant(message, 'DISLIKE')">不满意</button>
+                  <button type="button" @click="regenerateAssistant(message)">重生成</button>
+                  <button v-if="assistantSceneType === 'CUSTOM_DESIGN' && resolveAssistantMessageImage(message)" type="button" @click="applyCustomDesign(message)">应用设计</button>
+                </footer>
               </article>
             </section>
           </section>
@@ -238,7 +246,7 @@
             <button type="button" aria-label="上传图片" @click="addAssistantImageAttachment">
               <img :src="homeAiAssets.upload" alt="" />
             </button>
-            <input v-model="assistantInput" type="text" placeholder="输入你的装修问题" @keydown.enter.prevent="sendLocalAssistantMessage" />
+            <input v-model="assistantInput" type="text" placeholder="输入你的装修问题" @keydown.enter.prevent="sendAssistantMessage" />
             <button type="button" :disabled="assistantSending || (!assistantInput.trim() && assistantImageUrls.length === 0)" @click="sendAssistantMessage">
               {{ assistantSending ? '等待' : '发送' }}
             </button>
@@ -390,8 +398,12 @@ import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import {
+  applyDesignAssistantImage,
+  feedbackDesignAssistantMessage,
   listDesignAssistantMessages,
   listDesignAssistantSessions,
+  quoteDesignAssistantTemplate,
+  regenerateDesignAssistantMessage,
   resolveAssistantImageUrl,
   resolveAssistantText,
   sendDesignAssistantMessage,
@@ -448,6 +460,7 @@ const assistantMessages = ref<Array<DesignAssistantMessage & { localId?: string 
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
 const assistantWorkContext = ref<{ workId: string; templateId?: string } | null>(null);
+const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
 const assistantHistoryVisible = ref(false);
 const assistantHistoryLoading = ref(false);
 const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
@@ -545,6 +558,7 @@ const filteredDiscover = computed(() => {
   }
   return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
 });
+const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
 
 function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
@@ -763,8 +777,8 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
     return assistantSessionKey.value;
   }
   const response = await startDesignAssistantSession(getAssistantContext(), {
-    sceneType: 'ASSISTANT_CHAT',
-    startReason,
+    sceneType: assistantSceneType.value,
+    startReason: assistantSceneType.value === 'CUSTOM_DESIGN' ? 'WORK_RESULT_ENTER' : startReason,
     deviceId: `${homeAiReplicaConfig.appId}-h5`,
   });
   assistantSessionKey.value = response.sessionKey;
@@ -836,12 +850,18 @@ async function sendAssistantMessage() {
   assistantSending.value = true;
   try {
     const sessionKey = await ensureAssistantSession();
+    if (assistantSceneType.value === 'CUSTOM_DESIGN') {
+      await quoteDesignAssistantTemplate(getAssistantContext(), {
+        templateId: assistantWorkContext.value?.templateId,
+      });
+    }
     await sendDesignAssistantMessage(getAssistantContext(), {
       sessionKey,
       prompt,
       imageUrls,
       workId: assistantWorkContext.value?.workId,
       templateId: assistantWorkContext.value?.templateId,
+      priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
     });
     await restoreAssistantMessages();
   } catch (error) {
@@ -862,9 +882,71 @@ async function sendAssistantMessage() {
 }
 
 function openAssistantFromWork(work: WorkItem) {
+  assistantSceneType.value = 'ASSISTANT_CHAT';
   assistantWorkContext.value = { workId: work.id, templateId: work.templateId };
   activeTab.value = 'assistant';
   assistantInput.value = `请结合这个作品，给我一些${work.title}的装修优化建议`;
+}
+
+function openCustomDesignFromResult() {
+  assistantSceneType.value = 'CUSTOM_DESIGN';
+  assistantWorkContext.value = { workId: selectedFeature.value.code, templateId: selectedFeature.value.code };
+  assistantInput.value = `请基于当前${selectedFeature.value.title}结果继续优化`;
+  activeTab.value = 'assistant';
+}
+
+function openCustomDesignFromFeedback() {
+  openCustomDesignFromResult();
+  assistantInput.value = '我不满意当前效果，请帮我换一种更自然、更高级的设计';
+}
+
+async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIKE' | 'DISLIKE') {
+  if (!message.messageId || demoMode.value || !authTokenDraft.value) {
+    showToast('已记录反馈');
+    return;
+  }
+  await feedbackDesignAssistantMessage(getAssistantContext(), { messageId: message.messageId, feedback });
+  showToast('已记录反馈');
+}
+
+async function regenerateAssistant(message: DesignAssistantMessage) {
+  if (!message.messageId || !assistantSessionKey.value) {
+    return;
+  }
+  if (demoMode.value || !authTokenDraft.value) {
+    assistantMessages.value.push(createLocalAssistantMessage('ASSISTANT', '我换一种方式重新回答：可以先保留主体结构，再调整色彩和材质。'));
+    return;
+  }
+  assistantSending.value = true;
+  appendAssistantWaitingMessage();
+  try {
+    await regenerateDesignAssistantMessage(getAssistantContext(), {
+      sessionKey: assistantSessionKey.value,
+      messageId: message.messageId,
+      priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
+    });
+    await restoreAssistantMessages();
+  } finally {
+    assistantSending.value = false;
+  }
+}
+
+async function applyCustomDesign(message: DesignAssistantMessage) {
+  if (!message.messageId || !assistantWorkContext.value?.workId) {
+    showToast('缺少可应用的作品信息');
+    return;
+  }
+  if (demoMode.value || !authTokenDraft.value) {
+    showToast('应用设计成功');
+    return;
+  }
+  await applyDesignAssistantImage(getAssistantContext(), {
+    sessionKey: assistantSessionKey.value,
+    messageId: message.messageId,
+    targetWorkId: assistantWorkContext.value.workId,
+  });
+  await restoreAssistantMessages();
+  showToast('应用设计成功');
 }
 
 function nextDesignStep() {
@@ -1909,6 +1991,22 @@ button {
   color: #d43131;
 }
 
+.assistant-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assistant-message-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #2654bd;
+  background: #eaf1ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .assistant-composer {
   position: relative;
   display: grid;
@@ -2182,6 +2280,20 @@ button {
   min-width: 0;
   display: grid;
   gap: 5px;
+}
+
+.custom-design-entry {
+  min-height: 44px;
+  border: 0;
+  border-radius: 22px;
+  color: #fff;
+  background: #3478f6;
+  font-weight: 900;
+}
+
+.custom-design-entry.secondary {
+  color: #2654bd;
+  background: #eaf1ff;
 }
 
 .bottom-action {

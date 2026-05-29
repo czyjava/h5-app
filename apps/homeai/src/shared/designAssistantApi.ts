@@ -141,3 +141,17 @@ export async function applyDesignAssistantImage(context: HomeAiRequestContext, p
     { method: 'POST', form: compactForm({ ...params }) },
   );
 }
+
+export async function quoteDesignAssistantTemplate(
+  context: HomeAiRequestContext,
+  params: { templateId?: string; templatePrice?: number },
+) {
+  return requestBusiness(homeAiReplicaConfig.endpoints.generationQuote, context, {
+    method: 'POST',
+    form: compactForm({
+      templateId: params.templateId,
+      templateCode: params.templateId,
+      templatePrice: params.templatePrice ?? 0,
+    }),
+  });
+}

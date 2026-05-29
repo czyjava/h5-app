@@ -81,6 +81,7 @@ function mapWorkItem(raw, index) {
   const fallback = demoSnapshot.works[index % demoSnapshot.works.length];
   return {
     id: pickString(record, ['id', 'recordCode', 'code'], `work-${index}`),
+    templateId: pickString(record, ['templateId', 'templateID', 'template_id'], ''),
     title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
     status: pickString(record, ['status', 'generationStatus'], fallback.status),
     coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'resultUrl', 'imageUrl', 'url'], fallback.coverUrl)),

@@ -211,6 +211,10 @@
             <button class="assistant-new-button" type="button" :disabled="assistantSending" @click="startManualAssistantSession">新会话</button>
           </header>
           <section class="assistant-chat">
+            <div v-if="assistantWorkContext" class="assistant-context-pill">
+              <span>作品 {{ assistantWorkContext.workId }}</span>
+              <small>模板 {{ assistantWorkContext.templateId || '-' }}</small>
+            </div>
             <section v-if="assistantMessages.length === 0" class="assistant-empty">
               <span>AI</span>
               <h2>设计助手</h2>
@@ -346,6 +350,7 @@
                 <strong>{{ work.title }}</strong>
                 <span>{{ work.status }} · {{ work.createdAt || '今天' }}</span>
               </div>
+              <button type="button" @click="openAssistantFromWork(work)">问助手</button>
             </article>
           </section>
         </section>
@@ -393,7 +398,7 @@ import {
   startDesignAssistantSession,
 } from '../shared/designAssistantApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
-import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab } from '../shared/types';
+import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
 const API_DEBUG_HASH = '#/api-debug';
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
@@ -442,6 +447,7 @@ const assistantImageUrls = ref<string[]>([]);
 const assistantMessages = ref<Array<DesignAssistantMessage & { localId?: string }>>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
+const assistantWorkContext = ref<{ workId: string; templateId?: string } | null>(null);
 const assistantHistoryVisible = ref(false);
 const assistantHistoryLoading = ref(false);
 const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
@@ -834,6 +840,8 @@ async function sendAssistantMessage() {
       sessionKey,
       prompt,
       imageUrls,
+      workId: assistantWorkContext.value?.workId,
+      templateId: assistantWorkContext.value?.templateId,
     });
     await restoreAssistantMessages();
   } catch (error) {
@@ -851,6 +859,12 @@ async function sendAssistantMessage() {
   } finally {
     assistantSending.value = false;
   }
+}
+
+function openAssistantFromWork(work: WorkItem) {
+  assistantWorkContext.value = { workId: work.id, templateId: work.templateId };
+  activeTab.value = 'assistant';
+  assistantInput.value = `请结合这个作品，给我一些${work.title}的装修优化建议`;
 }
 
 function nextDesignStep() {
@@ -1782,6 +1796,28 @@ button {
   padding: 12px 0;
 }
 
+.assistant-context-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 11px;
+  border-radius: 14px;
+  color: #2654bd;
+  background: #eaf1ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assistant-context-pill small {
+  min-width: 0;
+  overflow: hidden;
+  color: #6a7891;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .assistant-empty {
   align-self: center;
   display: grid;
@@ -2411,7 +2447,7 @@ button {
 
 .work-row {
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 72px 1fr auto;
   gap: 12px;
   align-items: center;
   padding: 10px;
@@ -2430,6 +2466,16 @@ button {
   min-width: 0;
   display: grid;
   gap: 5px;
+}
+
+.work-row button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .work-row strong {

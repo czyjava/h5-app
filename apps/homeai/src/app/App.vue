@@ -202,6 +202,21 @@
           </button>
         </section>
 
+        <section v-else-if="activeTab === 'assistant'" class="page page-assistant">
+          <header class="assistant-header">
+            <button class="icon-button" type="button" aria-label="返回首页" @click="activeTab = 'home'">
+              <ChevronLeft :size="20" />
+            </button>
+            <strong>AI 设计助手</strong>
+            <button class="assistant-new-button" type="button" @click="showToast('正在准备新的设计助手会话')">新会话</button>
+          </header>
+          <section class="assistant-placeholder">
+            <span>AI</span>
+            <h2>设计助手</h2>
+            <p>可以咨询户型、风格、预算和软装搭配，也可以上传图片作为参考。</p>
+          </section>
+        </section>
+
         <section v-else-if="activeTab === 'discover'" class="page page-discover">
           <header class="page-title-row">
             <div>
@@ -288,7 +303,7 @@
         </section>
       </section>
 
-      <nav v-if="!bootFlowVisible" class="bottom-nav">
+      <nav v-if="!bootFlowVisible && activeTab !== 'assistant'" class="bottom-nav">
         <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
           <img :src="tab.icon" alt="" />
           <span>{{ tab.label }}</span>
@@ -430,6 +445,7 @@ const settingRows: ReplicaSettingsRow[] = [
 const tabs = computed(() => [
   { key: 'home' as const, label: '首页', icon: activeTab.value === 'home' ? homeAiAssets.tabs.home[1] : homeAiAssets.tabs.home[0] },
   { key: 'design' as const, label: '设计', icon: activeTab.value === 'design' ? homeAiAssets.tabs.design[1] : homeAiAssets.tabs.design[0] },
+  { key: 'assistant' as const, label: 'AI', icon: homeAiAssets.magicWand },
   {
     key: 'discover' as const,
     label: '发现',
@@ -1478,6 +1494,68 @@ button {
   background: linear-gradient(180deg, #f7fbff, #eaf2fb);
 }
 
+.page-assistant {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  padding: 12px 18px 18px;
+  background: #f5f8fd;
+}
+
+.assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+}
+
+.assistant-header strong {
+  font-size: 17px;
+}
+
+.assistant-new-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.assistant-placeholder {
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 30px 22px;
+  text-align: center;
+}
+
+.assistant-placeholder span {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.assistant-placeholder h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.assistant-placeholder p {
+  margin: 0;
+  color: #647089;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 .page-header,
 .page-title-row,
 .profile-head {
@@ -1901,7 +1979,7 @@ button {
 
 .bottom-nav {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border-top: 1px solid rgba(101, 126, 153, 0.14);
   background: rgba(255, 255, 255, 0.95);
 }

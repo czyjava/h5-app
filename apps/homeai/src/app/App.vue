@@ -219,8 +219,8 @@
             </div>
             <section v-if="assistantMessages.length === 0" class="assistant-empty">
               <span>AI</span>
-              <h2>设计助手</h2>
-              <p>可以咨询户型、风格、预算和软装搭配，也可以上传图片作为参考。</p>
+              <h2>{{ assistantEmptyTitle }}</h2>
+              <p>{{ assistantEmptyDescription }}</p>
               <div class="assistant-quick-list">
                 <button v-for="question in assistantQuickQuestions" :key="question" type="button" @click="useAssistantQuickQuestion(question)">
                   {{ question }}
@@ -249,7 +249,7 @@
             <button type="button" aria-label="上传图片" @click="addAssistantImageAttachment">
               <img :src="homeAiAssets.upload" alt="" />
             </button>
-            <input v-model="assistantInput" type="text" placeholder="输入你的装修问题" @keydown.enter.prevent="sendAssistantMessage" />
+            <input v-model="assistantInput" type="text" :placeholder="assistantInputPlaceholder" @keydown.enter.prevent="sendAssistantMessage" />
             <button type="button" :disabled="assistantSending || (!assistantInput.trim() && assistantImageUrls.length === 0)" @click="sendAssistantMessage">
               {{ assistantSending ? '等待' : '发送' }}
             </button>
@@ -358,11 +358,14 @@
             <h3>我的作品</h3>
             <article v-for="work in snapshot.works" :key="work.id" class="work-row">
               <img :src="work.coverUrl" alt="" />
-              <div>
+              <div class="work-info">
                 <strong>{{ work.title }}</strong>
                 <span>{{ work.status }} · {{ work.createdAt || '今天' }}</span>
               </div>
-              <button type="button" @click="openAssistantFromWork(work)">问助手</button>
+              <div class="work-actions">
+                <button type="button" @click="openAssistantFromWork(work)">问助手</button>
+                <button type="button" class="custom" @click="openCustomDesignFromWork(work)">定制设计</button>
+              </div>
             </article>
           </section>
         </section>
@@ -401,6 +404,7 @@ import {
   type ReplicaSettingsRow,
 } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
+import { createAssistantWorkEntryState } from '../shared/assistantEntryState';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
@@ -580,6 +584,15 @@ const filteredDiscover = computed(() => {
   return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
 });
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
+const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
+const assistantEmptyDescription = computed(() =>
+  assistantSceneType.value === 'CUSTOM_DESIGN'
+    ? '会基于当前作品开启独立定制设计会话，不复用普通 AI 问询上下文。'
+    : '可以咨询户型、风格、预算和软装搭配，也可以上传图片作为参考。',
+);
+const assistantInputPlaceholder = computed(() =>
+  assistantSceneType.value === 'CUSTOM_DESIGN' ? '输入你的定制设计需求' : '输入你的装修问题',
+);
 
 function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
@@ -926,6 +939,21 @@ async function startManualAssistantSession() {
   }
 }
 
+async function startFreshAssistantSessionAfterEntry(errorFallback: string) {
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
+    return;
+  }
+  assistantSending.value = true;
+  try {
+    // 入口点击即创建新会话，避免后续发送时误复用普通问询或绘画角色的 session。
+    await ensureAssistantSession('MANUAL_NEW');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : errorFallback);
+  } finally {
+    assistantSending.value = false;
+  }
+}
+
 async function loadAssistantHistory() {
   assistantHistoryVisible.value = true;
   if (isLocalAssistantExperience() || !requireAssistantLogin()) {
@@ -1003,10 +1031,45 @@ function openAssistantFromWork(work: WorkItem) {
   if (!requireAssistantLogin()) {
     return;
   }
-  assistantSceneType.value = 'ASSISTANT_CHAT';
-  assistantWorkContext.value = { workId: work.id, templateId: work.templateId };
+  const entryState = createAssistantWorkEntryState({
+    sceneType: 'ASSISTANT_CHAT',
+    currentSessionKey: assistantSessionKey.value,
+    work,
+  });
+  assistantSceneType.value = entryState.sceneType;
+  assistantWorkContext.value = entryState.workContext;
+  assistantSessionKey.value = entryState.sessionKey;
+  assistantMessages.value = entryState.messages;
+  resetAssistantMessageInteractionState();
   activeTab.value = 'assistant';
-  assistantInput.value = `请结合这个作品，给我一些${work.title}的装修优化建议`;
+  assistantInput.value = entryState.input;
+  console.info('[HomeAI Assistant] 从作品进入 AI 问询新会话', {
+    workId: work.id,
+    templateId: work.templateId || '',
+  });
+}
+
+function openCustomDesignFromWork(work: WorkItem) {
+  if (!requireAssistantLogin()) {
+    return;
+  }
+  const entryState = createAssistantWorkEntryState({
+    sceneType: 'CUSTOM_DESIGN',
+    currentSessionKey: assistantSessionKey.value,
+    work,
+  });
+  assistantSceneType.value = entryState.sceneType;
+  assistantWorkContext.value = entryState.workContext;
+  assistantSessionKey.value = entryState.sessionKey;
+  assistantMessages.value = entryState.messages;
+  resetAssistantMessageInteractionState();
+  activeTab.value = 'assistant';
+  assistantInput.value = entryState.input;
+  console.info('[HomeAI Assistant] 从作品开启定制设计新会话', {
+    workId: work.id,
+    templateId: work.templateId || '',
+  });
+  void startFreshAssistantSessionAfterEntry('定制设计会话初始化失败');
 }
 
 function handleAssistantImageError() {
@@ -1029,6 +1092,7 @@ function openCustomDesignFromResult() {
   resetAssistantMessageInteractionState();
   assistantInput.value = `请基于当前${selectedFeature.value.title}结果继续优化`;
   activeTab.value = 'assistant';
+  void startFreshAssistantSessionAfterEntry('定制设计会话初始化失败');
   return true;
 }
 
@@ -2742,10 +2806,16 @@ button {
   object-fit: cover;
 }
 
-.work-row div {
+.work-info {
   min-width: 0;
   display: grid;
   gap: 5px;
+}
+
+.work-actions {
+  display: grid;
+  gap: 7px;
+  justify-items: end;
 }
 
 .work-row button {
@@ -2756,6 +2826,11 @@ button {
   background: #3478f6;
   font-size: 12px;
   font-weight: 900;
+}
+
+.work-row button.custom {
+  color: #17324f;
+  background: #d9f4ee;
 }
 
 .work-row strong {

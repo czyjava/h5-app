@@ -67,6 +67,8 @@ export interface DesignAssistantStartResponse {
 
 export interface DesignAssistantSendResponse {
   sessionKey?: string | null;
+  batchNo?: string | null;
+  messageId?: string | null;
   userMessage?: DesignAssistantMessage | null;
   assistantMessage?: DesignAssistantMessage | null;
   messages?: DesignAssistantMessage[];

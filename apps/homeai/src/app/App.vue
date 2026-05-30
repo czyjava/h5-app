@@ -432,6 +432,8 @@ type AssistantUiMessage = DesignAssistantMessage & {
 };
 
 const API_DEBUG_HASH = '#/api-debug';
+const ASSISTANT_REPLY_POLL_INTERVAL_MS = 1500;
+const ASSISTANT_REPLY_POLL_TIMEOUT_MS = 180000;
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
 const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
 const GUIDE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:guide-complete`;
@@ -884,15 +886,20 @@ function addAssistantImageAttachment() {
   showToast('已添加一张图片附件');
 }
 
-function appendAssistantWaitingMessage() {
-  assistantMessages.value.push({
+function createAssistantWaitingMessage(replyToMessageId?: string) {
+  return {
     localId: `ASSISTANT-PENDING-${Date.now()}`,
+    replyToMessageId,
     role: 'ASSISTANT',
     status: 'PENDING',
     contentType: 'TEXT',
-    messageContent: { type: 'TEXT', text: { text: '正在生成中...' } },
+    messageContent: { type: 'TEXT', text: { text: '正在回复中...' } },
     messageTime: Date.now(),
-  });
+  } satisfies AssistantUiMessage & { localId: string };
+}
+
+function appendAssistantWaitingMessage(replyToMessageId?: string) {
+  assistantMessages.value.push(createAssistantWaitingMessage(replyToMessageId));
 }
 
 async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW' = 'APP_LAUNCH_FIRST_ENTER') {
@@ -917,6 +924,41 @@ async function restoreAssistantMessages() {
   }
   const messages = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
   assistantMessages.value = decorateAssistantMessages(messages);
+}
+
+function hasAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string) {
+  return messages.some(
+    (message) => message.role === 'ASSISTANT' && message.replyToMessageId === replyToMessageId && message.status !== 'PENDING',
+  );
+}
+
+function renderAssistantMessagesWithPending(messages: DesignAssistantMessage[], replyToMessageId: string) {
+  const decorated = decorateAssistantMessages(messages);
+  if (!replyToMessageId || hasAssistantReplyForMessage(decorated, replyToMessageId)) {
+    assistantMessages.value = decorated;
+    return;
+  }
+  assistantMessages.value = [...decorated, createAssistantWaitingMessage(replyToMessageId)];
+}
+
+function waitAssistantPollInterval() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ASSISTANT_REPLY_POLL_INTERVAL_MS);
+  });
+}
+
+async function pollAssistantReply(sessionKey: string, replyToMessageId: string) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < ASSISTANT_REPLY_POLL_TIMEOUT_MS) {
+    const messages = await listDesignAssistantMessages(getAssistantContext(), sessionKey);
+    if (hasAssistantReplyForMessage(messages, replyToMessageId)) {
+      assistantMessages.value = decorateAssistantMessages(messages);
+      return;
+    }
+    renderAssistantMessagesWithPending(messages, replyToMessageId);
+    await waitAssistantPollInterval();
+  }
+  throw new Error('AI 回复仍在处理中，请稍后刷新消息列表查看');
 }
 
 async function startManualAssistantSession() {
@@ -989,7 +1031,6 @@ async function sendAssistantMessage() {
   assistantInput.value = '';
   assistantImageUrls.value = [];
   assistantMessages.value.push(createLocalAssistantMessage('USER', prompt || '图片附件', imageUrls[0] || ''));
-  appendAssistantWaitingMessage();
   assistantSending.value = true;
   try {
     const sessionKey = await ensureAssistantSession();
@@ -998,7 +1039,7 @@ async function sendAssistantMessage() {
         templateId: assistantWorkContext.value?.templateId,
       });
     }
-    await sendDesignAssistantMessage(getAssistantContext(), {
+    const response = await sendDesignAssistantMessage(getAssistantContext(), {
       sessionKey,
       prompt,
       imageUrls,
@@ -1006,7 +1047,13 @@ async function sendAssistantMessage() {
       templateId: assistantWorkContext.value?.templateId,
       priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
     });
-    await restoreAssistantMessages();
+    const replyToMessageId = response.messageId || response.userMessage?.messageId || '';
+    if (!replyToMessageId) {
+      await restoreAssistantMessages();
+      return;
+    }
+    renderAssistantMessagesWithPending(response.messages ?? [], replyToMessageId);
+    await pollAssistantReply(sessionKey, replyToMessageId);
   } catch (error) {
     assistantMessages.value = assistantMessages.value.filter((message) => message.status !== 'PENDING');
     assistantMessages.value.push({
@@ -1111,14 +1158,19 @@ async function regenerateAssistant(message: AssistantUiMessage) {
   }
   assistantSending.value = true;
   markAssistantMessageRegenerated(message.messageId);
-  appendAssistantWaitingMessage();
   try {
-    await regenerateDesignAssistantMessage(getAssistantContext(), {
+    const response = await regenerateDesignAssistantMessage(getAssistantContext(), {
       sessionKey: assistantSessionKey.value,
       messageId: message.messageId,
       priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
     });
-    await restoreAssistantMessages();
+    const replyToMessageId = response.messageId || response.userMessage?.messageId || message.replyToMessageId || '';
+    if (!replyToMessageId) {
+      await restoreAssistantMessages();
+      return;
+    }
+    renderAssistantMessagesWithPending(response.messages ?? [], replyToMessageId);
+    await pollAssistantReply(assistantSessionKey.value, replyToMessageId);
   } catch (error) {
     assistantMessages.value = assistantMessages.value.filter((item) => item.status !== 'PENDING');
     clearAssistantMessageRegenerated(message.messageId);

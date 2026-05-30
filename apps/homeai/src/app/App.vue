@@ -222,7 +222,13 @@
               <h2>{{ assistantEmptyTitle }}</h2>
               <p>{{ assistantEmptyDescription }}</p>
               <div class="assistant-quick-list">
-                <button v-for="question in assistantQuickQuestions" :key="question" type="button" @click="useAssistantQuickQuestion(question)">
+                <button
+                  v-for="question in assistantQuickQuestions"
+                  :key="question"
+                  type="button"
+                  :disabled="assistantComposerDisabled"
+                  @click="useAssistantQuickQuestion(question)"
+                >
                   {{ question }}
                 </button>
               </div>
@@ -246,11 +252,17 @@
           </section>
 
           <section class="assistant-composer">
-            <button type="button" aria-label="上传图片" @click="addAssistantImageAttachment">
+            <button type="button" aria-label="上传图片" :disabled="assistantComposerDisabled" @click="addAssistantImageAttachment">
               <img :src="homeAiAssets.upload" alt="" />
             </button>
-            <input v-model="assistantInput" type="text" :placeholder="assistantInputPlaceholder" @keydown.enter.prevent="sendAssistantMessage" />
-            <button type="button" :disabled="assistantSending || (!assistantInput.trim() && assistantImageUrls.length === 0)" @click="sendAssistantMessage">
+            <input
+              v-model="assistantInput"
+              type="text"
+              :disabled="assistantComposerDisabled"
+              :placeholder="assistantComposerPlaceholder"
+              @keydown.enter.prevent="sendAssistantMessage"
+            />
+            <button type="button" :disabled="assistantSendDisabled" @click="sendAssistantMessage">
               {{ assistantSending ? '等待' : '发送' }}
             </button>
             <div v-if="assistantImageUrls.length" class="assistant-attachment-strip">
@@ -408,6 +420,7 @@ import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '
 import {
   ASSISTANT_MESSAGE_REGENERATED_STATE,
   resolveAssistantMessageFeedbackLabel,
+  shouldDisableAssistantComposer,
   shouldShowAssistantMessageActions,
 } from '../shared/designAssistantMessageUi';
 import {
@@ -592,6 +605,14 @@ const assistantEmptyDescription = computed(() =>
 const assistantInputPlaceholder = computed(() =>
   assistantSceneType.value === 'CUSTOM_DESIGN' ? '输入你的定制设计需求' : '输入你的装修问题',
 );
+const assistantComposerDisabled = computed(() =>
+  shouldDisableAssistantComposer({
+    assistantSending: assistantSending.value,
+    messages: assistantMessages.value,
+  }),
+);
+const assistantComposerPlaceholder = computed(() => (assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value));
+const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
 
 function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
@@ -875,10 +896,16 @@ function shouldRenderApplyDesignAction(message: AssistantUiMessage) {
 }
 
 function useAssistantQuickQuestion(question: string) {
+  if (assistantComposerDisabled.value) {
+    return;
+  }
   assistantInput.value = question;
 }
 
 function addAssistantImageAttachment() {
+  if (assistantComposerDisabled.value) {
+    return;
+  }
   const nextImage = selectedFeature.value?.guideImage || homeAiAssets.guide.interiorGood;
   if (!assistantImageUrls.value.includes(nextImage)) {
     assistantImageUrls.value = [...assistantImageUrls.value, nextImage];
@@ -1024,6 +1051,10 @@ async function openAssistantHistory(sessionKey: string) {
 }
 
 async function sendAssistantMessage() {
+  if (assistantComposerDisabled.value) {
+    showToast('正在回复中，请稍后再提问');
+    return;
+  }
   const prompt = assistantInput.value.trim();
   const imageUrls = [...assistantImageUrls.value];
   const messageImageUrls =

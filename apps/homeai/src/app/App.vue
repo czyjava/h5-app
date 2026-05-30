@@ -397,6 +397,7 @@ import {
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
+import { shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import {
   applyDesignAssistantImage,
   feedbackDesignAssistantMessage,
@@ -739,6 +740,13 @@ function getAssistantContext() {
   };
 }
 
+function isLocalAssistantExperience() {
+  return shouldUseLocalAssistantExperience({
+    demoMode: demoMode.value,
+    authToken: authTokenDraft.value,
+  });
+}
+
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
   return resolveAssistantText(message.messageContent);
 }
@@ -789,7 +797,7 @@ function sendLocalAssistantMessage() {
 }
 
 async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW' = 'APP_LAUNCH_FIRST_ENTER') {
-  if (demoMode.value || !authTokenDraft.value) {
+  if (isLocalAssistantExperience()) {
     return '';
   }
   if (assistantSessionKey.value && startReason !== 'MANUAL_NEW') {
@@ -805,14 +813,14 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
 }
 
 async function restoreAssistantMessages() {
-  if (demoMode.value || !authTokenDraft.value || !assistantSessionKey.value) {
+  if (isLocalAssistantExperience() || !assistantSessionKey.value) {
     return;
   }
   assistantMessages.value = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
 }
 
 async function startManualAssistantSession() {
-  if (demoMode.value || !authTokenDraft.value) {
+  if (isLocalAssistantExperience()) {
     assistantSessionKey.value = '';
     assistantMessages.value = [];
     showToast('已新建本地体验会话');
@@ -832,7 +840,7 @@ async function startManualAssistantSession() {
 
 async function loadAssistantHistory() {
   assistantHistoryVisible.value = true;
-  if (demoMode.value || !authTokenDraft.value) {
+  if (isLocalAssistantExperience()) {
     assistantSessions.value = [];
     return;
   }
@@ -858,8 +866,8 @@ async function sendAssistantMessage() {
   if (!prompt && imageUrls.length === 0) {
     return;
   }
-  if (demoMode.value || !authTokenDraft.value) {
-    showToast('当前为本地体验，配置登录 token 后走真实接口');
+  if (isLocalAssistantExperience()) {
+    showToast('当前为本地体验，退出演示模式后走真实接口');
     sendLocalAssistantMessage();
     return;
   }
@@ -947,7 +955,7 @@ function openCustomDesignFromFeedback() {
 }
 
 async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIKE' | 'DISLIKE') {
-  if (!message.messageId || !assistantSessionKey.value || demoMode.value || !authTokenDraft.value) {
+  if (!message.messageId || !assistantSessionKey.value || isLocalAssistantExperience()) {
     showToast('已记录反馈');
     return;
   }
@@ -963,7 +971,7 @@ async function regenerateAssistant(message: DesignAssistantMessage) {
   if (!message.messageId || !assistantSessionKey.value) {
     return;
   }
-  if (demoMode.value || !authTokenDraft.value) {
+  if (isLocalAssistantExperience()) {
     assistantMessages.value.push(createLocalAssistantMessage('ASSISTANT', '我换一种方式重新回答：可以先保留主体结构，再调整色彩和材质。'));
     return;
   }
@@ -986,7 +994,7 @@ async function applyCustomDesign(message: DesignAssistantMessage) {
     showToast('缺少可应用的作品信息');
     return;
   }
-  if (demoMode.value || !authTokenDraft.value) {
+  if (isLocalAssistantExperience()) {
     showToast('应用设计成功');
     return;
   }

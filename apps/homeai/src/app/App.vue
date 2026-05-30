@@ -232,11 +232,14 @@
                 <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" @error="handleAssistantImageError" />
                 <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
                 <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
-                <footer v-if="message.role === 'ASSISTANT' && message.messageId" class="assistant-message-actions">
+                <footer v-if="resolveAssistantFeedbackLabel(message)" class="assistant-message-state">
+                  <span>{{ resolveAssistantFeedbackLabel(message) }}</span>
+                </footer>
+                <footer v-if="shouldRenderAssistantActions(message)" class="assistant-message-actions">
                   <button type="button" @click="feedbackAssistant(message, 'LIKE')">满意</button>
                   <button type="button" @click="feedbackAssistant(message, 'DISLIKE')">不满意</button>
                   <button type="button" @click="regenerateAssistant(message)">重生成</button>
-                  <button v-if="assistantSceneType === 'CUSTOM_DESIGN' && resolveAssistantMessageImage(message)" type="button" @click="applyCustomDesign(message)">应用设计</button>
+                  <button v-if="shouldRenderApplyDesignAction(message)" type="button" @click="applyCustomDesign(message)">应用设计</button>
                 </footer>
               </article>
             </section>
@@ -402,6 +405,11 @@ import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import {
+  ASSISTANT_MESSAGE_REGENERATED_STATE,
+  resolveAssistantMessageFeedbackLabel,
+  shouldShowAssistantMessageActions,
+} from '../shared/designAssistantMessageUi';
+import {
   applyDesignAssistantImage,
   feedbackDesignAssistantMessage,
   listDesignAssistantMessages,
@@ -414,7 +422,13 @@ import {
   startDesignAssistantSession,
 } from '../shared/designAssistantApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
+import type { AssistantFeedbackValue, AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
+
+type AssistantUiMessage = DesignAssistantMessage & {
+  localId?: string;
+  localOperationState?: AssistantMessageLocalOperationState | null;
+};
 
 const API_DEBUG_HASH = '#/api-debug';
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
@@ -461,7 +475,7 @@ const selectedStyle = ref('现代简约');
 const activeDiscoverCategory = ref('全部');
 const assistantInput = ref('');
 const assistantImageUrls = ref<string[]>([]);
-const assistantMessages = ref<Array<DesignAssistantMessage & { localId?: string }>>([]);
+const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
 const assistantWorkContext = ref<{ workId: string; templateId?: string } | null>(null);
@@ -469,6 +483,8 @@ const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CH
 const assistantHistoryVisible = ref(false);
 const assistantHistoryLoading = ref(false);
 const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
+const regeneratedAssistantMessageIds = ref(new Set<string>());
+const assistantFeedbackOverrides = ref(new Map<string, AssistantFeedbackValue>());
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -727,6 +743,7 @@ function openAssistantHome() {
     assistantWorkContext.value = null;
     assistantSessionKey.value = '';
     assistantMessages.value = [];
+    resetAssistantMessageInteractionState();
   }
   activeTab.value = 'assistant';
 }
@@ -747,7 +764,7 @@ function createLocalAssistantMessage(role: 'USER' | 'ASSISTANT', text: string, i
     contentType: imageUrl ? 'IMAGE' : 'TEXT',
     messageContent,
     messageTime: Date.now(),
-  } satisfies DesignAssistantMessage & { localId: string };
+  } satisfies AssistantUiMessage & { localId: string };
 }
 
 function getAssistantContext() {
@@ -767,10 +784,62 @@ function requireAssistantLogin() {
   if (!shouldRequireAssistantLogin({ authToken: authTokenDraft.value })) {
     return true;
   }
-  // 当前 H5 复刻尚未配置短信登录接口，先跳转到“我的”的登录 token 面板承接登录态配置。
+  // 未获得登录态时统一跳到“我的”页，由公共登录面板承接手机号验证码登录。
   activeTab.value = 'mine';
   showToast('请先登录后使用 AI 设计助手');
   return false;
+}
+
+function resetAssistantMessageInteractionState() {
+  regeneratedAssistantMessageIds.value = new Set();
+  assistantFeedbackOverrides.value = new Map();
+}
+
+function decorateAssistantMessages(messages: DesignAssistantMessage[]): AssistantUiMessage[] {
+  // 列表接口可能晚于当前点击态返回，前端保留本地交互标记，避免操作按钮短暂回显。
+  return messages.map((message) => {
+    const messageId = message.messageId || '';
+    const feedbackOverride = messageId ? assistantFeedbackOverrides.value.get(messageId) : undefined;
+    const shouldMarkRegenerated = Boolean(messageId && regeneratedAssistantMessageIds.value.has(messageId));
+    if (!feedbackOverride && !shouldMarkRegenerated) {
+      return message;
+    }
+    return {
+      ...message,
+      feedback: feedbackOverride ?? message.feedback,
+      localOperationState: shouldMarkRegenerated ? ASSISTANT_MESSAGE_REGENERATED_STATE : undefined,
+    };
+  });
+}
+
+function updateAssistantMessageInteractionState(messageId: string, patch: Pick<Partial<AssistantUiMessage>, 'feedback' | 'localOperationState'>) {
+  assistantMessages.value = assistantMessages.value.map((message) => (message.messageId === messageId ? { ...message, ...patch } : message));
+  console.info('[HomeAI Assistant] 更新消息交互状态', {
+    messageId,
+    feedback: patch.feedback || '',
+    localOperationState: patch.localOperationState || '',
+  });
+}
+
+function markAssistantMessageFeedback(messageId: string, feedback: AssistantFeedbackValue) {
+  const nextFeedbackOverrides = new Map(assistantFeedbackOverrides.value);
+  nextFeedbackOverrides.set(messageId, feedback);
+  assistantFeedbackOverrides.value = nextFeedbackOverrides;
+  updateAssistantMessageInteractionState(messageId, { feedback });
+}
+
+function markAssistantMessageRegenerated(messageId: string) {
+  const nextRegeneratedIds = new Set(regeneratedAssistantMessageIds.value);
+  nextRegeneratedIds.add(messageId);
+  regeneratedAssistantMessageIds.value = nextRegeneratedIds;
+  updateAssistantMessageInteractionState(messageId, { localOperationState: ASSISTANT_MESSAGE_REGENERATED_STATE });
+}
+
+function clearAssistantMessageRegenerated(messageId: string) {
+  const nextRegeneratedIds = new Set(regeneratedAssistantMessageIds.value);
+  nextRegeneratedIds.delete(messageId);
+  regeneratedAssistantMessageIds.value = nextRegeneratedIds;
+  updateAssistantMessageInteractionState(messageId, { localOperationState: null });
 }
 
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
@@ -779,6 +848,18 @@ function resolveAssistantMessageText(message: DesignAssistantMessage) {
 
 function resolveAssistantMessageImage(message: DesignAssistantMessage) {
   return resolveAssistantImageUrl(message.messageContent);
+}
+
+function resolveAssistantFeedbackLabel(message: AssistantUiMessage) {
+  return resolveAssistantMessageFeedbackLabel(message);
+}
+
+function shouldRenderAssistantActions(message: AssistantUiMessage) {
+  return shouldShowAssistantMessageActions(message);
+}
+
+function shouldRenderApplyDesignAction(message: AssistantUiMessage) {
+  return shouldRenderAssistantActions(message) && assistantSceneType.value === 'CUSTOM_DESIGN' && Boolean(resolveAssistantMessageImage(message));
 }
 
 function useAssistantQuickQuestion(question: string) {
@@ -824,7 +905,8 @@ async function restoreAssistantMessages() {
   if (isLocalAssistantExperience() || !assistantSessionKey.value || !requireAssistantLogin()) {
     return;
   }
-  assistantMessages.value = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
+  const messages = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
+  assistantMessages.value = decorateAssistantMessages(messages);
 }
 
 async function startManualAssistantSession() {
@@ -835,6 +917,7 @@ async function startManualAssistantSession() {
   try {
     await ensureAssistantSession('MANUAL_NEW');
     assistantMessages.value = [];
+    resetAssistantMessageInteractionState();
     showToast('已新建设计助手会话');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '新建会话失败');
@@ -863,6 +946,7 @@ async function openAssistantHistory(sessionKey: string) {
   if (!requireAssistantLogin()) {
     return;
   }
+  resetAssistantMessageInteractionState();
   assistantSessionKey.value = sessionKey;
   activeTab.value = 'assistant';
   await restoreAssistantMessages();
@@ -942,6 +1026,7 @@ function openCustomDesignFromResult() {
   assistantWorkContext.value = workContext;
   assistantSessionKey.value = '';
   assistantMessages.value = [];
+  resetAssistantMessageInteractionState();
   assistantInput.value = `请基于当前${selectedFeature.value.title}结果继续优化`;
   activeTab.value = 'assistant';
   return true;
@@ -966,7 +1051,7 @@ function openCustomDesignFromFeedback() {
   }
 }
 
-async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIKE' | 'DISLIKE') {
+async function feedbackAssistant(message: AssistantUiMessage, feedback: AssistantFeedbackValue) {
   if (!message.messageId || !assistantSessionKey.value || isLocalAssistantExperience() || !requireAssistantLogin()) {
     return;
   }
@@ -975,10 +1060,11 @@ async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIK
     messageId: message.messageId,
     feedback,
   });
+  markAssistantMessageFeedback(message.messageId, feedback);
   showToast('已记录反馈');
 }
 
-async function regenerateAssistant(message: DesignAssistantMessage) {
+async function regenerateAssistant(message: AssistantUiMessage) {
   if (!message.messageId || !assistantSessionKey.value) {
     return;
   }
@@ -986,6 +1072,7 @@ async function regenerateAssistant(message: DesignAssistantMessage) {
     return;
   }
   assistantSending.value = true;
+  markAssistantMessageRegenerated(message.messageId);
   appendAssistantWaitingMessage();
   try {
     await regenerateDesignAssistantMessage(getAssistantContext(), {
@@ -994,12 +1081,16 @@ async function regenerateAssistant(message: DesignAssistantMessage) {
       priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
     });
     await restoreAssistantMessages();
+  } catch (error) {
+    assistantMessages.value = assistantMessages.value.filter((item) => item.status !== 'PENDING');
+    clearAssistantMessageRegenerated(message.messageId);
+    showToast(error instanceof Error ? error.message : '重生成失败');
   } finally {
     assistantSending.value = false;
   }
 }
 
-async function applyCustomDesign(message: DesignAssistantMessage) {
+async function applyCustomDesign(message: AssistantUiMessage) {
   if (!message.messageId || !assistantWorkContext.value?.workId) {
     showToast('缺少可应用的作品信息');
     return;
@@ -2058,10 +2149,20 @@ button {
   color: #d43131;
 }
 
+.assistant-message-state,
 .assistant-message-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.assistant-message-state span {
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #225d3f;
+  background: #e8f7ee;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .assistant-message-actions button {

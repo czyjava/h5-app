@@ -16,7 +16,8 @@ interface StartParams {
   sceneType: DesignAssistantSceneType;
   startReason: DesignAssistantStartReason;
   deviceId?: string;
-  workId?: string;
+  // 会话可能跨多个作品继续聊，session 级只记录最后一次关联的作品 ID。
+  lastWorkId?: string;
   recordId?: string;
   templateId?: string;
   sourceImageUrl?: string;

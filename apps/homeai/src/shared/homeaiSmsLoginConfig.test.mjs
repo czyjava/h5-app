@@ -4,6 +4,13 @@ import test from 'node:test';
 
 const appConfigSource = await readFile(new URL('../../app.config.ts', import.meta.url), 'utf8');
 const appVueSource = await readFile(new URL('../app/App.vue', import.meta.url), 'utf8');
+const designAssistantApiSource = await readFile(new URL('./designAssistantApi.ts', import.meta.url), 'utf8');
+
+function extractInterfaceBlock(source, name) {
+  const match = source.match(new RegExp(`interface ${name} \\{[\\s\\S]*?\\n\\}`));
+  assert.ok(match, `未找到 ${name} 接口定义`);
+  return match[0];
+}
 
 test('HomeAI 配置短信登录 auth host 和接口', () => {
   assert.match(appConfigSource, /auth:\s*{/);
@@ -30,4 +37,12 @@ test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.match(appConfigSource, /designAssistantFeedback:\s*'\/api\/open\/homeai\/design-assistant\/feedback\.htm'/);
   assert.match(appConfigSource, /designAssistantRegenerate:\s*'\/api\/open\/homeai\/design-assistant\/regenerate\.htm'/);
   assert.match(appConfigSource, /designAssistantApplyDesign:\s*'\/api\/open\/homeai\/design-assistant\/apply-design\.htm'/);
+});
+
+test('HomeAI 定制设计会话使用最后作品ID语义', () => {
+  const startParamsSource = extractInterfaceBlock(designAssistantApiSource, 'StartParams');
+  assert.match(startParamsSource, /lastWorkId\?: string/);
+  assert.doesNotMatch(startParamsSource, /\n\s+workId\?: string/);
+  assert.match(appVueSource, /lastWorkId:\s*assistantSceneType\.value === 'CUSTOM_DESIGN' \? assistantWorkContext\.value\?\.workId : undefined/);
+  assert.match(appVueSource, /workId:\s*assistantWorkContext\.value\?\.workId/);
 });

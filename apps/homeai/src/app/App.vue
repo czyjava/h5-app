@@ -214,7 +214,7 @@
           </header>
           <section class="assistant-chat">
             <div v-if="assistantWorkContext" class="assistant-context-pill">
-              <span>作品 {{ assistantWorkContext.workId }}</span>
+              <span>最近作品 {{ assistantWorkContext.workId }}</span>
               <small>模板 {{ assistantWorkContext.templateId || '-' }}</small>
             </div>
             <section v-if="assistantMessages.length === 0" class="assistant-empty">
@@ -946,7 +946,7 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
     sceneType: assistantSceneType.value,
     startReason: assistantSceneType.value === 'CUSTOM_DESIGN' ? 'WORK_RESULT_ENTER' : startReason,
     deviceId: `${homeAiReplicaConfig.appId}-h5`,
-    workId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.workId : undefined,
+    lastWorkId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.workId : undefined,
     recordId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.recordId : undefined,
     templateId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.templateId : undefined,
     sourceImageUrl: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.imageUrl : undefined,

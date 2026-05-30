@@ -1,9 +1,13 @@
 export interface AssistantConnectionState {
-  demoMode: boolean;
   authToken?: string;
 }
 
-export function shouldUseLocalAssistantExperience({ demoMode }: AssistantConnectionState) {
-  // 只有显式演示模式才走本地体验；空 token 也要请求真实接口，让后端返回真实结果或鉴权错误。
-  return demoMode;
+export function shouldRequireAssistantLogin({ authToken }: AssistantConnectionState) {
+  // AI 设计助手必须依赖真实用户登录态，空 token 时直接引导登录，不进入业务接口或本地兜底。
+  return !authToken?.trim();
+}
+
+export function shouldUseLocalAssistantExperience(_state: AssistantConnectionState) {
+  // AI 设计助手是正式业务能力，禁止使用本地 fallback 生成假消息。
+  return false;
 }

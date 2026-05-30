@@ -397,7 +397,7 @@ import {
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
-import { shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
+import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import {
   applyDesignAssistantImage,
   feedbackDesignAssistantMessage,
@@ -704,6 +704,9 @@ function switchTab(tab: MainTab) {
 }
 
 function openAssistantHome() {
+  if (!requireAssistantLogin()) {
+    return;
+  }
   if (assistantSceneType.value !== 'ASSISTANT_CHAT') {
     // 底部 AI 入口固定进入 AI 设计助手，避免沿用定制设计会话去发送普通咨询。
     assistantSceneType.value = 'ASSISTANT_CHAT';
@@ -742,9 +745,18 @@ function getAssistantContext() {
 
 function isLocalAssistantExperience() {
   return shouldUseLocalAssistantExperience({
-    demoMode: demoMode.value,
     authToken: authTokenDraft.value,
   });
+}
+
+function requireAssistantLogin() {
+  if (!shouldRequireAssistantLogin({ authToken: authTokenDraft.value })) {
+    return true;
+  }
+  // 当前 H5 复刻尚未配置短信登录接口，先跳转到“我的”的登录 token 面板承接登录态配置。
+  activeTab.value = 'mine';
+  showToast('请先登录后使用 AI 设计助手');
+  return false;
 }
 
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
@@ -778,26 +790,8 @@ function appendAssistantWaitingMessage() {
   });
 }
 
-function sendLocalAssistantMessage() {
-  const prompt = assistantInput.value.trim();
-  if (!prompt && assistantImageUrls.value.length === 0) {
-    return;
-  }
-  if (prompt) {
-    assistantMessages.value.push(createLocalAssistantMessage('USER', prompt));
-  }
-  assistantImageUrls.value.forEach((url) => {
-    assistantMessages.value.push(createLocalAssistantMessage('USER', '', url));
-  });
-  assistantMessages.value.push(
-    createLocalAssistantMessage('ASSISTANT', '我先收到了你的问题。下一步会接入同步接口，直接返回装修建议或设计图片。'),
-  );
-  assistantInput.value = '';
-  assistantImageUrls.value = [];
-}
-
 async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW' = 'APP_LAUNCH_FIRST_ENTER') {
-  if (isLocalAssistantExperience()) {
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return '';
   }
   if (assistantSessionKey.value && startReason !== 'MANUAL_NEW') {
@@ -813,17 +807,14 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
 }
 
 async function restoreAssistantMessages() {
-  if (isLocalAssistantExperience() || !assistantSessionKey.value) {
+  if (isLocalAssistantExperience() || !assistantSessionKey.value || !requireAssistantLogin()) {
     return;
   }
   assistantMessages.value = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
 }
 
 async function startManualAssistantSession() {
-  if (isLocalAssistantExperience()) {
-    assistantSessionKey.value = '';
-    assistantMessages.value = [];
-    showToast('已新建本地体验会话');
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return;
   }
   assistantSending.value = true;
@@ -840,7 +831,7 @@ async function startManualAssistantSession() {
 
 async function loadAssistantHistory() {
   assistantHistoryVisible.value = true;
-  if (isLocalAssistantExperience()) {
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     assistantSessions.value = [];
     return;
   }
@@ -855,6 +846,9 @@ async function loadAssistantHistory() {
 }
 
 async function openAssistantHistory(sessionKey: string) {
+  if (!requireAssistantLogin()) {
+    return;
+  }
   assistantSessionKey.value = sessionKey;
   activeTab.value = 'assistant';
   await restoreAssistantMessages();
@@ -866,9 +860,7 @@ async function sendAssistantMessage() {
   if (!prompt && imageUrls.length === 0) {
     return;
   }
-  if (isLocalAssistantExperience()) {
-    showToast('当前为本地体验，退出演示模式后走真实接口');
-    sendLocalAssistantMessage();
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return;
   }
   assistantInput.value = '';
@@ -910,6 +902,9 @@ async function sendAssistantMessage() {
 }
 
 function openAssistantFromWork(work: WorkItem) {
+  if (!requireAssistantLogin()) {
+    return;
+  }
   assistantSceneType.value = 'ASSISTANT_CHAT';
   assistantWorkContext.value = { workId: work.id, templateId: work.templateId };
   activeTab.value = 'assistant';
@@ -921,6 +916,9 @@ function handleAssistantImageError() {
 }
 
 function openCustomDesignFromResult() {
+  if (!requireAssistantLogin()) {
+    return false;
+  }
   const workContext = resolveCustomDesignWorkContext();
   if (!workContext) {
     showToast('请先生成或选择一个作品，再进入定制设计');
@@ -955,8 +953,7 @@ function openCustomDesignFromFeedback() {
 }
 
 async function feedbackAssistant(message: DesignAssistantMessage, feedback: 'LIKE' | 'DISLIKE') {
-  if (!message.messageId || !assistantSessionKey.value || isLocalAssistantExperience()) {
-    showToast('已记录反馈');
+  if (!message.messageId || !assistantSessionKey.value || isLocalAssistantExperience() || !requireAssistantLogin()) {
     return;
   }
   await feedbackDesignAssistantMessage(getAssistantContext(), {
@@ -971,8 +968,7 @@ async function regenerateAssistant(message: DesignAssistantMessage) {
   if (!message.messageId || !assistantSessionKey.value) {
     return;
   }
-  if (isLocalAssistantExperience()) {
-    assistantMessages.value.push(createLocalAssistantMessage('ASSISTANT', '我换一种方式重新回答：可以先保留主体结构，再调整色彩和材质。'));
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return;
   }
   assistantSending.value = true;
@@ -994,8 +990,7 @@ async function applyCustomDesign(message: DesignAssistantMessage) {
     showToast('缺少可应用的作品信息');
     return;
   }
-  if (isLocalAssistantExperience()) {
-    showToast('应用设计成功');
+  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return;
   }
   await applyDesignAssistantImage(getAssistantContext(), {

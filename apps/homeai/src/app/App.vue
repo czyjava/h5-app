@@ -362,10 +362,7 @@
                 <strong>{{ work.title }}</strong>
                 <span>{{ work.status }} · {{ work.createdAt || '今天' }}</span>
               </div>
-              <div class="work-actions">
-                <button type="button" @click="openAssistantFromWork(work)">问助手</button>
-                <button type="button" class="custom" @click="openCustomDesignFromWork(work)">定制设计</button>
-              </div>
+              <button type="button" class="custom" @click="openCustomDesignFromWork(work)">定制设计</button>
             </article>
           </section>
         </section>
@@ -1027,34 +1024,11 @@ async function sendAssistantMessage() {
   }
 }
 
-function openAssistantFromWork(work: WorkItem) {
-  if (!requireAssistantLogin()) {
-    return;
-  }
-  const entryState = createAssistantWorkEntryState({
-    sceneType: 'ASSISTANT_CHAT',
-    currentSessionKey: assistantSessionKey.value,
-    work,
-  });
-  assistantSceneType.value = entryState.sceneType;
-  assistantWorkContext.value = entryState.workContext;
-  assistantSessionKey.value = entryState.sessionKey;
-  assistantMessages.value = entryState.messages;
-  resetAssistantMessageInteractionState();
-  activeTab.value = 'assistant';
-  assistantInput.value = entryState.input;
-  console.info('[HomeAI Assistant] 从作品进入 AI 问询新会话', {
-    workId: work.id,
-    templateId: work.templateId || '',
-  });
-}
-
 function openCustomDesignFromWork(work: WorkItem) {
   if (!requireAssistantLogin()) {
     return;
   }
   const entryState = createAssistantWorkEntryState({
-    sceneType: 'CUSTOM_DESIGN',
     currentSessionKey: assistantSessionKey.value,
     work,
   });
@@ -2810,12 +2784,6 @@ button {
   min-width: 0;
   display: grid;
   gap: 5px;
-}
-
-.work-actions {
-  display: grid;
-  gap: 7px;
-  justify-items: end;
 }
 
 .work-row button {

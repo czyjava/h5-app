@@ -312,9 +312,10 @@
             </header>
             <ReplicaApiModePanel
               :auth-token="authTokenDraft"
-              :sms-login-enabled="false"
               empty-token-label="未配置"
               :reload-handler="reload"
+              :send-code-handler="sendLoginSmsCode"
+              :login-handler="loginWithSmsCode"
               :clear-token-handler="clearLogin"
               @update:auth-token="updateAuthToken"
               @notice="showToast"
@@ -382,6 +383,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, WandSparkles, X } from 'lucide-vue-next';
 import {
+  createSmsAuthClient,
   createReplicaSession,
   persistReplicaAuthToken,
   persistReplicaDemoMode,
@@ -392,6 +394,7 @@ import {
   ReplicaApiModePanel,
   ReplicaProxyLifecycleOverlay,
   ReplicaSettingsPanel,
+  type ReplicaLoginPayload,
   type ReplicaSettingsRow,
 } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
@@ -427,6 +430,7 @@ if (resetParams.get('__homeai_reset') === '1') {
   const nextSearch = resetParams.toString();
   window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`);
 }
+const smsAuthClient = createSmsAuthClient(homeAiReplicaConfig);
 const session = createReplicaSession(homeAiReplicaConfig.appId);
 const activeTab = ref<MainTab>('home');
 const environment = ref<ReplicaEnvironment>(session.environment);
@@ -598,6 +602,16 @@ function showToast(message: string) {
 function updateAuthToken(token: string) {
   authTokenDraft.value = token;
   saveToken();
+}
+
+async function sendLoginSmsCode(phoneNumber: string) {
+  return smsAuthClient.sendCode(phoneNumber);
+}
+
+async function loginWithSmsCode(payload: ReplicaLoginPayload) {
+  const userInfo = await smsAuthClient.login(payload.phoneNumber, payload.smsCode, payload.smsId);
+  updateAuthToken(userInfo.authToken ?? '');
+  await reload();
 }
 
 async function clearLogin() {

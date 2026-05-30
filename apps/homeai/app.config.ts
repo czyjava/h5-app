@@ -14,6 +14,12 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
       testTarget: 'https://pixel-studio.ttt.wanmeixiangsu.cn',
       signKey: '*#06#RotvnIuEg32QqaOmcqh1qGuN',
     },
+    auth: {
+      proxyPrefix: '/homeai-auth',
+      productionTarget: 'https://auth.wanmeixiangsu.cn',
+      signKey: '*#06#p52Gj3BJPIp8omqdl3dzeTxC',
+      extraQuery: { _authVersion: '2.0' },
+    },
     config: {
       proxyPrefix: '/homeai-config',
       productionTarget: 'https://config.wanmeixiangsu.cn',
@@ -29,6 +35,8 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
   },
   endpoints: {
     currentUser: '/api/open/v2/user/current-user.htm',
+    loginSmsCheck: '/api/open/v3/login-sms/check.htm',
+    loginSmsLogin: '/api/open/v3/login-sms/login.htm',
     featureConfig: '/api/open/homeai/config/feature-config.htm',
     detectObjectsSubmit: '/api/open/homeai/detect-objects/submit.htm',
     detectObjectsResult: '/api/open/homeai/detect-objects/get-result.htm',

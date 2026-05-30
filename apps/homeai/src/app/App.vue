@@ -416,7 +416,7 @@ import { homeAiReplicaConfig } from '../../app.config';
 import { createAssistantWorkEntryState, resolveCustomDesignMessageImageUrls, type CustomDesignWorkContext } from '../shared/assistantEntryState';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
-import { shouldQuoteCustomDesignTemplate, shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
+import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import {
   ASSISTANT_MESSAGE_REGENERATED_STATE,
   resolveAssistantMessageFeedbackLabel,
@@ -428,7 +428,6 @@ import {
   feedbackDesignAssistantMessage,
   listDesignAssistantMessages,
   listDesignAssistantSessions,
-  quoteDesignAssistantTemplate,
   regenerateDesignAssistantMessage,
   resolveAssistantImageUrl,
   resolveAssistantText,
@@ -1071,11 +1070,6 @@ async function sendAssistantMessage() {
   assistantSending.value = true;
   try {
     const sessionKey = await ensureAssistantSession();
-    if (shouldQuoteCustomDesignTemplate({ demoMode: demoMode.value, sceneType: assistantSceneType.value })) {
-      await quoteDesignAssistantTemplate(getAssistantContext(), {
-        templateId: assistantWorkContext.value?.templateId,
-      });
-    }
     const response = await sendDesignAssistantMessage(getAssistantContext(), {
       sessionKey,
       prompt,

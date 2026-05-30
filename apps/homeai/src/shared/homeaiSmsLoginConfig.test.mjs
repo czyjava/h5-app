@@ -22,6 +22,7 @@ test('HomeAI 实时 API 面板接入手机号验证码登录', () => {
 
 test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.doesNotMatch(appConfigSource, /\/api\/h5\/homeai\/design-assistant\//);
+  assert.doesNotMatch(appConfigSource, /quote[-]by[-]template/);
   assert.match(appConfigSource, /designAssistantStart:\s*'\/api\/open\/homeai\/design-assistant\/start\.htm'/);
   assert.match(appConfigSource, /designAssistantSend:\s*'\/api\/open\/homeai\/design-assistant\/send\.htm'/);
   assert.match(appConfigSource, /designAssistantSessions:\s*'\/api\/open\/homeai\/design-assistant\/sessions\.htm'/);

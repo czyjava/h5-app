@@ -42,7 +42,6 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     detectObjectsResult: '/api/open/homeai/detect-objects/get-result.htm',
     recognizeBuildingType: '/api/open/homeai/generate/recognize-building-type.htm',
     generationSubmit: '/api/open/generation/submit.htm',
-    generationQuote: '/api/open/generation/quote-by-template.htm',
     generationList: '/api/open/generation/list.htm',
     generationDetail: '/api/open/generation/detail.htm',
     generationDelete: '/api/open/generation/delete.htm',

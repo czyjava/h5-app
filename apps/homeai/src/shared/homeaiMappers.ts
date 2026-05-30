@@ -14,6 +14,8 @@ const mapperFallback: Pick<HomeAiSnapshot, 'discover' | 'works' | 'user'> = {
   works: [
     {
       id: 'demo-1',
+      recordId: 'demo-record-1',
+      templateId: 'interior',
       title: '客厅改造',
       status: 'FINISHED',
       coverUrl: '/assets/homeai/type_1_processed.png',
@@ -76,11 +78,12 @@ function mapWorkItem(raw: unknown, index: number): WorkItem {
   const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const fallback = mapperFallback.works[index % mapperFallback.works.length];
   return {
-    id: pickString(record, ['id', 'recordCode', 'code'], `work-${index}`),
-    templateId: pickString(record, ['templateId', 'templateID', 'template_id'], ''),
+    id: pickString(record, ['workId', 'workID', 'work_id', 'id', 'recordCode', 'code'], `work-${index}`),
+    recordId: pickString(record, ['recordId', 'recordID', 'record_id', 'recordCode', 'generationRecordId', 'id', 'code'], ''),
+    templateId: pickString(record, ['templateId', 'templateID', 'template_id', 'templateCode'], ''),
     title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
     status: pickString(record, ['status', 'generationStatus'], fallback.status),
-    coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'resultUrl', 'imageUrl', 'url'], fallback.coverUrl)),
+    coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'resultUrl', 'resultImageUrl', 'imageUrl', 'url'], fallback.coverUrl)),
     createdAt: pickString(record, ['createdAt', 'createTime', 'gmtCreate'], ''),
   };
 }

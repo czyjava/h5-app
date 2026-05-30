@@ -9,6 +9,7 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads with fallba
       list: [
         {
           recordCode: 'r1',
+          templateId: 'tpl-1',
           templateName: '客厅改造',
           resultUrl: '//cdn.example.com/a.png',
           generationStatus: 'FINISHED',
@@ -29,6 +30,9 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads with fallba
   assert.equal(snapshot.user.nickname, '设计师');
   assert.equal(snapshot.user.userId, '42');
   assert.equal(snapshot.user.diamondCount, 18);
+  assert.equal(snapshot.works[0].id, 'r1');
+  assert.equal(snapshot.works[0].recordId, 'r1');
+  assert.equal(snapshot.works[0].templateId, 'tpl-1');
   assert.equal(snapshot.works[0].coverUrl, 'https://cdn.example.com/a.png');
   assert.equal(snapshot.works[0].status, 'FINISHED');
   assert.equal(snapshot.discover[0].tag, '室内');

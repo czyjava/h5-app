@@ -401,7 +401,7 @@ import {
   type ReplicaSettingsRow,
 } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
-import { createAssistantWorkEntryState } from '../shared/assistantEntryState';
+import { createAssistantWorkEntryState, resolveCustomDesignMessageImageUrls, type CustomDesignWorkContext } from '../shared/assistantEntryState';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
@@ -481,7 +481,7 @@ const assistantImageUrls = ref<string[]>([]);
 const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
-const assistantWorkContext = ref<{ workId: string; templateId?: string } | null>(null);
+const assistantWorkContext = ref<CustomDesignWorkContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
 const assistantHistoryVisible = ref(false);
 const assistantHistoryLoading = ref(false);
@@ -913,6 +913,10 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
     sceneType: assistantSceneType.value,
     startReason: assistantSceneType.value === 'CUSTOM_DESIGN' ? 'WORK_RESULT_ENTER' : startReason,
     deviceId: `${homeAiReplicaConfig.appId}-h5`,
+    workId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.workId : undefined,
+    recordId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.recordId : undefined,
+    templateId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.templateId : undefined,
+    sourceImageUrl: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.imageUrl : undefined,
   });
   assistantSessionKey.value = response.sessionKey;
   return response.sessionKey;
@@ -1022,7 +1026,9 @@ async function openAssistantHistory(sessionKey: string) {
 async function sendAssistantMessage() {
   const prompt = assistantInput.value.trim();
   const imageUrls = [...assistantImageUrls.value];
-  if (!prompt && imageUrls.length === 0) {
+  const messageImageUrls =
+    assistantSceneType.value === 'CUSTOM_DESIGN' ? resolveCustomDesignMessageImageUrls(assistantWorkContext.value, imageUrls) : imageUrls;
+  if (!prompt && messageImageUrls.length === 0) {
     return;
   }
   if (isLocalAssistantExperience() || !requireAssistantLogin()) {
@@ -1030,7 +1036,7 @@ async function sendAssistantMessage() {
   }
   assistantInput.value = '';
   assistantImageUrls.value = [];
-  assistantMessages.value.push(createLocalAssistantMessage('USER', prompt || '图片附件', imageUrls[0] || ''));
+  assistantMessages.value.push(createLocalAssistantMessage('USER', prompt || '图片附件', messageImageUrls[0] || ''));
   assistantSending.value = true;
   try {
     const sessionKey = await ensureAssistantSession();
@@ -1042,9 +1048,11 @@ async function sendAssistantMessage() {
     const response = await sendDesignAssistantMessage(getAssistantContext(), {
       sessionKey,
       prompt,
-      imageUrls,
+      imageUrls: messageImageUrls,
       workId: assistantWorkContext.value?.workId,
+      recordId: assistantWorkContext.value?.recordId,
       templateId: assistantWorkContext.value?.templateId,
+      sourceImageUrl: assistantWorkContext.value?.imageUrl,
       priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
     });
     const replyToMessageId = response.messageId || response.userMessage?.messageId || '';
@@ -1088,7 +1096,9 @@ function openCustomDesignFromWork(work: WorkItem) {
   assistantInput.value = entryState.input;
   console.info('[HomeAI Assistant] 从作品开启定制设计新会话', {
     workId: work.id,
+    recordId: work.recordId || '',
     templateId: work.templateId || '',
+    hasImage: Boolean(work.coverUrl),
   });
   void startFreshAssistantSessionAfterEntry('定制设计会话初始化失败');
 }
@@ -1126,7 +1136,9 @@ function resolveCustomDesignWorkContext() {
   }
   return {
     workId: realWork.id,
+    recordId: realWork.recordId,
     templateId: realWork.templateId || selectedFeature.value.code,
+    imageUrl: realWork.coverUrl,
   };
 }
 

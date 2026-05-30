@@ -112,6 +112,7 @@ export interface DiscoverItem {
 
 export interface WorkItem {
   id: string;
+  recordId?: string;
   templateId?: string;
   title: string;
   status: string;

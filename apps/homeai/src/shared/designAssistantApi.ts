@@ -16,6 +16,10 @@ interface StartParams {
   sceneType: DesignAssistantSceneType;
   startReason: DesignAssistantStartReason;
   deviceId?: string;
+  workId?: string;
+  recordId?: string;
+  templateId?: string;
+  sourceImageUrl?: string;
 }
 
 interface SendParams {
@@ -23,7 +27,9 @@ interface SendParams {
   prompt: string;
   imageUrls?: string[];
   workId?: string;
+  recordId?: string;
   templateId?: string;
+  sourceImageUrl?: string;
   priceChecked?: boolean;
 }
 

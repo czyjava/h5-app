@@ -82,6 +82,8 @@ export const demoSnapshot: HomeAiSnapshot = {
   works: [
     {
       id: 'demo-1',
+      recordId: 'demo-record-1',
+      templateId: 'interior',
       title: '现代客厅方案',
       status: '已生成',
       coverUrl: homeAiAssets.guide.interiorGood,
@@ -89,6 +91,8 @@ export const demoSnapshot: HomeAiSnapshot = {
     },
     {
       id: 'demo-2',
+      recordId: 'demo-record-2',
+      templateId: 'renovation',
       title: '旧房翻新草图',
       status: '排队中',
       coverUrl: homeAiAssets.splashReplace,

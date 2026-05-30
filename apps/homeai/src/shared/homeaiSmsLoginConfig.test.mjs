@@ -19,3 +19,14 @@ test('HomeAI 实时 API 面板接入手机号验证码登录', () => {
   assert.match(appVueSource, /:send-code-handler="sendLoginSmsCode"/);
   assert.match(appVueSource, /:login-handler="loginWithSmsCode"/);
 });
+
+test('HomeAI AI 设计助手接口走 open API 路径', () => {
+  assert.doesNotMatch(appConfigSource, /\/api\/h5\/homeai\/design-assistant\//);
+  assert.match(appConfigSource, /designAssistantStart:\s*'\/api\/open\/homeai\/design-assistant\/start\.htm'/);
+  assert.match(appConfigSource, /designAssistantSend:\s*'\/api\/open\/homeai\/design-assistant\/send\.htm'/);
+  assert.match(appConfigSource, /designAssistantSessions:\s*'\/api\/open\/homeai\/design-assistant\/sessions\.htm'/);
+  assert.match(appConfigSource, /designAssistantMessages:\s*'\/api\/open\/homeai\/design-assistant\/messages\/list\.htm'/);
+  assert.match(appConfigSource, /designAssistantFeedback:\s*'\/api\/open\/homeai\/design-assistant\/feedback\.htm'/);
+  assert.match(appConfigSource, /designAssistantRegenerate:\s*'\/api\/open\/homeai\/design-assistant\/regenerate\.htm'/);
+  assert.match(appConfigSource, /designAssistantApplyDesign:\s*'\/api\/open\/homeai\/design-assistant\/apply-design\.htm'/);
+});

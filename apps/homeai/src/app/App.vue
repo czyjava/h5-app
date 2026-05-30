@@ -413,7 +413,7 @@ import {
   type ReplicaSettingsRow,
 } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
-import { createAssistantWorkEntryState, resolveCustomDesignMessageImageUrls, type CustomDesignWorkContext } from '../shared/assistantEntryState';
+import { createAssistantWorkEntryState, type CustomDesignWorkContext } from '../shared/assistantEntryState';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
@@ -952,6 +952,9 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
     sourceImageUrl: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.imageUrl : undefined,
   });
   assistantSessionKey.value = response.sessionKey;
+  if (Array.isArray(response.messages) && response.messages.length > 0) {
+    assistantMessages.value = decorateAssistantMessages(response.messages);
+  }
   return response.sessionKey;
 }
 
@@ -1050,8 +1053,7 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   }
   const prompt = (options.prompt ?? assistantInput.value).trim();
   const imageUrls = [...(options.imageUrls ?? assistantImageUrls.value)];
-  const messageImageUrls =
-    assistantSceneType.value === 'CUSTOM_DESIGN' ? resolveCustomDesignMessageImageUrls(assistantWorkContext.value, imageUrls) : imageUrls;
+  const messageImageUrls = imageUrls;
   if (!prompt && messageImageUrls.length === 0) {
     return false;
   }
@@ -1101,7 +1103,7 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   }
 }
 
-function openCustomDesignFromWork(work: WorkItem) {
+async function openCustomDesignFromWork(work: WorkItem) {
   if (!requireAssistantLogin()) {
     return;
   }
@@ -1116,7 +1118,7 @@ function openCustomDesignFromWork(work: WorkItem) {
   resetAssistantMessageInteractionState();
   assistantInput.value = '';
   assistantImageUrls.value = [];
-  assistantEntryAutoSending.value = entryState.autoSubmit;
+  assistantEntryAutoSending.value = true;
   activeTab.value = 'assistant';
   console.info('[HomeAI Assistant] 从作品开启定制设计新会话', {
     workId: work.id,
@@ -1125,10 +1127,12 @@ function openCustomDesignFromWork(work: WorkItem) {
     hasImage: Boolean(work.coverUrl),
     autoSubmit: entryState.autoSubmit,
   });
-  if (entryState.autoSubmit) {
-    void sendAssistantMessage({ prompt: entryState.input, suppressBusyToast: true }).finally(() => {
-      assistantEntryAutoSending.value = false;
-    });
+  try {
+    await ensureAssistantSession();
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '定制设计会话创建失败');
+  } finally {
+    assistantEntryAutoSending.value = false;
   }
 }
 
@@ -1136,7 +1140,7 @@ function handleAssistantImageError() {
   showToast('图片加载失败，请稍后重试');
 }
 
-function openCustomDesignFromResult(customPrompt?: string) {
+async function openCustomDesignFromResult(customPrompt?: string) {
   if (!requireAssistantLogin()) {
     return false;
   }
@@ -1150,13 +1154,14 @@ function openCustomDesignFromResult(customPrompt?: string) {
   assistantSessionKey.value = '';
   assistantMessages.value = [];
   resetAssistantMessageInteractionState();
-  assistantInput.value = '';
+  assistantInput.value = customPrompt || '';
   assistantImageUrls.value = [];
-  const prompt = customPrompt || `请基于当前${selectedFeature.value.title}结果继续优化`;
   assistantEntryAutoSending.value = true;
   activeTab.value = 'assistant';
-  // 结果页的定制设计也直接拉起绘画请求，当前作品图会在发送时作为首图带入。
-  void sendAssistantMessage({ prompt, suppressBusyToast: true }).finally(() => {
+  // 定制设计入口先展示源图上下文，等用户明确输入改造意图后再触发 Agent。
+  void ensureAssistantSession().catch((error) => {
+    showToast(error instanceof Error ? error.message : '定制设计会话创建失败');
+  }).finally(() => {
     assistantEntryAutoSending.value = false;
   });
   return true;

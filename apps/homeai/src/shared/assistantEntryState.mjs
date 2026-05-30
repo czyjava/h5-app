@@ -20,14 +20,7 @@ export function createAssistantWorkEntryState(params) {
     workContext,
     sessionKey: '',
     messages: [],
-    autoSubmit: true,
-    input: `请基于这个${params.work.title}继续优化，开启定制设计`,
+    autoSubmit: false,
+    input: '',
   };
-}
-
-export function resolveCustomDesignMessageImageUrls(workContext, attachmentImageUrls = []) {
-  const imageUrls = [workContext?.imageUrl, ...attachmentImageUrls]
-    .filter((url) => Boolean(url?.trim()))
-    .map((url) => url.trim());
-  return Array.from(new Set(imageUrls));
 }

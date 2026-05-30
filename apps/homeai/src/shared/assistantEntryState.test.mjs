@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createAssistantWorkEntryState, resolveCustomDesignMessageImageUrls } from './assistantEntryState.mjs';
+import { createAssistantWorkEntryState } from './assistantEntryState.mjs';
 
-test('我的作品发起定制设计必须进入定制设计新会话', () => {
+test('我的作品发起定制设计必须进入定制设计新会话并等待用户意图', () => {
   const state = createAssistantWorkEntryState({
     currentSessionKey: 'copywrite-session-1',
     work: {
@@ -15,7 +15,8 @@ test('我的作品发起定制设计必须进入定制设计新会话', () => {
   });
 
   assert.equal(state.sceneType, 'CUSTOM_DESIGN');
-  assert.equal(state.autoSubmit, true);
+  assert.equal(state.autoSubmit, false);
+  assert.equal(state.input, '');
   assert.equal(state.sessionKey, '');
   assert.deepEqual(state.messages, []);
   assert.deepEqual(state.workContext, {
@@ -24,14 +25,4 @@ test('我的作品发起定制设计必须进入定制设计新会话', () => {
     templateId: 'template-1',
     imageUrl: 'https://cdn.example.com/work.png',
   });
-  assert.match(state.input, /定制设计|继续优化/);
-});
-
-test('定制设计发送消息时必须优先带入作品图', () => {
-  const imageUrls = resolveCustomDesignMessageImageUrls(
-    { workId: 'work-1', imageUrl: 'https://cdn.example.com/work.png' },
-    ['https://cdn.example.com/user.png', 'https://cdn.example.com/work.png'],
-  );
-
-  assert.deepEqual(imageUrls, ['https://cdn.example.com/work.png', 'https://cdn.example.com/user.png']);
 });

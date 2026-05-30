@@ -20,6 +20,7 @@ export function createAssistantWorkEntryState(params) {
     workContext,
     sessionKey: '',
     messages: [],
+    autoSubmit: true,
     input: `请基于这个${params.work.title}继续优化，开启定制设计`,
   };
 }

@@ -17,6 +17,7 @@ export interface AssistantWorkEntryState {
   workContext: CustomDesignWorkContext;
   sessionKey: string;
   messages: DesignAssistantMessage[];
+  autoSubmit: boolean;
   input: string;
 }
 
@@ -42,6 +43,7 @@ export function createAssistantWorkEntryState(params: AssistantWorkEntryParams):
     workContext,
     sessionKey: '',
     messages: [],
+    autoSubmit: true,
     input: `请基于这个${params.work.title}继续优化，开启定制设计`,
   };
 }

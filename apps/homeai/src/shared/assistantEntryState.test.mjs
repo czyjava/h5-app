@@ -15,6 +15,7 @@ test('我的作品发起定制设计必须进入定制设计新会话', () => {
   });
 
   assert.equal(state.sceneType, 'CUSTOM_DESIGN');
+  assert.equal(state.autoSubmit, true);
   assert.equal(state.sessionKey, '');
   assert.deepEqual(state.messages, []);
   assert.deepEqual(state.workContext, {

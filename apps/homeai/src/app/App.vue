@@ -195,7 +195,7 @@
                 <span>真实生成接口可在 Network 面板中对照代理请求。</span>
               </div>
             </div>
-            <button class="custom-design-entry" type="button" @click="openCustomDesignFromResult">定制设计</button>
+            <button class="custom-design-entry" type="button" @click="openCustomDesignFromResult()">定制设计</button>
             <button class="custom-design-entry secondary" type="button" @click="openCustomDesignFromFeedback">不满意，帮我修改</button>
           </section>
 
@@ -260,9 +260,9 @@
               type="text"
               :disabled="assistantComposerDisabled"
               :placeholder="assistantComposerPlaceholder"
-              @keydown.enter.prevent="sendAssistantMessage"
+              @keydown.enter.prevent="sendAssistantMessage()"
             />
-            <button type="button" :disabled="assistantSendDisabled" @click="sendAssistantMessage">
+            <button type="button" :disabled="assistantSendDisabled" @click="sendAssistantMessage()">
               {{ assistantSending ? '等待' : '发送' }}
             </button>
             <div v-if="assistantImageUrls.length" class="assistant-attachment-strip">
@@ -443,6 +443,12 @@ type AssistantUiMessage = DesignAssistantMessage & {
   localOperationState?: AssistantMessageLocalOperationState | null;
 };
 
+interface AssistantSendOptions {
+  prompt?: string;
+  imageUrls?: string[];
+  suppressBusyToast?: boolean;
+}
+
 const API_DEBUG_HASH = '#/api-debug';
 const ASSISTANT_REPLY_POLL_INTERVAL_MS = 1500;
 const ASSISTANT_REPLY_POLL_TIMEOUT_MS = 180000;
@@ -493,6 +499,7 @@ const assistantImageUrls = ref<string[]>([]);
 const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
+const assistantEntryAutoSending = ref(false);
 const assistantWorkContext = ref<CustomDesignWorkContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
 const assistantHistoryVisible = ref(false);
@@ -1008,21 +1015,6 @@ async function startManualAssistantSession() {
   }
 }
 
-async function startFreshAssistantSessionAfterEntry(errorFallback: string) {
-  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
-    return;
-  }
-  assistantSending.value = true;
-  try {
-    // 入口点击即创建新会话，避免后续发送时误复用普通问询或绘画角色的 session。
-    await ensureAssistantSession('MANUAL_NEW');
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : errorFallback);
-  } finally {
-    assistantSending.value = false;
-  }
-}
-
 async function loadAssistantHistory() {
   assistantHistoryVisible.value = true;
   if (isLocalAssistantExperience() || !requireAssistantLogin()) {
@@ -1049,21 +1041,24 @@ async function openAssistantHistory(sessionKey: string) {
   await restoreAssistantMessages();
 }
 
-async function sendAssistantMessage() {
+async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   if (assistantComposerDisabled.value) {
-    showToast('正在回复中，请稍后再提问');
-    return;
+    if (!options.suppressBusyToast) {
+      showToast('正在回复中，请稍后再提问');
+    }
+    return false;
   }
-  const prompt = assistantInput.value.trim();
-  const imageUrls = [...assistantImageUrls.value];
+  const prompt = (options.prompt ?? assistantInput.value).trim();
+  const imageUrls = [...(options.imageUrls ?? assistantImageUrls.value)];
   const messageImageUrls =
     assistantSceneType.value === 'CUSTOM_DESIGN' ? resolveCustomDesignMessageImageUrls(assistantWorkContext.value, imageUrls) : imageUrls;
   if (!prompt && messageImageUrls.length === 0) {
-    return;
+    return false;
   }
   if (isLocalAssistantExperience() || !requireAssistantLogin()) {
-    return;
+    return false;
   }
+  // 作品定制设计入口会自动提交默认 prompt，这里统一清空输入区，避免停留在“待发送”的中转态。
   assistantInput.value = '';
   assistantImageUrls.value = [];
   assistantMessages.value.push(createLocalAssistantMessage('USER', prompt || '图片附件', messageImageUrls[0] || ''));
@@ -1083,10 +1078,11 @@ async function sendAssistantMessage() {
     const replyToMessageId = response.messageId || response.userMessage?.messageId || '';
     if (!replyToMessageId) {
       await restoreAssistantMessages();
-      return;
+      return true;
     }
     renderAssistantMessagesWithPending(response.messages ?? [], replyToMessageId);
     await pollAssistantReply(sessionKey, replyToMessageId);
+    return true;
   } catch (error) {
     assistantMessages.value = assistantMessages.value.filter((message) => message.status !== 'PENDING');
     assistantMessages.value.push({
@@ -1099,6 +1095,7 @@ async function sendAssistantMessage() {
       messageTime: Date.now(),
     });
     showToast(error instanceof Error ? error.message : '发送失败');
+    return false;
   } finally {
     assistantSending.value = false;
   }
@@ -1117,22 +1114,29 @@ function openCustomDesignFromWork(work: WorkItem) {
   assistantSessionKey.value = entryState.sessionKey;
   assistantMessages.value = entryState.messages;
   resetAssistantMessageInteractionState();
+  assistantInput.value = '';
+  assistantImageUrls.value = [];
+  assistantEntryAutoSending.value = entryState.autoSubmit;
   activeTab.value = 'assistant';
-  assistantInput.value = entryState.input;
   console.info('[HomeAI Assistant] 从作品开启定制设计新会话', {
     workId: work.id,
     recordId: work.recordId || '',
     templateId: work.templateId || '',
     hasImage: Boolean(work.coverUrl),
+    autoSubmit: entryState.autoSubmit,
   });
-  void startFreshAssistantSessionAfterEntry('定制设计会话初始化失败');
+  if (entryState.autoSubmit) {
+    void sendAssistantMessage({ prompt: entryState.input, suppressBusyToast: true }).finally(() => {
+      assistantEntryAutoSending.value = false;
+    });
+  }
 }
 
 function handleAssistantImageError() {
   showToast('图片加载失败，请稍后重试');
 }
 
-function openCustomDesignFromResult() {
+function openCustomDesignFromResult(customPrompt?: string) {
   if (!requireAssistantLogin()) {
     return false;
   }
@@ -1146,9 +1150,15 @@ function openCustomDesignFromResult() {
   assistantSessionKey.value = '';
   assistantMessages.value = [];
   resetAssistantMessageInteractionState();
-  assistantInput.value = `请基于当前${selectedFeature.value.title}结果继续优化`;
+  assistantInput.value = '';
+  assistantImageUrls.value = [];
+  const prompt = customPrompt || `请基于当前${selectedFeature.value.title}结果继续优化`;
+  assistantEntryAutoSending.value = true;
   activeTab.value = 'assistant';
-  void startFreshAssistantSessionAfterEntry('定制设计会话初始化失败');
+  // 结果页的定制设计也直接拉起绘画请求，当前作品图会在发送时作为首图带入。
+  void sendAssistantMessage({ prompt, suppressBusyToast: true }).finally(() => {
+    assistantEntryAutoSending.value = false;
+  });
   return true;
 }
 
@@ -1168,9 +1178,7 @@ function resolveCustomDesignWorkContext() {
 }
 
 function openCustomDesignFromFeedback() {
-  if (openCustomDesignFromResult()) {
-    assistantInput.value = '我不满意当前效果，请帮我换一种更自然、更高级的设计';
-  }
+  openCustomDesignFromResult('我不满意当前效果，请帮我换一种更自然、更高级的设计');
 }
 
 async function feedbackAssistant(message: AssistantUiMessage, feedback: AssistantFeedbackValue) {
@@ -1281,6 +1289,9 @@ onMounted(() => {
 
 watch(activeTab, (tab) => {
   if (tab !== 'assistant') {
+    return;
+  }
+  if (assistantEntryAutoSending.value) {
     return;
   }
   void (async () => {

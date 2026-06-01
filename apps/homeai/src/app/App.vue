@@ -2,7 +2,11 @@
   <ReplicaProxyLifecycleOverlay v-if="apiDebugPage" page-mode />
 
   <main v-else class="app-frame">
-    <section class="phone-shell" :class="{ onboarding: bootFlowVisible, guide: guideVisible }" aria-label="装修 APP H5 复刻">
+    <section
+      class="phone-shell"
+      :class="{ onboarding: bootFlowVisible, guide: guideVisible, immersive: activeTab === 'assistant' || activeTab === 'customDesign' }"
+      aria-label="装修 APP H5 复刻"
+    >
       <header class="status-bar">
         <span>9:41</span>
         <span class="status-icons">5G 100%</span>
@@ -204,6 +208,66 @@
           </button>
         </section>
 
+        <section v-else-if="activeTab === 'customDesign'" class="page page-custom-design">
+          <header class="custom-design-header">
+            <button class="custom-round-button" type="button" aria-label="返回" @click="closeCustomDesignPage">
+              <ChevronLeft :size="21" />
+            </button>
+            <strong>定制设计</strong>
+            <button class="custom-round-button" type="button" aria-label="重置" @click="resetCustomDesignPage">
+              <X :size="18" />
+            </button>
+          </header>
+
+          <section class="custom-image-stage" :class="{ processing: customDesignBusy }">
+            <img v-if="currentCustomDesignImage" class="custom-image-blur" :src="currentCustomDesignImage.imageUrl" alt="" />
+            <div class="custom-image-canvas">
+              <img v-if="currentCustomDesignImage" :src="currentCustomDesignImage.imageUrl" alt="定制设计图片" @error="handleCustomDesignImageError" />
+              <span v-else>暂无图片</span>
+            </div>
+            <span v-if="customDesignImages.length > 1" class="custom-image-index">{{ customDesignImageIndicator }}</span>
+            <div v-if="customDesignBusy" class="custom-processing-mask">
+              <span class="custom-spinner"></span>
+              <strong>AI 正在重新设计</strong>
+              <small>会保留原始空间结构，调整风格、软装和细节</small>
+            </div>
+          </section>
+
+          <section class="custom-control-panel">
+            <section class="custom-status-panel" :class="customDesignStatus">
+              <strong>{{ customDesignPanelTitle }}</strong>
+              <span>{{ customDesignPanelSubtitle }}</span>
+            </section>
+
+            <section v-if="customStylePanelVisible" class="custom-style-strip" aria-label="风格选择">
+              <button v-for="style in customDesignStyles" :key="style.code" type="button" :disabled="customDesignBusy" @click="submitCustomDesignStyle(style)">
+                <img :src="style.image" alt="" />
+                <span>{{ style.name }}</span>
+              </button>
+            </section>
+
+            <section class="custom-composer">
+              <button
+                type="button"
+                class="custom-style-toggle"
+                :class="{ active: customStylePanelVisible }"
+                :disabled="customDesignBusy"
+                @click="customStylePanelVisible = !customStylePanelVisible"
+              >
+                <WandSparkles :size="19" />
+              </button>
+              <input
+                v-model="customDesignInput"
+                type="text"
+                :disabled="customDesignBusy"
+                placeholder="描述你想调整的风格或问题"
+                @keydown.enter.prevent="submitCustomDesignText"
+              />
+              <button type="button" class="custom-send-button" :disabled="customDesignSubmitDisabled" @click="submitCustomDesignText">发</button>
+            </section>
+          </section>
+        </section>
+
         <section v-else-if="activeTab === 'assistant'" class="page page-assistant">
           <header class="assistant-header">
             <button class="icon-button" type="button" aria-label="返回首页" @click="activeTab = 'home'">
@@ -380,7 +444,7 @@
         </section>
       </section>
 
-      <nav v-if="!bootFlowVisible && activeTab !== 'assistant'" class="bottom-nav">
+      <nav v-if="!bootFlowVisible && activeTab !== 'assistant' && activeTab !== 'customDesign'" class="bottom-nav">
         <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="switchTab(tab.key)">
           <img :src="tab.icon" alt="" />
           <span>{{ tab.label }}</span>
@@ -413,7 +477,6 @@ import {
   type ReplicaSettingsRow,
 } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
-import { createAssistantWorkEntryState, type CustomDesignWorkContext } from '../shared/assistantEntryState';
 import { homeAiAssets } from '../shared/assets';
 import { demoSnapshot } from '../shared/demoData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
@@ -448,6 +511,24 @@ interface AssistantSendOptions {
   imageUrls?: string[];
   suppressBusyToast?: boolean;
 }
+
+interface CustomDesignPageContext {
+  batchNo: string;
+  workId?: string;
+  recordId?: string;
+  templateCode?: string;
+  templateId?: string;
+  imageUrl: string;
+}
+
+interface CustomDesignImageEntry {
+  localId: string;
+  imageUrl: string;
+  encodedData?: string;
+  isOriginal: boolean;
+}
+
+type CustomDesignStatus = 'idle' | 'processing' | 'completed' | 'failed';
 
 const API_DEBUG_HASH = '#/api-debug';
 const ASSISTANT_REPLY_POLL_INTERVAL_MS = 1500;
@@ -500,13 +581,21 @@ const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
 const assistantEntryAutoSending = ref(false);
-const assistantWorkContext = ref<CustomDesignWorkContext | null>(null);
+const assistantWorkContext = ref<CustomDesignPageContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
 const assistantHistoryVisible = ref(false);
 const assistantHistoryLoading = ref(false);
 const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
 const regeneratedAssistantMessageIds = ref(new Set<string>());
 const assistantFeedbackOverrides = ref(new Map<string, AssistantFeedbackValue>());
+const customDesignContext = ref<CustomDesignPageContext | null>(null);
+const customDesignImages = ref<CustomDesignImageEntry[]>([]);
+const customDesignImageIndex = ref(0);
+const customDesignInput = ref('');
+const customDesignStatus = ref<CustomDesignStatus>('idle');
+const customDesignLastPrompt = ref('');
+const customStylePanelVisible = ref(false);
+let customDesignMockTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -550,6 +639,12 @@ const designTools = [
   { label: '换色', icon: homeAiAssets.color },
   { label: '材质', icon: homeAiAssets.texture },
   { label: '擦除', icon: homeAiAssets.erase },
+];
+const customDesignStyles = [
+  { code: 'cream', name: '奶油风', image: homeAiAssets.guide.interiorGood },
+  { code: 'modern', name: '现代简约', image: homeAiAssets.guide.renovationGood },
+  { code: 'wood', name: '原木风', image: homeAiAssets.guide.gardenGood },
+  { code: 'luxury', name: '轻奢', image: homeAiAssets.guide.exteriorGood },
 ];
 const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约适合什么配色？', '帮我规划玄关收纳', '预算有限先改哪里？'];
 const environmentOptions = [
@@ -619,6 +714,36 @@ const assistantComposerDisabled = computed(() =>
 );
 const assistantComposerPlaceholder = computed(() => (assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value));
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
+const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
+const customDesignImageIndicator = computed(() => `${customDesignImageIndex.value + 1}/${customDesignImages.value.length}`);
+const customDesignBusy = computed(() => customDesignStatus.value === 'processing');
+const customDesignSubmitDisabled = computed(() => customDesignBusy.value || !customDesignInput.value.trim() || customDesignImages.value.length === 0);
+const customDesignPanelTitle = computed(() => {
+  if (customDesignStatus.value === 'processing') {
+    return customDesignLastPrompt.value || '正在生成新的设计';
+  }
+  if (customDesignStatus.value === 'completed') {
+    return '设计已生成';
+  }
+  if (customDesignStatus.value === 'failed') {
+    return '生成失败';
+  }
+  return '想怎么改这张图？';
+});
+const customDesignPanelSubtitle = computed(() => {
+  if (customDesignStatus.value === 'processing') {
+    return 'AI生成图片中...';
+  }
+  if (customDesignStatus.value === 'completed') {
+    return '你可以继续描述想调整的风格、颜色、软装或问题';
+  }
+  if (customDesignStatus.value === 'failed') {
+    return '请换个描述重新提交';
+  }
+  return customDesignContext.value?.templateCode
+    ? `模板 ${customDesignContext.value.templateCode}`
+    : '描述你想调整的风格、颜色、软装或问题';
+});
 
 function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
@@ -790,6 +915,125 @@ function openAssistantHome() {
 function mockUpload() {
   // 首版复刻只保存交互态，真实上传接口后续通过透明代理逐项对齐原 APP。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
+}
+
+function generateCustomDesignId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>, presetPrompt = '') {
+  if (customDesignMockTimer) {
+    window.clearTimeout(customDesignMockTimer);
+    customDesignMockTimer = null;
+  }
+  // 定制设计不复用 IM 会话；页面进入时生成独立 batchNo，后续真实接口按该批次提交和轮询。
+  const pageContext: CustomDesignPageContext = {
+    ...context,
+    batchNo: generateCustomDesignId('custom-design-batch'),
+    templateCode: context.templateCode || context.templateId || selectedFeature.value.code || 'homeai_custom_design_default',
+  };
+  customDesignContext.value = pageContext;
+  customDesignImages.value = [
+    {
+      localId: generateCustomDesignId('custom-design-source'),
+      imageUrl: pageContext.imageUrl,
+      isOriginal: true,
+    },
+  ];
+  customDesignImageIndex.value = 0;
+  customDesignInput.value = presetPrompt;
+  customDesignLastPrompt.value = '';
+  customDesignStatus.value = 'idle';
+  customStylePanelVisible.value = false;
+  activeTab.value = 'customDesign';
+  console.info('[HomeAI CustomDesign] 进入独立定制设计页', {
+    workId: pageContext.workId || '',
+    recordId: pageContext.recordId || '',
+    templateCode: pageContext.templateCode || '',
+    hasImage: Boolean(pageContext.imageUrl),
+  });
+}
+
+function createMockCustomDesignResultImage() {
+  // 静态复刻阶段用本地装修素材模拟结果图；接入接口后这里会替换成 fetch 返回的图片。
+  const imagePool = [
+    selectedFeature.value.guideImage,
+    homeAiAssets.guide.interiorGood,
+    homeAiAssets.guide.renovationGood,
+    homeAiAssets.guide.exteriorGood,
+  ].filter(Boolean);
+  const nextIndex = customDesignImages.value.length % imagePool.length;
+  return imagePool[nextIndex] || currentCustomDesignImage.value?.imageUrl || homeAiAssets.guide.interiorGood;
+}
+
+function submitCustomDesignInstruction(prompt: string) {
+  const normalizedPrompt = prompt.trim();
+  if (!normalizedPrompt || customDesignBusy.value) {
+    return;
+  }
+  if (!currentCustomDesignImage.value) {
+    showToast('请先选择一个作品，再进入定制设计');
+    return;
+  }
+  customDesignInput.value = '';
+  customDesignLastPrompt.value = normalizedPrompt;
+  customDesignStatus.value = 'processing';
+  customStylePanelVisible.value = false;
+  if (customDesignMockTimer) {
+    window.clearTimeout(customDesignMockTimer);
+  }
+  // 当前阶段只画静态页，用短延迟模拟 submit + fetch 完成后的结果追加。
+  customDesignMockTimer = window.setTimeout(() => {
+    customDesignImages.value = [
+      ...customDesignImages.value,
+      {
+        localId: generateCustomDesignId('custom-design-output'),
+        imageUrl: createMockCustomDesignResultImage(),
+        isOriginal: false,
+      },
+    ];
+    customDesignImageIndex.value = customDesignImages.value.length - 1;
+    customDesignStatus.value = 'completed';
+    customDesignMockTimer = null;
+  }, 1400);
+}
+
+function submitCustomDesignText() {
+  submitCustomDesignInstruction(customDesignInput.value);
+}
+
+function submitCustomDesignStyle(style: { code: string; name: string }) {
+  submitCustomDesignInstruction(`改成${style.name}，保留原有空间结构`);
+}
+
+function closeCustomDesignPage() {
+  if (customDesignMockTimer) {
+    window.clearTimeout(customDesignMockTimer);
+    customDesignMockTimer = null;
+  }
+  customDesignStatus.value = 'idle';
+  activeTab.value = 'mine';
+}
+
+function resetCustomDesignPage() {
+  const source = customDesignImages.value.find((image) => image.isOriginal) ?? customDesignImages.value[0];
+  if (!source) {
+    return;
+  }
+  if (customDesignMockTimer) {
+    window.clearTimeout(customDesignMockTimer);
+    customDesignMockTimer = null;
+  }
+  customDesignImages.value = [source];
+  customDesignImageIndex.value = 0;
+  customDesignInput.value = '';
+  customDesignLastPrompt.value = '';
+  customDesignStatus.value = 'idle';
+  customStylePanelVisible.value = false;
+}
+
+function handleCustomDesignImageError() {
+  showToast('图片加载失败，请稍后重试');
 }
 
 function createLocalAssistantMessage(role: 'USER' | 'ASSISTANT', text: string, imageUrl = '') {
@@ -1109,36 +1353,12 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
 }
 
 async function openCustomDesignFromWork(work: WorkItem) {
-  if (!requireAssistantLogin()) {
-    return;
-  }
-  const entryState = createAssistantWorkEntryState({
-    currentSessionKey: assistantSessionKey.value,
-    work,
-  });
-  assistantSceneType.value = entryState.sceneType;
-  assistantWorkContext.value = entryState.workContext;
-  assistantSessionKey.value = entryState.sessionKey;
-  assistantMessages.value = entryState.messages;
-  resetAssistantMessageInteractionState();
-  assistantInput.value = '';
-  assistantImageUrls.value = [];
-  assistantEntryAutoSending.value = true;
-  activeTab.value = 'assistant';
-  console.info('[HomeAI Assistant] 从作品开启定制设计新会话', {
+  enterCustomDesignPage({
     workId: work.id,
-    recordId: work.recordId || '',
-    templateId: work.templateId || '',
-    hasImage: Boolean(work.coverUrl),
-    autoSubmit: entryState.autoSubmit,
+    recordId: work.recordId,
+    templateCode: work.templateId,
+    imageUrl: work.coverUrl,
   });
-  try {
-    await ensureAssistantSession();
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : '定制设计会话创建失败');
-  } finally {
-    assistantEntryAutoSending.value = false;
-  }
 }
 
 function handleAssistantImageError() {
@@ -1146,29 +1366,12 @@ function handleAssistantImageError() {
 }
 
 async function openCustomDesignFromResult(customPrompt?: string) {
-  if (!requireAssistantLogin()) {
-    return false;
-  }
   const workContext = resolveCustomDesignWorkContext();
   if (!workContext) {
     showToast('请先生成或选择一个作品，再进入定制设计');
     return false;
   }
-  assistantSceneType.value = 'CUSTOM_DESIGN';
-  assistantWorkContext.value = workContext;
-  assistantSessionKey.value = '';
-  assistantMessages.value = [];
-  resetAssistantMessageInteractionState();
-  assistantInput.value = customPrompt || '';
-  assistantImageUrls.value = [];
-  assistantEntryAutoSending.value = true;
-  activeTab.value = 'assistant';
-  // 定制设计入口先展示源图上下文，等用户明确输入改造意图后再触发 Agent。
-  void ensureAssistantSession().catch((error) => {
-    showToast(error instanceof Error ? error.message : '定制设计会话创建失败');
-  }).finally(() => {
-    assistantEntryAutoSending.value = false;
-  });
+  enterCustomDesignPage(workContext, customPrompt || '');
   return true;
 }
 
@@ -1369,6 +1572,10 @@ button {
 
 .phone-shell.guide {
   background: #000;
+}
+
+.phone-shell.immersive {
+  grid-template-rows: 30px 1fr;
 }
 
 .status-bar {
@@ -2155,6 +2362,284 @@ button {
   min-height: 0;
   padding: 12px 18px 18px;
   background: #f5f8fd;
+}
+
+.page-custom-design {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 10px 10px;
+  background: #08090d;
+}
+
+.custom-design-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  min-height: 44px;
+  color: #fff;
+}
+
+.custom-design-header strong {
+  overflow: hidden;
+  font-size: 17px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-round-button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.custom-image-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #111217;
+}
+
+.custom-image-blur {
+  position: absolute;
+  inset: -24px;
+  width: calc(100% + 48px);
+  height: calc(100% + 48px);
+  object-fit: cover;
+  opacity: 0.38;
+  filter: blur(28px);
+  transform: scale(1.04);
+}
+
+.custom-image-canvas {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.custom-image-canvas img {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  border-radius: 10px;
+  object-fit: contain;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.custom-image-canvas span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.custom-image-index {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.38);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.custom-processing-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 22px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.58);
+  text-align: center;
+}
+
+.custom-processing-mask strong {
+  font-size: 16px;
+}
+
+.custom-processing-mask small {
+  max-width: 260px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.custom-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #fff500;
+  border-radius: 50%;
+  animation: custom-spin 0.9s linear infinite;
+}
+
+@keyframes custom-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.custom-control-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #454545;
+}
+
+.custom-status-panel {
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  color: #fff;
+  background: #5f5f5f;
+  text-align: center;
+}
+
+.custom-status-panel strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-status-panel span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.custom-status-panel.completed strong {
+  color: #89ffb0;
+}
+
+.custom-status-panel.failed strong {
+  color: #ff8e86;
+}
+
+.custom-style-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 74px;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.custom-style-strip button {
+  position: relative;
+  width: 74px;
+  height: 92px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: #5f5f5f;
+}
+
+.custom-style-strip button:disabled {
+  opacity: 0.6;
+}
+
+.custom-style-strip img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.custom-style-strip span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 4px 7px;
+  color: #fff;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.74));
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.custom-composer {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 46px;
+  gap: 10px;
+  align-items: end;
+}
+
+.custom-style-toggle,
+.custom-send-button {
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 950;
+}
+
+.custom-style-toggle {
+  display: grid;
+  place-items: center;
+}
+
+.custom-style-toggle.active {
+  color: #121212;
+  background: #fff500;
+}
+
+.custom-style-toggle:disabled,
+.custom-send-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.custom-composer input {
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 21px;
+  padding: 0 14px;
+  outline: 0;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 14px;
+}
+
+.custom-composer input::placeholder {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.custom-send-button {
+  border: 0;
+  color: #111;
+  background: #fff500;
+  font-size: 16px;
 }
 
 .assistant-header {

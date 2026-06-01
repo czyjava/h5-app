@@ -111,6 +111,8 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
   assert.match(customDesignApiSource, /fetchHomeAiCustomDesign/);
   assert.match(appVueSource, /submitHomeAiCustomDesign\(getAssistantContext\(\)/);
   assert.match(appVueSource, /fetchHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
+  assert.match(appVueSource, /const CUSTOM_DESIGN_FETCH_INTERVAL_MS = 5000/);
+  assert.match(appVueSource, /window\.setTimeout\([\s\S]*?CUSTOM_DESIGN_FETCH_INTERVAL_MS/);
   assert.doesNotMatch(appVueSource, /createMockCustomDesignResultImage/);
   assert.doesNotMatch(appVueSource, /静态复刻阶段用本地装修素材模拟结果图/);
 });

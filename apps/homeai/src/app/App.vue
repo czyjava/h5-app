@@ -699,6 +699,7 @@ interface CustomDesignProcessRecord {
 const API_DEBUG_HASH = '#/api-debug';
 const ASSISTANT_REPLY_POLL_INTERVAL_MS = 1500;
 const ASSISTANT_REPLY_POLL_TIMEOUT_MS = 180000;
+const CUSTOM_DESIGN_FETCH_INTERVAL_MS = 5000;
 const CUSTOM_DESIGN_MAX_FETCH_COUNT = 120;
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
 const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
@@ -1377,7 +1378,7 @@ async function submitCustomDesignInstruction(prompt: string) {
       templateCode,
       status: submitResponse.status,
     });
-    scheduleCustomDesignFetch(recordKey, submitResponse.customDesignCode, submitResponse.nextFetchPeriodMs ?? 1000, 0);
+    scheduleCustomDesignFetch(recordKey, submitResponse.customDesignCode, 0);
   } catch (error) {
     const message = error instanceof Error ? error.message : '定制设计提交失败';
     updateCustomDesignProcessRecord(recordKey, { status: 'failed' });
@@ -1387,12 +1388,13 @@ async function submitCustomDesignInstruction(prompt: string) {
   }
 }
 
-function scheduleCustomDesignFetch(recordKey: string, customDesignCode: string, delayMs: number, fetchCount: number) {
+function scheduleCustomDesignFetch(recordKey: string, customDesignCode: string, fetchCount: number) {
   clearCustomDesignPollingTimer();
+  // 定制设计生成耗时较长，固定 5 秒轮询一次，避免客户端和业务服务之间请求过密。
   customDesignPollingTimer = window.setTimeout(() => {
     customDesignPollingTimer = null;
     void fetchCustomDesignResult(recordKey, customDesignCode, fetchCount);
-  }, Math.max(delayMs, 1000));
+  }, CUSTOM_DESIGN_FETCH_INTERVAL_MS);
 }
 
 async function fetchCustomDesignResult(recordKey: string, customDesignCode: string, fetchCount: number) {
@@ -1417,7 +1419,7 @@ async function fetchCustomDesignResult(recordKey: string, customDesignCode: stri
       return;
     }
     if (status !== 'SUCCEEDED' && status !== 'APPLIED') {
-      scheduleCustomDesignFetch(recordKey, customDesignCode, response.nextFetchPeriodMs ?? 2000, fetchCount + 1);
+      scheduleCustomDesignFetch(recordKey, customDesignCode, fetchCount + 1);
       return;
     }
     const outputImageUrl = resolveCustomDesignOutputImageUrl(response);

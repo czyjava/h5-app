@@ -95,3 +95,18 @@ test('HomeAI 作品详情必须选中真实 generationWork 后才能进入定制
   assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);
   assert.match(appVueSource, /selectedWork\.value\.sourceType !== 'work'/);
 });
+
+test('HomeAI 我的页不展示 AI 设计助手历史入口', () => {
+  assert.doesNotMatch(appVueSource, /class="assistant-history-card"/);
+  assert.doesNotMatch(appVueSource, /loadAssistantHistory/);
+  assert.doesNotMatch(appVueSource, /openAssistantHistory/);
+  assert.doesNotMatch(appVueSource, /listDesignAssistantSessions/);
+});
+
+test('HomeAI 定制设计过程记录只能从真实作品详情查看', () => {
+  assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);
+  assert.match(appVueSource, /openCustomDesignRecordsFromSelectedWork/);
+  assert.match(appVueSource, /visibleCustomDesignProcessRecords/);
+  assert.match(appVueSource, /record\.generationRecordId === context\.recordId && record\.sourceWorkId === context\.workId/);
+  assert.doesNotMatch(appVueSource, /@click="openCustomDesignRecords"/);
+});

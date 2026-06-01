@@ -272,7 +272,7 @@
             <button type="button" class="primary" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignFromSelectedWork">
               {{ workDetailLoading ? '加载作品中' : '定制设计' }}
             </button>
-            <button type="button" @click="openCustomDesignRecordsFromSelectedWork">查看过程记录</button>
+            <button type="button" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignRecordsFromSelectedWork">查看过程记录</button>
           </section>
         </section>
 
@@ -283,7 +283,6 @@
             </button>
             <strong>定制设计</strong>
             <span class="custom-header-actions">
-              <button class="custom-record-button" type="button" @click="openCustomDesignRecords">记录</button>
               <button class="custom-round-button" type="button" aria-label="重置" @click="resetCustomDesignPage">
                 <X :size="18" />
               </button>
@@ -341,7 +340,7 @@
 
         <section v-else-if="activeTab === 'customDesignRecords'" class="page page-custom-records">
           <header class="custom-records-header">
-            <button class="custom-records-back" type="button" aria-label="返回定制设计" @click="activeTab = 'customDesign'">
+            <button class="custom-records-back" type="button" aria-label="返回作品详情" @click="activeTab = selectedWork ? 'workDetail' : 'mine'">
               <ChevronLeft :size="21" />
             </button>
             <div>
@@ -352,8 +351,8 @@
 
           <section class="custom-record-summary">
             <article>
-              <span>{{ customDesignProcessRecords.length }}</span>
-              <small>本次提交</small>
+              <span>{{ visibleCustomDesignProcessRecords.length }}</span>
+              <small>当前作品</small>
             </article>
             <article>
               <span>{{ completedCustomDesignRecordCount }}</span>
@@ -365,14 +364,14 @@
             </article>
           </section>
 
-          <section v-if="customDesignProcessRecords.length === 0" class="custom-record-empty">
+          <section v-if="visibleCustomDesignProcessRecords.length === 0" class="custom-record-empty">
             <strong>暂无过程记录</strong>
-            <span>提交一次定制设计后，这里会记录本轮意图、状态和结果图。</span>
-            <button type="button" @click="activeTab = 'customDesign'">返回去提交</button>
+            <span>从这个作品发起一次定制设计后，这里会记录它对应的修改意图、状态和结果图。</span>
+            <button type="button" @click="activeTab = selectedWork ? 'workDetail' : 'mine'">返回作品详情</button>
           </section>
 
           <section v-else class="custom-record-list">
-            <article v-for="record in customDesignProcessRecords" :key="record.recordKey" class="custom-record-card">
+            <article v-for="record in visibleCustomDesignProcessRecords" :key="record.recordKey" class="custom-record-card">
               <header>
                 <span :class="['custom-record-status', record.status]">{{ customDesignRecordStatusText(record.status) }}</span>
                 <small>{{ record.createdAt }}</small>
@@ -517,25 +516,6 @@
             </div>
           </section>
 
-          <section class="assistant-history-card">
-            <header>
-              <h3>AI 设计助手</h3>
-              <button type="button" :disabled="assistantHistoryLoading" @click="loadAssistantHistory">
-                {{ assistantHistoryVisible ? '刷新' : '查看历史' }}
-              </button>
-            </header>
-            <div v-if="assistantHistoryVisible" class="assistant-history-list">
-              <button v-for="sessionItem in assistantSessions" :key="sessionItem.sessionKey" type="button" @click="openAssistantHistory(sessionItem.sessionKey)">
-                <span>
-                  <strong>{{ sessionItem.summary || '设计助手会话' }}</strong>
-                  <small>{{ sessionItem.createTime || sessionItem.updateTime || '最近会话' }}</small>
-                </span>
-                <ChevronRight :size="18" />
-              </button>
-              <p v-if="!assistantSessions.length">{{ assistantHistoryLoading ? '加载中...' : '暂无历史会话' }}</p>
-            </div>
-          </section>
-
           <section class="work-list">
             <header>
               <h3>我的作品</h3>
@@ -645,7 +625,6 @@ import {
 import {
   applyDesignAssistantImage,
   listDesignAssistantMessages,
-  listDesignAssistantSessions,
   regenerateDesignAssistantMessage,
   resolveAssistantImageUrl,
   resolveAssistantText,
@@ -661,7 +640,7 @@ import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot } from '
 import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
 import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
-import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
+import type { DesignAssistantMessage, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
 type AssistantUiMessage = DesignAssistantMessage & {
   localId?: string;
@@ -763,9 +742,6 @@ const assistantSending = ref(false);
 const assistantEntryAutoSending = ref(false);
 const assistantWorkContext = ref<CustomDesignPageContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
-const assistantHistoryVisible = ref(false);
-const assistantHistoryLoading = ref(false);
-const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
 const regeneratedAssistantMessageIds = ref(new Set<string>());
 const selectedWork = ref<WorkItem | null>(null);
 const workDetailPresetPrompt = ref('');
@@ -954,16 +930,26 @@ const customDesignPanelSubtitle = computed(() => {
     ? `模板 ${customDesignContext.value.templateCode}`
     : '描述你想调整的风格、颜色、软装或问题';
 });
+const visibleCustomDesignProcessRecords = computed(() => {
+  const context = customDesignContext.value;
+  if (!context?.recordId || !context.workId) {
+    return [];
+  }
+  // 过程记录属于具体 generationRecord 下的某个 work，避免在作品详情里看到其它作品的修改记录。
+  return customDesignProcessRecords.value.filter(
+    (record) => record.generationRecordId === context.recordId && record.sourceWorkId === context.workId,
+  );
+});
 const completedCustomDesignRecordCount = computed(
-  () => customDesignProcessRecords.value.filter((record) => record.status === 'completed').length,
+  () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'completed').length,
 );
 const customDesignRecordsSubtitle = computed(() => {
   if (!customDesignContext.value) {
-    return '当前没有定制设计批次';
+    return '当前没有选中的作品';
   }
   const generationRecordId = customDesignContext.value.recordId || '-';
   const workId = customDesignContext.value.workId || '-';
-  return `record ${generationRecordId} · work ${workId}`;
+  return `只看 record ${generationRecordId} · work ${workId}`;
 });
 
 function persistEnvironment() {
@@ -1258,6 +1244,10 @@ function openCustomDesignRecordsFromSelectedWork() {
     showToast('请先选择一个 generationWork');
     return;
   }
+  if (workDetailCustomDesignDisabled.value) {
+    showToast(workDetailLoading.value ? '作品详情加载中，请稍后再试' : '请先选择真实的 generationWork');
+    return;
+  }
   const work = selectedWork.value;
   customDesignContext.value = {
     batchNo: customDesignContext.value?.batchNo || generateCustomDesignId('custom-design-records'),
@@ -1489,10 +1479,6 @@ function resetCustomDesignPage() {
 
 function handleCustomDesignImageError() {
   showToast('图片加载失败，请稍后重试');
-}
-
-function openCustomDesignRecords() {
-  activeTab.value = 'customDesignRecords';
 }
 
 function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
@@ -1737,32 +1723,6 @@ async function startManualAssistantSession() {
   } finally {
     assistantSending.value = false;
   }
-}
-
-async function loadAssistantHistory() {
-  assistantHistoryVisible.value = true;
-  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
-    assistantSessions.value = [];
-    return;
-  }
-  assistantHistoryLoading.value = true;
-  try {
-    assistantSessions.value = await listDesignAssistantSessions(getAssistantContext(), 'ASSISTANT_CHAT');
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : '历史会话加载失败');
-  } finally {
-    assistantHistoryLoading.value = false;
-  }
-}
-
-async function openAssistantHistory(sessionKey: string) {
-  if (!requireAssistantLogin()) {
-    return;
-  }
-  resetAssistantMessageInteractionState();
-  assistantSessionKey.value = sessionKey;
-  activeTab.value = 'assistant';
-  await restoreAssistantMessages();
 }
 
 async function sendAssistantMessage(options: AssistantSendOptions = {}) {
@@ -3082,17 +3042,6 @@ button {
   gap: 7px;
 }
 
-.custom-record-button {
-  height: 34px;
-  min-width: 46px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 17px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 13px;
-  font-weight: 900;
-}
-
 .custom-image-stage {
   position: relative;
   min-height: 0;
@@ -4292,81 +4241,6 @@ button {
   border-radius: 50%;
   color: #202b3d;
   background: #fff;
-}
-
-.assistant-history-card {
-  display: grid;
-  gap: 12px;
-  margin: 14px 0;
-  padding: 14px;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 12px 28px rgba(36, 56, 86, 0.08);
-}
-
-.assistant-history-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.assistant-history-card h3 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.assistant-history-card header button {
-  border: 0;
-  border-radius: 999px;
-  padding: 7px 11px;
-  color: #fff;
-  background: #3478f6;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.assistant-history-card header button:disabled {
-  background: #aeb8c8;
-}
-
-.assistant-history-list {
-  display: grid;
-  gap: 8px;
-}
-
-.assistant-history-list button {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 0;
-  border-radius: 14px;
-  padding: 10px 11px;
-  color: #26324a;
-  background: #f4f7fb;
-  text-align: left;
-}
-
-.assistant-history-list span {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.assistant-history-list strong,
-.assistant-history-list small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.assistant-history-list small,
-.assistant-history-list p {
-  margin: 0;
-  color: #7a879b;
-  font-size: 12px;
 }
 
 .work-list {

@@ -28,6 +28,13 @@ test('HomeAI 实时 API 面板接入手机号验证码登录', () => {
   assert.match(appVueSource, /:login-handler="loginWithSmsCode"/);
 });
 
+test('HomeAI 登录和接口环境配置必须独立弹窗展示', () => {
+  assert.match(appVueSource, /settingsDialogVisible/);
+  assert.match(appVueSource, /class="settings-modal"/);
+  assert.match(appVueSource, /class="profile-settings-button"/);
+  assert.doesNotMatch(appVueSource, /<section class="settings-shell" aria-label="设置">/);
+});
+
 test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.doesNotMatch(appConfigSource, /\/api\/h5\/homeai\/design-assistant\//);
   assert.doesNotMatch(appConfigSource, /quote[-]by[-]template/);

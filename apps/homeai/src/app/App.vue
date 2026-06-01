@@ -501,6 +501,9 @@
               <p>ID {{ snapshot.user.userId }}</p>
             </div>
             <span>{{ snapshot.user.vipLabel }}</span>
+            <button class="profile-settings-button" type="button" aria-label="登录与接口配置" @click="settingsDialogVisible = true">
+              <Settings :size="18" />
+            </button>
           </header>
 
           <section class="vip-card">
@@ -510,33 +513,6 @@
               <strong>{{ snapshot.user.diamondCount }} 钻石</strong>
               <span>会员权益与余额信息来自原 APP 资源结构</span>
             </div>
-          </section>
-
-          <section class="settings-shell" aria-label="设置">
-            <header>
-              <h2>设置</h2>
-              <small>{{ apiState.environmentLabel }} · {{ apiState.mode }}</small>
-            </header>
-            <ReplicaApiModePanel
-              :auth-token="authTokenDraft"
-              empty-token-label="未配置"
-              :reload-handler="reload"
-              :send-code-handler="sendLoginSmsCode"
-              :login-handler="loginWithSmsCode"
-              :clear-token-handler="clearLogin"
-              @update:auth-token="updateAuthToken"
-              @notice="showToast"
-              @error="showToast"
-            />
-            <ReplicaSettingsPanel
-              :environments="environmentOptions"
-              :active-environment="environment"
-              :switching-environment="switchingEnvironment"
-              :rows="settingRows"
-              @choose-environment="chooseEnvironment"
-              @row-click="handleSettingRow"
-            />
-            <p v-if="apiState.lastError" class="settings-error">{{ apiState.lastError }}</p>
           </section>
 
           <section class="assistant-history-card">
@@ -597,6 +573,41 @@
       </nav>
     </section>
 
+    <section v-if="settingsDialogVisible" class="settings-modal" role="dialog" aria-modal="true" aria-label="登录与接口环境配置">
+      <button class="settings-modal-mask" type="button" aria-label="关闭配置弹窗" @click="settingsDialogVisible = false"></button>
+      <section class="settings-modal-panel">
+        <header>
+          <div>
+            <strong>登录与接口环境</strong>
+            <small>{{ environmentOptions.find((option) => option.key === environment)?.label }} · {{ apiState.mode }}</small>
+          </div>
+          <button type="button" aria-label="关闭配置弹窗" @click="settingsDialogVisible = false">
+            <X :size="18" />
+          </button>
+        </header>
+        <ReplicaApiModePanel
+          :auth-token="authTokenDraft"
+          empty-token-label="未配置"
+          :reload-handler="reload"
+          :send-code-handler="sendLoginSmsCode"
+          :login-handler="loginWithSmsCode"
+          :clear-token-handler="clearLogin"
+          @update:auth-token="updateAuthToken"
+          @notice="showToast"
+          @error="showToast"
+        />
+        <ReplicaSettingsPanel
+          :environments="environmentOptions"
+          :active-environment="environment"
+          :switching-environment="switchingEnvironment"
+          :rows="settingRows"
+          @choose-environment="chooseEnvironment"
+          @row-click="handleSettingRow"
+        />
+        <p v-if="apiState.lastError" class="settings-error">{{ apiState.lastError }}</p>
+      </section>
+    </section>
+
     <ReplicaProxyLifecycleOverlay />
 
     <p v-if="toastMessage" class="toast-message" :class="toastKind">{{ toastMessage }}</p>
@@ -605,7 +616,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronLeft, ChevronRight, WandSparkles, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Settings, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -725,6 +736,7 @@ const apiState = ref<HomeAiApiState>({
 });
 const apiDebugPage = ref(window.location.hash === API_DEBUG_HASH);
 const switchingEnvironment = ref(false);
+const settingsDialogVisible = ref(false);
 const toastMessage = ref('');
 const toastKind = ref<'notice' | 'error'>('notice');
 const isScrolled = ref(false);
@@ -1515,8 +1527,9 @@ function requireAssistantLogin() {
   if (!shouldRequireAssistantLogin({ authToken: authTokenDraft.value })) {
     return true;
   }
-  // 未获得登录态时统一跳到“我的”页，由公共登录面板承接手机号验证码登录。
+  // 未获得登录态时打开独立登录弹窗，不把验证码登录控件铺到“我的”页面主体里。
   activeTab.value = 'mine';
+  settingsDialogVisible.value = true;
   showToast('请先登录后使用 AI 设计助手');
   return false;
 }
@@ -2647,7 +2660,6 @@ button {
 }
 
 .survey-strip,
-.settings-shell,
 .work-list {
   margin-top: 14px;
   display: grid;
@@ -2655,7 +2667,6 @@ button {
 }
 
 .survey-strip header,
-.settings-shell > header,
 .work-list h3 {
   margin: 0;
 }
@@ -4121,6 +4132,19 @@ button {
   font-weight: 900;
 }
 
+.profile-settings-button {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #182338;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(12, 24, 42, 0.16);
+}
+
 .vip-card {
   position: relative;
   min-height: 124px;
@@ -4154,22 +4178,6 @@ button {
   font-size: 23px;
 }
 
-.settings-shell {
-  padding: 14px;
-  border-radius: 20px;
-  background: #fff;
-}
-
-.settings-shell > header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.settings-shell h2 {
-  margin: 0;
-}
-
 .settings-error {
   margin: 0;
   padding: 10px;
@@ -4178,6 +4186,72 @@ button {
   background: #fff0f0;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+}
+
+.settings-modal-mask {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(13, 20, 34, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.settings-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(392px, calc(100vw - 44px));
+  max-height: min(760px, calc(100vh - 64px));
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px;
+  background: #f6f8fc;
+  box-shadow: 0 24px 68px rgba(13, 25, 44, 0.32);
+}
+
+.settings-modal-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-modal-panel > header div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.settings-modal-panel > header strong {
+  color: #17243a;
+  font-size: 18px;
+}
+
+.settings-modal-panel > header small {
+  color: #748196;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.settings-modal-panel > header button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #202b3d;
+  background: #fff;
 }
 
 .assistant-history-card {

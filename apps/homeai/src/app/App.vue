@@ -7,7 +7,8 @@
       :class="{
         onboarding: bootFlowVisible,
         guide: guideVisible,
-        immersive: activeTab === 'assistant' || activeTab === 'customDesign' || activeTab === 'customDesignRecords',
+        immersive:
+          activeTab === 'assistant' || activeTab === 'workDetail' || activeTab === 'customDesign' || activeTab === 'customDesignRecords',
       }"
       aria-label="装修 APP H5 复刻"
     >
@@ -212,6 +213,63 @@
           </button>
         </section>
 
+        <section v-else-if="activeTab === 'workDetail' && selectedWork" class="page page-work-detail">
+          <header class="work-detail-header">
+            <button class="icon-button" type="button" aria-label="返回我的" @click="activeTab = 'mine'">
+              <ChevronLeft :size="20" />
+            </button>
+            <strong>作品详情</strong>
+            <button class="work-record-pill" type="button" @click="showToast('真实过程记录将在接入接口后按 generationRecord 查询')">记录</button>
+          </header>
+
+          <section class="work-detail-hero">
+            <img :src="selectedWork.coverUrl" alt="作品图" />
+            <div>
+              <strong>{{ selectedWork.title }}</strong>
+              <span>{{ selectedWork.status }} · {{ selectedWork.createdAt || '今天' }}</span>
+            </div>
+          </section>
+
+          <section class="work-detail-meta">
+            <article>
+              <small>generationRecord</small>
+              <strong>{{ selectedWork.recordId || selectedWork.id }}</strong>
+            </article>
+            <article>
+              <small>当前 generationWork</small>
+              <strong>{{ selectedWork.id }}</strong>
+            </article>
+            <article>
+              <small>templateCode</small>
+              <strong>{{ selectedWork.templateId || '-' }}</strong>
+            </article>
+          </section>
+
+          <section class="work-group-section">
+            <header>
+              <h3>同一 generationRecord 下的作品</h3>
+              <span>{{ selectedGenerationWorks.length }} 个 work</span>
+            </header>
+            <div class="work-group-list">
+              <button
+                v-for="work in selectedGenerationWorks"
+                :key="work.id"
+                type="button"
+                :class="{ active: work.id === selectedWork.id }"
+                @click="selectedWork = work"
+              >
+                <img :src="work.coverUrl" alt="" />
+                <span>{{ work.title }}</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="work-detail-actions">
+            <button type="button" class="primary" @click="openCustomDesignFromSelectedWork">定制设计</button>
+            <button type="button" @click="showToast('真实接口接入后按 generationRecord 展示全部过程记录')">查看过程记录</button>
+          </section>
+        </section>
+
         <section v-else-if="activeTab === 'customDesign'" class="page page-custom-design">
           <header class="custom-design-header">
             <button class="custom-round-button" type="button" aria-label="返回" @click="closeCustomDesignPage">
@@ -326,6 +384,8 @@
               </section>
               <section class="custom-record-body">
                 <strong>{{ record.prompt }}</strong>
+                <span>generationRecord: {{ record.generationRecordId || '-' }}</span>
+                <span>sourceWork: {{ record.sourceWorkId || '-' }}</span>
                 <span>processRecordCode: {{ record.processRecordCode }}</span>
                 <span>templateCode: {{ record.templateCode }}</span>
               </section>
@@ -505,15 +565,24 @@
               <img :src="work.coverUrl" alt="" />
               <div class="work-info">
                 <strong>{{ work.title }}</strong>
-                <span>{{ work.status }} · {{ work.createdAt || '今天' }}</span>
+                <span>{{ work.status }} · record {{ work.recordId || work.id }}</span>
               </div>
-              <button type="button" class="custom" @click="openCustomDesignFromWork(work)">定制设计</button>
+              <button type="button" class="custom" @click="openWorkDetail(work)">查看详情</button>
             </article>
           </section>
         </section>
       </section>
 
-      <nav v-if="!bootFlowVisible && activeTab !== 'assistant' && activeTab !== 'customDesign' && activeTab !== 'customDesignRecords'" class="bottom-nav">
+      <nav
+        v-if="
+          !bootFlowVisible &&
+          activeTab !== 'assistant' &&
+          activeTab !== 'workDetail' &&
+          activeTab !== 'customDesign' &&
+          activeTab !== 'customDesignRecords'
+        "
+        class="bottom-nav"
+      >
         <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="switchTab(tab.key)">
           <img :src="tab.icon" alt="" />
           <span>{{ tab.label }}</span>
@@ -588,6 +657,7 @@ interface CustomDesignPageContext {
   templateCode?: string;
   templateId?: string;
   imageUrl: string;
+  workTitle?: string;
 }
 
 interface CustomDesignImageEntry {
@@ -604,6 +674,8 @@ type CustomDesignProcessStatus = 'processing' | 'completed' | 'failed';
 interface CustomDesignProcessRecord {
   recordKey: string;
   processRecordCode: string;
+  generationRecordId: string;
+  sourceWorkId: string;
   prompt: string;
   templateCode: string;
   status: CustomDesignProcessStatus;
@@ -671,6 +743,8 @@ const assistantHistoryLoading = ref(false);
 const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
 const regeneratedAssistantMessageIds = ref(new Set<string>());
 const assistantFeedbackOverrides = ref(new Map<string, AssistantFeedbackValue>());
+const selectedWork = ref<WorkItem | null>(null);
+const workDetailPresetPrompt = ref('');
 const customDesignContext = ref<CustomDesignPageContext | null>(null);
 const customDesignImages = ref<CustomDesignImageEntry[]>([]);
 const customDesignImageIndex = ref(0);
@@ -780,6 +854,14 @@ const filteredDiscover = computed(() => {
   }
   return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
 });
+const selectedGenerationWorks = computed(() => {
+  if (!selectedWork.value) {
+    return [];
+  }
+  const recordId = selectedWork.value.recordId || selectedWork.value.id;
+  const works = snapshot.value.works.filter((work) => (work.recordId || work.id) === recordId);
+  return works.length > 0 ? works : [selectedWork.value];
+});
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
 const assistantEmptyDescription = computed(() =>
@@ -835,7 +917,9 @@ const customDesignRecordsSubtitle = computed(() => {
   if (!customDesignContext.value) {
     return '当前没有定制设计批次';
   }
-  return `batchNo ${customDesignContext.value.batchNo.slice(0, 18)}`;
+  const generationRecordId = customDesignContext.value.recordId || '-';
+  const workId = customDesignContext.value.workId || '-';
+  return `record ${generationRecordId} · work ${workId}`;
 });
 
 function persistEnvironment() {
@@ -1010,6 +1094,31 @@ function mockUpload() {
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
 }
 
+function openWorkDetail(work: WorkItem, presetPrompt = '') {
+  selectedWork.value = work;
+  workDetailPresetPrompt.value = presetPrompt;
+  activeTab.value = 'workDetail';
+}
+
+function openCustomDesignFromSelectedWork() {
+  if (!selectedWork.value) {
+    showToast('请先选择一个 generationWork');
+    return;
+  }
+  const work = selectedWork.value;
+  enterCustomDesignPage(
+    {
+      workId: work.id,
+      recordId: work.recordId || work.id,
+      templateCode: work.templateId,
+      imageUrl: work.coverUrl,
+      workTitle: work.title,
+    },
+    workDetailPresetPrompt.value,
+  );
+  workDetailPresetPrompt.value = '';
+}
+
 function generateCustomDesignId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -1082,6 +1191,8 @@ function submitCustomDesignInstruction(prompt: string) {
   const processRecordCode = generateCustomDesignId('process-record');
   const inputImageUrl = currentCustomDesignImage.value.imageUrl;
   const templateCode = customDesignContext.value?.templateCode || 'homeai_custom_design_default';
+  const generationRecordId = customDesignContext.value?.recordId || '';
+  const sourceWorkId = customDesignContext.value?.workId || '';
   customDesignInput.value = '';
   customDesignLastPrompt.value = normalizedPrompt;
   customDesignStatus.value = 'processing';
@@ -1090,6 +1201,8 @@ function submitCustomDesignInstruction(prompt: string) {
     {
       recordKey,
       processRecordCode,
+      generationRecordId,
+      sourceWorkId,
       prompt: normalizedPrompt,
       templateCode,
       status: 'processing',
@@ -1143,7 +1256,7 @@ function closeCustomDesignPage() {
     customDesignMockTimer = null;
   }
   customDesignStatus.value = 'idle';
-  activeTab.value = 'mine';
+  activeTab.value = selectedWork.value ? 'workDetail' : 'mine';
 }
 
 function resetCustomDesignPage() {
@@ -1520,15 +1633,6 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   }
 }
 
-async function openCustomDesignFromWork(work: WorkItem) {
-  enterCustomDesignPage({
-    workId: work.id,
-    recordId: work.recordId,
-    templateCode: work.templateId,
-    imageUrl: work.coverUrl,
-  });
-}
-
 function handleAssistantImageError() {
   showToast('图片加载失败，请稍后重试');
 }
@@ -1539,7 +1643,22 @@ async function openCustomDesignFromResult(customPrompt?: string) {
     showToast('请先生成或选择一个作品，再进入定制设计');
     return false;
   }
-  enterCustomDesignPage(workContext, customPrompt || '');
+  const matchingWork = snapshot.value.works.find((work) => work.id === workContext.workId) ?? null;
+  if (matchingWork) {
+    openWorkDetail(matchingWork, customPrompt || '');
+    return true;
+  }
+  selectedWork.value = {
+    id: workContext.workId || 'current-work',
+    recordId: workContext.recordId,
+    templateId: workContext.templateId,
+    title: '当前生成作品',
+    status: '已生成',
+    coverUrl: workContext.imageUrl,
+    createdAt: '今天',
+  };
+  workDetailPresetPrompt.value = customPrompt || '';
+  activeTab.value = 'workDetail';
   return true;
 }
 
@@ -2530,6 +2649,193 @@ button {
   min-height: 0;
   padding: 12px 18px 18px;
   background: #f5f8fd;
+}
+
+.page-work-detail {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  gap: 13px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 18px;
+  background: #f4f7fb;
+}
+
+.work-detail-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+}
+
+.work-detail-header strong {
+  color: #17243a;
+  font-size: 18px;
+  text-align: center;
+}
+
+.work-record-pill {
+  min-height: 34px;
+  border: 0;
+  border-radius: 17px;
+  padding: 0 12px;
+  color: #2654bd;
+  background: #eaf1ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.work-detail-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #10141c;
+  box-shadow: 0 18px 34px rgba(39, 59, 87, 0.14);
+}
+
+.work-detail-hero > img {
+  width: 100%;
+  aspect-ratio: 1.03;
+  display: block;
+  object-fit: cover;
+}
+
+.work-detail-hero > div {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 5px;
+  padding: 28px 16px 15px;
+  color: #fff;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+}
+
+.work-detail-hero strong {
+  font-size: 21px;
+}
+
+.work-detail-hero span {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.work-detail-meta {
+  display: grid;
+  gap: 9px;
+}
+
+.work-detail-meta article {
+  display: grid;
+  gap: 5px;
+  padding: 12px 13px;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(38, 61, 92, 0.07);
+}
+
+.work-detail-meta small {
+  color: #7b879a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.work-detail-meta strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #17243a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-group-section {
+  display: grid;
+  gap: 10px;
+}
+
+.work-group-section header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.work-group-section h3 {
+  margin: 0;
+  color: #17243a;
+  font-size: 16px;
+}
+
+.work-group-section header span {
+  color: #7b879a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.work-group-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 108px;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.work-group-list button {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 7px;
+  border: 2px solid transparent;
+  border-radius: 15px;
+  color: #17243a;
+  background: #fff;
+  text-align: left;
+}
+
+.work-group-list button.active {
+  border-color: #fff500;
+  background: #fffde5;
+}
+
+.work-group-list img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.work-group-list span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-detail-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 10px;
+}
+
+.work-detail-actions button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 24px;
+  color: #2654bd;
+  background: #eaf1ff;
+  font-weight: 950;
+}
+
+.work-detail-actions button.primary {
+  color: #111;
+  background: #fff500;
 }
 
 .page-custom-design {

@@ -1,4 +1,4 @@
-export type MainTab = 'home' | 'design' | 'assistant' | 'customDesign' | 'customDesignRecords' | 'discover' | 'mine';
+export type MainTab = 'home' | 'design' | 'assistant' | 'workDetail' | 'customDesign' | 'customDesignRecords' | 'discover' | 'mine';
 
 export type DesignAssistantSceneType = 'ASSISTANT_CHAT' | 'CUSTOM_DESIGN';
 export type DesignAssistantStartReason = 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW' | 'WORK_RESULT_ENTER';

@@ -445,7 +445,20 @@
           </section>
 
           <section class="assistant-composer">
-            <button type="button" aria-label="上传图片" :disabled="assistantComposerDisabled" @click="addAssistantImageAttachment">
+            <input
+              ref="assistantImageInputRef"
+              class="assistant-file-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              @change="handleAssistantImageFileChange"
+            />
+            <button
+              type="button"
+              class="assistant-upload-button"
+              :aria-label="assistantUploadingImage ? '图片上传中' : '上传图片'"
+              :disabled="assistantComposerDisabled"
+              @click="openAssistantImagePicker"
+            >
               <img :src="homeAiAssets.upload" alt="" />
             </button>
             <input
@@ -456,11 +469,12 @@
               @keydown.enter.prevent="sendAssistantMessage()"
             />
             <button type="button" :disabled="assistantSendDisabled" @click="sendAssistantMessage()">
-              {{ assistantSending ? '等待' : '发送' }}
+              {{ assistantSending || assistantUploadingImage ? '等待' : '发送' }}
             </button>
             <div v-if="assistantImageUrls.length" class="assistant-attachment-strip">
               <span v-for="url in assistantImageUrls" :key="url">
                 <img :src="url" alt="" />
+                <button type="button" class="assistant-attachment-remove" aria-label="移除图片" @click="removeAssistantImageAttachment(url)">×</button>
               </span>
             </div>
           </section>
@@ -636,7 +650,7 @@ import {
   resolveCustomDesignOutputImageUrl,
   submitHomeAiCustomDesign,
 } from '../shared/customDesignApi';
-import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot } from '../shared/homeaiApi';
+import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot, uploadHomeAiImage } from '../shared/homeaiApi';
 import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
 import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
@@ -736,6 +750,8 @@ const selectedStyle = ref('现代简约');
 const activeDiscoverCategory = ref('全部');
 const assistantInput = ref('');
 const assistantImageUrls = ref<string[]>([]);
+const assistantImageInputRef = ref<HTMLInputElement | null>(null);
+const assistantUploadingImage = ref(false);
 const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
@@ -811,6 +827,9 @@ const customDesignStyles = [
   { code: 'luxury', name: '轻奢', image: homeAiAssets.guide.exteriorGood },
 ];
 const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约适合什么配色？', '帮我规划玄关收纳', '预算有限先改哪里？'];
+const ASSISTANT_IMAGE_ACCEPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ASSISTANT_IMAGE_MAX_SIZE = 20 * 1024 * 1024;
+const ASSISTANT_IMAGE_MAX_COUNT = 6;
 const environmentOptions = [
   {
     key: 'production' as const,
@@ -893,12 +912,15 @@ const assistantInputPlaceholder = computed(() =>
   assistantSceneType.value === 'CUSTOM_DESIGN' ? '输入你的定制设计需求' : '输入你的装修问题',
 );
 const assistantComposerDisabled = computed(() =>
+  assistantUploadingImage.value ||
   shouldDisableAssistantComposer({
     assistantSending: assistantSending.value,
     messages: assistantMessages.value,
   }),
 );
-const assistantComposerPlaceholder = computed(() => (assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value));
+const assistantComposerPlaceholder = computed(() =>
+  assistantUploadingImage.value ? '图片上传中，请稍候' : assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value,
+);
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
 const customDesignImageIndicator = computed(() => `${customDesignImageIndex.value + 1}/${customDesignImages.value.length}`);
@@ -1615,15 +1637,65 @@ function useAssistantQuickQuestion(question: string) {
   assistantInput.value = question;
 }
 
-function addAssistantImageAttachment() {
+function openAssistantImagePicker() {
   if (assistantComposerDisabled.value) {
     return;
   }
-  const nextImage = selectedFeature.value?.guideImage || homeAiAssets.guide.interiorGood;
-  if (!assistantImageUrls.value.includes(nextImage)) {
-    assistantImageUrls.value = [...assistantImageUrls.value, nextImage];
+  if (!requireAssistantLogin()) {
+    return;
   }
-  showToast('已添加一张图片附件');
+  assistantImageInputRef.value?.click();
+}
+
+function validateAssistantImageFile(file: File) {
+  const fileName = file.name.toLowerCase();
+  const hasAllowedExtension = /\.(jpe?g|png|webp)$/.test(fileName);
+  if ((file.type && !ASSISTANT_IMAGE_ACCEPT_TYPES.has(file.type)) || (!file.type && !hasAllowedExtension)) {
+    throw new Error('请选择 JPG、PNG 或 WebP 图片');
+  }
+  if (file.size > ASSISTANT_IMAGE_MAX_SIZE) {
+    throw new Error('图片不能超过 20MB');
+  }
+  if (assistantImageUrls.value.length >= ASSISTANT_IMAGE_MAX_COUNT) {
+    throw new Error(`一次最多上传 ${ASSISTANT_IMAGE_MAX_COUNT} 张图片`);
+  }
+}
+
+async function handleAssistantImageFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || assistantComposerDisabled.value) {
+    return;
+  }
+  if (!requireAssistantLogin()) {
+    return;
+  }
+  try {
+    validateAssistantImageFile(file);
+    assistantUploadingImage.value = true;
+    const imageUrl = await uploadHomeAiImage(getAssistantContext(), file);
+    if (!assistantImageUrls.value.includes(imageUrl)) {
+      assistantImageUrls.value = [...assistantImageUrls.value, imageUrl];
+    }
+    console.info('[HomeAI Assistant] 图片附件上传成功', {
+      fileType: file.type,
+      fileSize: file.size,
+      attachmentCount: assistantImageUrls.value.length,
+    });
+    showToast('图片上传成功');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '图片上传失败';
+    console.warn('[HomeAI Assistant] 图片附件上传失败', { message });
+    showToast(`图片上传失败：${message}`);
+  } finally {
+    assistantUploadingImage.value = false;
+  }
+}
+
+function removeAssistantImageAttachment(url: string) {
+  assistantImageUrls.value = assistantImageUrls.value.filter((imageUrl) => imageUrl !== url);
+  showToast('已移除图片附件');
 }
 
 function createAssistantWaitingMessage(replyToMessageId?: string) {
@@ -3734,7 +3806,13 @@ button {
   background: #e1e7f0;
 }
 
-.assistant-composer > button:first-child {
+.assistant-file-input {
+  display: none;
+}
+
+.assistant-composer > .assistant-upload-button {
+  display: grid;
+  place-items: center;
   background: #fff;
   box-shadow: inset 0 0 0 1px rgba(52, 120, 246, 0.18);
 }
@@ -3764,6 +3842,7 @@ button {
 }
 
 .assistant-attachment-strip span {
+  position: relative;
   flex: 0 0 auto;
   width: 46px;
   height: 46px;
@@ -3776,6 +3855,21 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.assistant-attachment-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(17, 24, 39, 0.72);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 18px;
 }
 
 .page-header,

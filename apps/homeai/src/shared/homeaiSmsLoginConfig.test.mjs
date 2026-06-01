@@ -88,6 +88,21 @@ test('HomeAI AI 设计助手支持同批次图片和文本一起发送', () => {
   assert.match(appVueSource, /messages:\s*batchMessages/);
 });
 
+test('HomeAI AI 设计助手上传图片必须走真实业务上传接口', () => {
+  assert.match(appConfigSource, /upload:\s*'\/api\/h5\/file\/upload\.htm'/);
+  assert.match(homeAiApiSource, /export async function uploadHomeAiImage/);
+  assert.match(homeAiApiSource, /new FormData\(\)/);
+  assert.match(homeAiApiSource, /formData\.append\('image', file/);
+  assert.match(homeAiApiSource, /homeAiReplicaConfig\.endpoints\.upload/);
+  assert.match(appVueSource, /ref="assistantImageInputRef"/);
+  assert.match(appVueSource, /@change="handleAssistantImageFileChange"/);
+  assert.match(appVueSource, /function openAssistantImagePicker\(\)[\s\S]*?requireAssistantLogin\(\)/);
+  assert.match(appVueSource, /uploadHomeAiImage\(getAssistantContext\(\), file\)/);
+  assert.match(appVueSource, /removeAssistantImageAttachment/);
+  assert.doesNotMatch(appVueSource, /function addAssistantImageAttachment/);
+  assert.doesNotMatch(appVueSource, /selectedFeature\.value\?\.guideImage \|\| homeAiAssets\.guide\.interiorGood/);
+});
+
 test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
   assert.match(appConfigSource, /customDesignSubmit:\s*'\/api\/open\/homeai\/custom-design\/submit\.htm'/);
   assert.match(appConfigSource, /customDesignFetch:\s*'\/api\/open\/homeai\/custom-design\/fetch\.htm'/);

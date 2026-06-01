@@ -18,6 +18,21 @@ interface ApiEnvelope<T = unknown> {
   success?: boolean;
 }
 
+interface UploadImageData {
+  encodedData?: string | null;
+  url?: string | null;
+  imageUrl?: string | null;
+  displayImageUrl?: string | null;
+  rawUrl?: string | null;
+  large?: string | null;
+  small?: string | null;
+  image?: {
+    large?: string | null;
+    small?: string | null;
+  } | null;
+  itemList?: UploadImageData[];
+}
+
 export interface HomeAiRequestContext {
   authToken?: string;
   environment: ReplicaEnvironment;
@@ -30,12 +45,7 @@ interface RequestOptions {
   form?: Record<string, ReplicaRequestParamValue>;
 }
 
-function apiErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : '接口请求失败';
-}
-
-export async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
-  const hostType = options.hostType ?? 'business';
+function buildBusinessUrl(path: string, context: HomeAiRequestContext, hostType: 'business' | 'auth' = 'business') {
   const host = homeAiReplicaConfig.hosts[hostType];
   const url = new URL(`${host.proxyPrefix}${path}`, window.location.origin);
   const commonQuery = buildReplicaCommonQuery(homeAiReplicaConfig, {
@@ -47,10 +57,20 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
     },
   });
   appendReplicaRequestParams(url, commonQuery as unknown as Record<string, ReplicaRequestParamValue>);
-  appendReplicaRequestParams(url, options.params);
   if (hostType === 'business' && context.environment === 'test') {
     url.searchParams.set('__homeai_env', 'test');
   }
+  return url;
+}
+
+function apiErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '接口请求失败';
+}
+
+export async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
+  const hostType = options.hostType ?? 'business';
+  const url = buildBusinessUrl(path, context, hostType);
+  appendReplicaRequestParams(url, options.params);
 
   const hasBody = options.method === 'POST';
   const body = hasBody ? encodeReplicaFormParams(options.form) : undefined;
@@ -77,6 +97,53 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
     throw new Error(payload.message || `业务错误：${errorCode}`);
   }
   return (payload.data ?? payload) as T;
+}
+
+function resolveUploadImageData(payload: UploadImageData) {
+  return Array.isArray(payload.itemList) && payload.itemList.length > 0 ? payload.itemList[0] : payload;
+}
+
+function resolveUploadImageUrl(payload: UploadImageData) {
+  const item = resolveUploadImageData(payload);
+  return (
+    item.url ||
+    item.imageUrl ||
+    item.displayImageUrl ||
+    item.rawUrl ||
+    item.image?.large ||
+    item.image?.small ||
+    item.large ||
+    item.small ||
+    ''
+  );
+}
+
+export async function uploadHomeAiImage(context: HomeAiRequestContext, file: File): Promise<string> {
+  const url = buildBusinessUrl(homeAiReplicaConfig.endpoints.upload, context);
+  const formData = new FormData();
+  // 业务服务 H5 上传接口约定字段名为 image，返回可直接给 Agent 读取的图片 URL。
+  formData.append('image', file, file.name || 'homeai-upload.jpg');
+  console.info('[HomeAI API] 上传图片', { path: homeAiReplicaConfig.endpoints.upload, fileType: file.type, fileSize: file.size });
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    body: formData,
+  });
+  const rawText = await response.text();
+  const payload = rawText ? (JSON.parse(rawText) as ApiEnvelope<UploadImageData>) : ({} as ApiEnvelope<UploadImageData>);
+  console.info('[HomeAI API] 图片上传响应', { status: response.status, ok: response.ok });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
+  if (payload.success === false || errorCode !== 0) {
+    throw new Error(payload.message || `业务错误：${errorCode}`);
+  }
+  const imageUrl = resolveUploadImageUrl((payload.data ?? payload) as UploadImageData);
+  if (!imageUrl) {
+    throw new Error('图片上传成功但未返回可访问地址');
+  }
+  return imageUrl;
 }
 
 export async function listHomeAiWorks(context: HomeAiRequestContext, page = 1, limit = 20): Promise<WorkItem[]> {

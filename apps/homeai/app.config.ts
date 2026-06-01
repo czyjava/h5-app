@@ -54,7 +54,7 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     userPermission: '/api/open/permission/get-user-permission.htm',
     goodsChannelCode: '/api/open/goods/get-channel-code.htm',
     feedbackCreate: '/api/open/feedback/create.htm',
-    upload: '/api/open/upload/upload.htm',
+    upload: '/api/h5/file/upload.htm',
     customDesignSubmit: '/api/open/homeai/custom-design/submit.htm',
     customDesignFetch: '/api/open/homeai/custom-design/fetch.htm',
     customDesignApply: '/api/open/homeai/custom-design/apply.htm',

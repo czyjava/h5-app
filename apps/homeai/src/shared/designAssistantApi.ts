@@ -4,6 +4,7 @@ import type {
   DesignAssistantApplyDesignResponse,
   DesignAssistantMediaInfo,
   DesignAssistantMessage,
+  DesignAssistantMessageInput,
   DesignAssistantMessagesResponse,
   DesignAssistantSceneType,
   DesignAssistantSendResponse,
@@ -26,6 +27,7 @@ interface StartParams {
 interface SendParams {
   sessionKey: string;
   prompt: string;
+  messages?: DesignAssistantMessageInput[];
   imageUrls?: string[];
   workId?: string;
   recordId?: string;
@@ -64,6 +66,11 @@ function normalizeMessages(response: DesignAssistantSendResponse | DesignAssista
     return response.messages;
   }
   const sendResponse = response as DesignAssistantSendResponse;
+  if (Array.isArray(sendResponse.userMessages) && sendResponse.userMessages.length) {
+    return [sendResponse.userMessages, sendResponse.assistantMessage]
+      .flat()
+      .filter(Boolean) as DesignAssistantMessage[];
+  }
   return [sendResponse.userMessage, sendResponse.assistantMessage].filter(Boolean) as DesignAssistantMessage[];
 }
 
@@ -98,6 +105,7 @@ export async function sendDesignAssistantMessage(context: HomeAiRequestContext, 
       method: 'POST',
       form: compactForm({
         ...params,
+        messages: params.messages?.length ? JSON.stringify(params.messages) : undefined,
         imageUrls: params.imageUrls?.join('\n'),
       }),
     },

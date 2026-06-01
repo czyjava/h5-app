@@ -50,6 +50,12 @@ export interface DesignAssistantMessage {
   messageTime?: string | number | null;
 }
 
+export interface DesignAssistantMessageInput {
+  contentType: 'TEXT' | 'IMAGE';
+  text?: string;
+  imageUrl?: string;
+}
+
 export interface DesignAssistantSessionItem {
   sessionKey: string;
   sceneType?: DesignAssistantSceneType | string | null;
@@ -70,6 +76,7 @@ export interface DesignAssistantSendResponse {
   batchNo?: string | null;
   messageId?: string | null;
   userMessage?: DesignAssistantMessage | null;
+  userMessages?: DesignAssistantMessage[];
   assistantMessage?: DesignAssistantMessage | null;
   messages?: DesignAssistantMessage[];
 }

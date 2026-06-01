@@ -1060,6 +1060,10 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return false;
   }
+  const batchMessages = [
+    ...messageImageUrls.map((imageUrl) => ({ contentType: 'IMAGE' as const, imageUrl })),
+    ...(prompt ? [{ contentType: 'TEXT' as const, text: prompt }] : []),
+  ];
   // 作品定制设计入口会自动提交默认 prompt，这里统一清空输入区，避免停留在“待发送”的中转态。
   assistantInput.value = '';
   assistantImageUrls.value = [];
@@ -1070,6 +1074,7 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
     const response = await sendDesignAssistantMessage(getAssistantContext(), {
       sessionKey,
       prompt,
+      messages: batchMessages,
       imageUrls: messageImageUrls,
       workId: assistantWorkContext.value?.workId,
       recordId: assistantWorkContext.value?.recordId,

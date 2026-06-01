@@ -46,3 +46,13 @@ test('HomeAI 定制设计会话使用最后作品ID语义', () => {
   assert.match(appVueSource, /lastWorkId:\s*assistantSceneType\.value === 'CUSTOM_DESIGN' \? assistantWorkContext\.value\?\.workId : undefined/);
   assert.match(appVueSource, /workId:\s*assistantWorkContext\.value\?\.workId/);
 });
+
+test('HomeAI AI 设计助手支持同批次图片和文本一起发送', () => {
+  const sendParamsSource = extractInterfaceBlock(designAssistantApiSource, 'SendParams');
+  assert.match(sendParamsSource, /messages\?: DesignAssistantMessageInput\[\]/);
+  assert.match(designAssistantApiSource, /messages:\s*params\.messages\?\.length \? JSON\.stringify\(params\.messages\) : undefined/);
+  assert.match(appVueSource, /const batchMessages = \[/);
+  assert.match(appVueSource, /\.\.\.messageImageUrls\.map\(\(imageUrl\) => \(\{ contentType: 'IMAGE' as const, imageUrl \}\)\)/);
+  assert.match(appVueSource, /\.\.\.\(prompt \? \[\{ contentType: 'TEXT' as const, text: prompt \}\] : \[\]\)/);
+  assert.match(appVueSource, /messages:\s*batchMessages/);
+});

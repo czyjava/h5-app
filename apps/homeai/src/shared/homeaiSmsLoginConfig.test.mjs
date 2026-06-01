@@ -128,10 +128,17 @@ test('HomeAI 我的页不展示 AI 设计助手历史入口', () => {
   assert.doesNotMatch(appVueSource, /listDesignAssistantSessions/);
 });
 
-test('HomeAI 定制设计过程记录只能从真实作品详情查看', () => {
+test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {
+  const workDetailActionsSource = appVueSource.match(/<section class="work-detail-actions">[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);
-  assert.match(appVueSource, /openCustomDesignRecordsFromSelectedWork/);
+  assert.match(appVueSource, /aria-label="查看过程记录"/);
+  assert.match(appVueSource, /@click="openCustomDesignRecordsFromCurrentDesign"/);
+  assert.match(appVueSource, /function openCustomDesignRecordsFromCurrentDesign\(\)/);
   assert.match(appVueSource, /visibleCustomDesignProcessRecords/);
   assert.match(appVueSource, /record\.generationRecordId === context\.recordId && record\.sourceWorkId === context\.workId/);
+  assert.match(appVueSource, /aria-label="返回定制设计"/);
+  assert.match(appVueSource, /@click="activeTab = 'customDesign'"/);
+  assert.doesNotMatch(appVueSource, /openCustomDesignRecordsFromSelectedWork/);
+  assert.doesNotMatch(workDetailActionsSource, /查看过程记录/);
   assert.doesNotMatch(appVueSource, /@click="openCustomDesignRecords"/);
 });

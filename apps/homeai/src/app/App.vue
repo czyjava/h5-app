@@ -272,7 +272,6 @@
             <button type="button" class="primary" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignFromSelectedWork">
               {{ workDetailLoading ? '加载作品中' : '定制设计' }}
             </button>
-            <button type="button" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignRecordsFromSelectedWork">查看过程记录</button>
           </section>
         </section>
 
@@ -283,6 +282,9 @@
             </button>
             <strong>定制设计</strong>
             <span class="custom-header-actions">
+              <button class="custom-round-button" type="button" aria-label="查看过程记录" @click="openCustomDesignRecordsFromCurrentDesign">
+                <History :size="18" />
+              </button>
               <button class="custom-round-button" type="button" aria-label="重置" @click="resetCustomDesignPage">
                 <X :size="18" />
               </button>
@@ -340,7 +342,7 @@
 
         <section v-else-if="activeTab === 'customDesignRecords'" class="page page-custom-records">
           <header class="custom-records-header">
-            <button class="custom-records-back" type="button" aria-label="返回作品详情" @click="activeTab = selectedWork ? 'workDetail' : 'mine'">
+            <button class="custom-records-back" type="button" aria-label="返回定制设计" @click="activeTab = 'customDesign'">
               <ChevronLeft :size="21" />
             </button>
             <div>
@@ -367,7 +369,7 @@
           <section v-if="visibleCustomDesignProcessRecords.length === 0" class="custom-record-empty">
             <strong>暂无过程记录</strong>
             <span>从这个作品发起一次定制设计后，这里会记录它对应的修改意图、状态和结果图。</span>
-            <button type="button" @click="activeTab = selectedWork ? 'workDetail' : 'mine'">返回作品详情</button>
+            <button type="button" @click="activeTab = 'customDesign'">返回定制设计</button>
           </section>
 
           <section v-else class="custom-record-list">
@@ -611,7 +613,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronLeft, ChevronRight, Settings, WandSparkles, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, History, Settings, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -1251,24 +1253,11 @@ function openCustomDesignFromSelectedWork() {
   workDetailPresetPrompt.value = '';
 }
 
-function openCustomDesignRecordsFromSelectedWork() {
-  if (!selectedWork.value) {
-    showToast('请先选择一个 generationWork');
+function openCustomDesignRecordsFromCurrentDesign() {
+  if (!customDesignContext.value?.recordId || !customDesignContext.value.workId) {
+    showToast('请先从真实作品进入定制设计');
     return;
   }
-  if (workDetailCustomDesignDisabled.value) {
-    showToast(workDetailLoading.value ? '作品详情加载中，请稍后再试' : '请先选择真实的 generationWork');
-    return;
-  }
-  const work = selectedWork.value;
-  customDesignContext.value = {
-    batchNo: customDesignContext.value?.batchNo || generateCustomDesignId('custom-design-records'),
-    workId: work.id,
-    recordId: work.recordId || work.id,
-    templateCode: work.templateId,
-    imageUrl: work.coverUrl,
-    workTitle: work.title,
-  };
   activeTab.value = 'customDesignRecords';
 }
 
@@ -2958,7 +2947,6 @@ button {
 
 .work-detail-actions {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
   gap: 10px;
 }
 

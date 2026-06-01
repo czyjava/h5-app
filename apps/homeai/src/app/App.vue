@@ -431,12 +431,7 @@
                 <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" @error="handleAssistantImageError" />
                 <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
                 <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
-                <footer v-if="resolveAssistantFeedbackLabel(message)" class="assistant-message-state">
-                  <span>{{ resolveAssistantFeedbackLabel(message) }}</span>
-                </footer>
                 <footer v-if="shouldRenderAssistantActions(message)" class="assistant-message-actions">
-                  <button type="button" @click="feedbackAssistant(message, 'LIKE')">满意</button>
-                  <button type="button" @click="feedbackAssistant(message, 'DISLIKE')">不满意</button>
                   <button type="button" @click="regenerateAssistant(message)">重生成</button>
                   <button v-if="shouldRenderApplyDesignAction(message)" type="button" @click="applyCustomDesign(message)">应用设计</button>
                 </footer>
@@ -620,13 +615,11 @@ import { demoSnapshot } from '../shared/demoData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import {
   ASSISTANT_MESSAGE_REGENERATED_STATE,
-  resolveAssistantMessageFeedbackLabel,
   shouldDisableAssistantComposer,
   shouldShowAssistantMessageActions,
 } from '../shared/designAssistantMessageUi';
 import {
   applyDesignAssistantImage,
-  feedbackDesignAssistantMessage,
   listDesignAssistantMessages,
   listDesignAssistantSessions,
   regenerateDesignAssistantMessage,
@@ -636,7 +629,7 @@ import {
   startDesignAssistantSession,
 } from '../shared/designAssistantApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
-import type { AssistantFeedbackValue, AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
+import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
 type AssistantUiMessage = DesignAssistantMessage & {
@@ -742,7 +735,6 @@ const assistantHistoryVisible = ref(false);
 const assistantHistoryLoading = ref(false);
 const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
 const regeneratedAssistantMessageIds = ref(new Set<string>());
-const assistantFeedbackOverrides = ref(new Map<string, AssistantFeedbackValue>());
 const selectedWork = ref<WorkItem | null>(null);
 const workDetailPresetPrompt = ref('');
 const customDesignContext = ref<CustomDesignPageContext | null>(null);
@@ -1356,40 +1348,29 @@ function requireAssistantLogin() {
 
 function resetAssistantMessageInteractionState() {
   regeneratedAssistantMessageIds.value = new Set();
-  assistantFeedbackOverrides.value = new Map();
 }
 
 function decorateAssistantMessages(messages: DesignAssistantMessage[]): AssistantUiMessage[] {
   // 列表接口可能晚于当前点击态返回，前端保留本地交互标记，避免操作按钮短暂回显。
   return messages.map((message) => {
     const messageId = message.messageId || '';
-    const feedbackOverride = messageId ? assistantFeedbackOverrides.value.get(messageId) : undefined;
     const shouldMarkRegenerated = Boolean(messageId && regeneratedAssistantMessageIds.value.has(messageId));
-    if (!feedbackOverride && !shouldMarkRegenerated) {
+    if (!shouldMarkRegenerated) {
       return message;
     }
     return {
       ...message,
-      feedback: feedbackOverride ?? message.feedback,
       localOperationState: shouldMarkRegenerated ? ASSISTANT_MESSAGE_REGENERATED_STATE : undefined,
     };
   });
 }
 
-function updateAssistantMessageInteractionState(messageId: string, patch: Pick<Partial<AssistantUiMessage>, 'feedback' | 'localOperationState'>) {
+function updateAssistantMessageInteractionState(messageId: string, patch: Pick<Partial<AssistantUiMessage>, 'localOperationState'>) {
   assistantMessages.value = assistantMessages.value.map((message) => (message.messageId === messageId ? { ...message, ...patch } : message));
   console.info('[HomeAI Assistant] 更新消息交互状态', {
     messageId,
-    feedback: patch.feedback || '',
     localOperationState: patch.localOperationState || '',
   });
-}
-
-function markAssistantMessageFeedback(messageId: string, feedback: AssistantFeedbackValue) {
-  const nextFeedbackOverrides = new Map(assistantFeedbackOverrides.value);
-  nextFeedbackOverrides.set(messageId, feedback);
-  assistantFeedbackOverrides.value = nextFeedbackOverrides;
-  updateAssistantMessageInteractionState(messageId, { feedback });
 }
 
 function markAssistantMessageRegenerated(messageId: string) {
@@ -1412,10 +1393,6 @@ function resolveAssistantMessageText(message: DesignAssistantMessage) {
 
 function resolveAssistantMessageImage(message: DesignAssistantMessage) {
   return resolveAssistantImageUrl(message.messageContent);
-}
-
-function resolveAssistantFeedbackLabel(message: AssistantUiMessage) {
-  return resolveAssistantMessageFeedbackLabel(message);
 }
 
 function shouldRenderAssistantActions(message: AssistantUiMessage) {
@@ -1679,19 +1656,6 @@ function resolveCustomDesignWorkContext() {
 
 function openCustomDesignFromFeedback() {
   openCustomDesignFromResult('我不满意当前效果，请帮我换一种更自然、更高级的设计');
-}
-
-async function feedbackAssistant(message: AssistantUiMessage, feedback: AssistantFeedbackValue) {
-  if (!message.messageId || !assistantSessionKey.value || isLocalAssistantExperience() || !requireAssistantLogin()) {
-    return;
-  }
-  await feedbackDesignAssistantMessage(getAssistantContext(), {
-    sessionKey: assistantSessionKey.value,
-    messageId: message.messageId,
-    feedback,
-  });
-  markAssistantMessageFeedback(message.messageId, feedback);
-  showToast('已记录反馈');
 }
 
 async function regenerateAssistant(message: AssistantUiMessage) {

@@ -43,8 +43,6 @@ export interface DesignAssistantMessage {
   applyStatus?: DesignAssistantApplyStatus | string | null;
   applyTime?: string | number | null;
   applyErrorCode?: string | null;
-  feedback?: string | null;
-  feedbackReason?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   messageTime?: string | number | null;

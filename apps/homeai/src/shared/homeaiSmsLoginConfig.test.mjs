@@ -34,7 +34,8 @@ test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.match(appConfigSource, /designAssistantSend:\s*'\/api\/open\/homeai\/design-assistant\/send\.htm'/);
   assert.match(appConfigSource, /designAssistantSessions:\s*'\/api\/open\/homeai\/design-assistant\/sessions\.htm'/);
   assert.match(appConfigSource, /designAssistantMessages:\s*'\/api\/open\/homeai\/design-assistant\/messages\/list\.htm'/);
-  assert.match(appConfigSource, /designAssistantFeedback:\s*'\/api\/open\/homeai\/design-assistant\/feedback\.htm'/);
+  assert.doesNotMatch(appConfigSource, /designAssistantFeedback/);
+  assert.doesNotMatch(designAssistantApiSource, /feedbackDesignAssistantMessage/);
   assert.match(appConfigSource, /designAssistantRegenerate:\s*'\/api\/open\/homeai\/design-assistant\/regenerate\.htm'/);
   assert.match(appConfigSource, /designAssistantApplyDesign:\s*'\/api\/open\/homeai\/design-assistant\/apply-design\.htm'/);
 });

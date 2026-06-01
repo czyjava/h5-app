@@ -36,13 +36,6 @@ interface SendParams {
   priceChecked?: boolean;
 }
 
-interface FeedbackParams {
-  sessionKey: string;
-  messageId: string;
-  feedback: 'LIKE' | 'DISLIKE';
-  feedbackReason?: string;
-}
-
 interface RegenerateParams {
   sessionKey: string;
   messageId: string;
@@ -132,13 +125,6 @@ export async function listDesignAssistantSessions(
     { method: 'POST', form: compactForm({ sceneType, pageNo: 1, pageSize: 50 }) },
   );
   return response.items ?? response.sessions ?? [];
-}
-
-export async function feedbackDesignAssistantMessage(context: HomeAiRequestContext, params: FeedbackParams) {
-  return requestBusiness(homeAiReplicaConfig.endpoints.designAssistantFeedback, context, {
-    method: 'POST',
-    form: compactForm({ ...params }),
-  });
 }
 
 export async function regenerateDesignAssistantMessage(context: HomeAiRequestContext, params: RegenerateParams) {

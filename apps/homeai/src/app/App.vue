@@ -656,6 +656,7 @@ import {
   submitHomeAiCustomDesign,
 } from '../shared/customDesignApi';
 import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot } from '../shared/homeaiApi';
+import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
 import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
@@ -961,6 +962,19 @@ function saveToken() {
   persistReplicaAuthToken(homeAiReplicaConfig.appId, authTokenDraft.value);
 }
 
+async function restoreLocalAuthToken() {
+  if (authTokenDraft.value.trim()) {
+    void persistHomeAiLocalAuthToken(authTokenDraft.value);
+    return;
+  }
+  const token = await loadHomeAiLocalAuthToken();
+  if (!token) {
+    return;
+  }
+  authTokenDraft.value = token;
+  saveToken();
+}
+
 function updateApiState(lastError = '') {
   apiState.value = {
     mode: 'live',
@@ -984,8 +998,9 @@ function showToast(message: string) {
 }
 
 function updateAuthToken(token: string) {
-  authTokenDraft.value = token;
+  authTokenDraft.value = token.trim();
   saveToken();
+  void persistHomeAiLocalAuthToken(token);
 }
 
 async function sendLoginSmsCode(phoneNumber: string) {
@@ -1931,7 +1946,10 @@ onMounted(() => {
   window.addEventListener('hashchange', syncApiDebugPage);
   window.addEventListener('popstate', syncApiDebugPage);
   syncApiDebugPage();
-  void reload();
+  void (async () => {
+    await restoreLocalAuthToken();
+    await reload();
+  })();
 });
 
 watch(activeTab, (tab) => {

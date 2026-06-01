@@ -14,6 +14,7 @@ dist/
 *.log
 ai/logs/
 **/ai/logs/
+apps/homeai/.homeai-local-auth.json
 
 # 系统与编辑器文件
 .DS_Store

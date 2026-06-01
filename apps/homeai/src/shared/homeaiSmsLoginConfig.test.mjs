@@ -6,6 +6,9 @@ const appConfigSource = await readFile(new URL('../../app.config.ts', import.met
 const appVueSource = await readFile(new URL('../app/App.vue', import.meta.url), 'utf8');
 const customDesignApiSource = await readFile(new URL('./customDesignApi.ts', import.meta.url), 'utf8');
 const designAssistantApiSource = await readFile(new URL('./designAssistantApi.ts', import.meta.url), 'utf8');
+const localAuthTokenApiSource = await readFile(new URL('./localAuthTokenApi.ts', import.meta.url), 'utf8');
+const viteConfigSource = await readFile(new URL('../../vite.config.ts', import.meta.url), 'utf8');
+const gitIgnoreSource = await readFile(new URL('../../../../.gitignore', import.meta.url), 'utf8');
 
 function extractInterfaceBlock(source, name) {
   const match = source.match(new RegExp(`interface ${name} \\{[\\s\\S]*?\\n\\}`));
@@ -33,6 +36,16 @@ test('HomeAI 登录和接口环境配置必须独立弹窗展示', () => {
   assert.match(appVueSource, /class="settings-modal"/);
   assert.match(appVueSource, /class="profile-settings-button"/);
   assert.doesNotMatch(appVueSource, /<section class="settings-shell" aria-label="设置">/);
+});
+
+test('HomeAI 本地开发 token 必须落到 gitignore 的本地文件', () => {
+  assert.match(gitIgnoreSource, /apps\/homeai\/\.homeai-local-auth\.json/);
+  assert.match(viteConfigSource, /HOMEAI_LOCAL_AUTH_ENDPOINT/);
+  assert.match(viteConfigSource, /\.homeai-local-auth\.json/);
+  assert.match(localAuthTokenApiSource, /loadHomeAiLocalAuthToken/);
+  assert.match(localAuthTokenApiSource, /persistHomeAiLocalAuthToken/);
+  assert.match(appVueSource, /restoreLocalAuthToken/);
+  assert.match(appVueSource, /persistHomeAiLocalAuthToken\(token\)/);
 });
 
 test('HomeAI AI 设计助手接口走 open API 路径', () => {

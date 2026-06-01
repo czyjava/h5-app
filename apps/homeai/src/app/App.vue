@@ -628,6 +628,11 @@ import {
   sendDesignAssistantMessage,
   startDesignAssistantSession,
 } from '../shared/designAssistantApi';
+import {
+  fetchHomeAiCustomDesign,
+  resolveCustomDesignOutputImageUrl,
+  submitHomeAiCustomDesign,
+} from '../shared/customDesignApi';
 import { loadHomeAiSnapshot } from '../shared/homeaiApi';
 import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
@@ -681,6 +686,7 @@ interface CustomDesignProcessRecord {
 const API_DEBUG_HASH = '#/api-debug';
 const ASSISTANT_REPLY_POLL_INTERVAL_MS = 1500;
 const ASSISTANT_REPLY_POLL_TIMEOUT_MS = 180000;
+const CUSTOM_DESIGN_MAX_FETCH_COUNT = 120;
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
 const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
 const GUIDE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:guide-complete`;
@@ -745,7 +751,7 @@ const customDesignStatus = ref<CustomDesignStatus>('idle');
 const customDesignLastPrompt = ref('');
 const customStylePanelVisible = ref(false);
 const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
-let customDesignMockTimer: number | null = null;
+let customDesignPollingTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -1125,10 +1131,7 @@ function formatCustomDesignRecordTime() {
 }
 
 function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>, presetPrompt = '') {
-  if (customDesignMockTimer) {
-    window.clearTimeout(customDesignMockTimer);
-    customDesignMockTimer = null;
-  }
+  clearCustomDesignPollingTimer();
   // 定制设计不复用 IM 会话；页面进入时生成独立 batchNo，后续真实接口按该批次提交和轮询。
   const pageContext: CustomDesignPageContext = {
     ...context,
@@ -1158,41 +1161,50 @@ function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>
   });
 }
 
-function createMockCustomDesignResultImage() {
-  // 静态复刻阶段用本地装修素材模拟结果图；接入接口后这里会替换成 fetch 返回的图片。
-  const imagePool = [
-    selectedFeature.value.guideImage,
-    homeAiAssets.guide.interiorGood,
-    homeAiAssets.guide.renovationGood,
-    homeAiAssets.guide.exteriorGood,
-  ].filter(Boolean);
-  const nextIndex = customDesignImages.value.length % imagePool.length;
-  return imagePool[nextIndex] || currentCustomDesignImage.value?.imageUrl || homeAiAssets.guide.interiorGood;
+function clearCustomDesignPollingTimer() {
+  if (customDesignPollingTimer) {
+    window.clearTimeout(customDesignPollingTimer);
+    customDesignPollingTimer = null;
+  }
 }
 
-function submitCustomDesignInstruction(prompt: string) {
+function updateCustomDesignProcessRecord(recordKey: string, patch: Partial<CustomDesignProcessRecord>) {
+  customDesignProcessRecords.value = customDesignProcessRecords.value.map((record) =>
+    record.recordKey === recordKey ? { ...record, ...patch } : record,
+  );
+}
+
+async function submitCustomDesignInstruction(prompt: string) {
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt || customDesignBusy.value) {
+    return;
+  }
+  if (!requireAssistantLogin()) {
     return;
   }
   if (!currentCustomDesignImage.value) {
     showToast('请先选择一个作品，再进入定制设计');
     return;
   }
+  const context = customDesignContext.value;
+  if (!context?.recordId || !context.workId) {
+    showToast('当前作品缺少 generationRecord 或 generationWork');
+    return;
+  }
   const recordKey = generateCustomDesignId('custom-design-process');
-  const processRecordCode = generateCustomDesignId('process-record');
   const inputImageUrl = currentCustomDesignImage.value.imageUrl;
-  const templateCode = customDesignContext.value?.templateCode || 'homeai_custom_design_default';
-  const generationRecordId = customDesignContext.value?.recordId || '';
-  const sourceWorkId = customDesignContext.value?.workId || '';
+  const templateCode = context.templateCode || 'homeai_custom_design_default';
+  const generationRecordId = context.recordId;
+  const sourceWorkId = context.workId;
   customDesignInput.value = '';
   customDesignLastPrompt.value = normalizedPrompt;
   customDesignStatus.value = 'processing';
   customStylePanelVisible.value = false;
+  clearCustomDesignPollingTimer();
   customDesignProcessRecords.value = [
     {
       recordKey,
-      processRecordCode,
+      processRecordCode: '提交中',
       generationRecordId,
       sourceWorkId,
       prompt: normalizedPrompt,
@@ -1203,12 +1215,71 @@ function submitCustomDesignInstruction(prompt: string) {
     },
     ...customDesignProcessRecords.value,
   ];
-  if (customDesignMockTimer) {
-    window.clearTimeout(customDesignMockTimer);
+
+  try {
+    const submitResponse = await submitHomeAiCustomDesign(getAssistantContext(), {
+      generationRecordId,
+      sourceWorkId,
+      templateCode,
+      prompt: normalizedPrompt,
+    });
+    updateCustomDesignProcessRecord(recordKey, {
+      processRecordCode: submitResponse.customDesignCode,
+    });
+    console.info('[HomeAI CustomDesign] 定制设计已提交', {
+      customDesignCode: submitResponse.customDesignCode,
+      generationRecordId,
+      sourceWorkId,
+      templateCode,
+      status: submitResponse.status,
+    });
+    scheduleCustomDesignFetch(recordKey, submitResponse.customDesignCode, submitResponse.nextFetchPeriodMs ?? 1000, 0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '定制设计提交失败';
+    updateCustomDesignProcessRecord(recordKey, { status: 'failed' });
+    customDesignStatus.value = 'failed';
+    showToast(message);
+    console.warn('[HomeAI CustomDesign] 定制设计提交失败', { generationRecordId, sourceWorkId, templateCode, message });
   }
-  // 当前阶段只画静态页，用短延迟模拟 submit + fetch 完成后的结果追加。
-  customDesignMockTimer = window.setTimeout(() => {
-    const outputImageUrl = createMockCustomDesignResultImage();
+}
+
+function scheduleCustomDesignFetch(recordKey: string, customDesignCode: string, delayMs: number, fetchCount: number) {
+  clearCustomDesignPollingTimer();
+  customDesignPollingTimer = window.setTimeout(() => {
+    customDesignPollingTimer = null;
+    void fetchCustomDesignResult(recordKey, customDesignCode, fetchCount);
+  }, Math.max(delayMs, 1000));
+}
+
+async function fetchCustomDesignResult(recordKey: string, customDesignCode: string, fetchCount: number) {
+  if (fetchCount >= CUSTOM_DESIGN_MAX_FETCH_COUNT) {
+    updateCustomDesignProcessRecord(recordKey, { status: 'failed' });
+    customDesignStatus.value = 'failed';
+    showToast('定制设计生成超时，请稍后查看记录');
+    return;
+  }
+  try {
+    const response = await fetchHomeAiCustomDesign(getAssistantContext(), customDesignCode);
+    const status = String(response.status || '').toUpperCase();
+    console.info('[HomeAI CustomDesign] 定制设计轮询结果', {
+      customDesignCode,
+      status,
+      fetchCount,
+    });
+    if (status === 'FAILED') {
+      updateCustomDesignProcessRecord(recordKey, { status: 'failed' });
+      customDesignStatus.value = 'failed';
+      showToast(response.errorMessage || '定制设计生成失败');
+      return;
+    }
+    if (status !== 'SUCCEEDED' && status !== 'APPLIED') {
+      scheduleCustomDesignFetch(recordKey, customDesignCode, response.nextFetchPeriodMs ?? 2000, fetchCount + 1);
+      return;
+    }
+    const outputImageUrl = resolveCustomDesignOutputImageUrl(response);
+    if (!outputImageUrl) {
+      throw new Error('定制设计结果图片为空');
+    }
     const outputImageLocalId = generateCustomDesignId('custom-design-output');
     customDesignImages.value = [
       ...customDesignImages.value,
@@ -1219,34 +1290,31 @@ function submitCustomDesignInstruction(prompt: string) {
       },
     ];
     customDesignImageIndex.value = customDesignImages.value.length - 1;
-    customDesignProcessRecords.value = customDesignProcessRecords.value.map((record) =>
-      record.recordKey === recordKey
-        ? {
-            ...record,
-            status: 'completed',
-            outputImageUrl,
-            outputImageLocalId,
-          }
-        : record,
-    );
+    updateCustomDesignProcessRecord(recordKey, {
+      status: 'completed',
+      outputImageUrl,
+      outputImageLocalId,
+    });
     customDesignStatus.value = 'completed';
-    customDesignMockTimer = null;
-  }, 1400);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '定制设计轮询失败';
+    updateCustomDesignProcessRecord(recordKey, { status: 'failed' });
+    customDesignStatus.value = 'failed';
+    showToast(message);
+    console.warn('[HomeAI CustomDesign] 定制设计轮询失败', { customDesignCode, message });
+  }
 }
 
 function submitCustomDesignText() {
-  submitCustomDesignInstruction(customDesignInput.value);
+  void submitCustomDesignInstruction(customDesignInput.value);
 }
 
 function submitCustomDesignStyle(style: { code: string; name: string }) {
-  submitCustomDesignInstruction(`改成${style.name}，保留原有空间结构`);
+  void submitCustomDesignInstruction(`改成${style.name}，保留原有空间结构`);
 }
 
 function closeCustomDesignPage() {
-  if (customDesignMockTimer) {
-    window.clearTimeout(customDesignMockTimer);
-    customDesignMockTimer = null;
-  }
+  clearCustomDesignPollingTimer();
   customDesignStatus.value = 'idle';
   activeTab.value = selectedWork.value ? 'workDetail' : 'mine';
 }
@@ -1256,10 +1324,7 @@ function resetCustomDesignPage() {
   if (!source) {
     return;
   }
-  if (customDesignMockTimer) {
-    window.clearTimeout(customDesignMockTimer);
-    customDesignMockTimer = null;
-  }
+  clearCustomDesignPollingTimer();
   customDesignImages.value = [source];
   customDesignImageIndex.value = 0;
   customDesignInput.value = '';

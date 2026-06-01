@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const appConfigSource = await readFile(new URL('../../app.config.ts', import.meta.url), 'utf8');
 const appVueSource = await readFile(new URL('../app/App.vue', import.meta.url), 'utf8');
+const customDesignApiSource = await readFile(new URL('./customDesignApi.ts', import.meta.url), 'utf8');
 const designAssistantApiSource = await readFile(new URL('./designAssistantApi.ts', import.meta.url), 'utf8');
 
 function extractInterfaceBlock(source, name) {
@@ -56,4 +57,15 @@ test('HomeAI AI 设计助手支持同批次图片和文本一起发送', () => {
   assert.match(appVueSource, /\.\.\.messageImageUrls\.map\(\(imageUrl\) => \(\{ contentType: 'IMAGE' as const, imageUrl \}\)\)/);
   assert.match(appVueSource, /\.\.\.\(prompt \? \[\{ contentType: 'TEXT' as const, text: prompt \}\] : \[\]\)/);
   assert.match(appVueSource, /messages:\s*batchMessages/);
+});
+
+test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
+  assert.match(appConfigSource, /customDesignSubmit:\s*'\/api\/open\/homeai\/custom-design\/submit\.htm'/);
+  assert.match(appConfigSource, /customDesignFetch:\s*'\/api\/open\/homeai\/custom-design\/fetch\.htm'/);
+  assert.match(customDesignApiSource, /submitHomeAiCustomDesign/);
+  assert.match(customDesignApiSource, /fetchHomeAiCustomDesign/);
+  assert.match(appVueSource, /submitHomeAiCustomDesign\(getAssistantContext\(\)/);
+  assert.match(appVueSource, /fetchHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
+  assert.doesNotMatch(appVueSource, /createMockCustomDesignResultImage/);
+  assert.doesNotMatch(appVueSource, /静态复刻阶段用本地装修素材模拟结果图/);
 });

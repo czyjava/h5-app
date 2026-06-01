@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mapGenerationDetail, normalizeHomeAiSnapshot } from './homeaiMappers.mjs';
 
-test('normalizeHomeAiSnapshot maps user, work, and discover payloads with fallbacks', () => {
+test('normalizeHomeAiSnapshot maps user, work, and discover payloads', () => {
   const snapshot = normalizeHomeAiSnapshot({
     user: { nickname: '设计师', userId: 42, credit: 18, vipName: 'VIP 体验' },
     generationList: {
@@ -36,6 +36,16 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads with fallba
   assert.equal(snapshot.works[0].coverUrl, 'https://cdn.example.com/a.png');
   assert.equal(snapshot.works[0].status, 'FINISHED');
   assert.equal(snapshot.discover[0].tag, '室内');
+});
+
+test('normalizeHomeAiSnapshot does not synthesize local business data when APIs are empty', () => {
+  const snapshot = normalizeHomeAiSnapshot();
+
+  assert.equal(snapshot.user.nickname, '未登录');
+  assert.equal(snapshot.user.userId, '-');
+  assert.equal(snapshot.user.diamondCount, 0);
+  assert.deepEqual(snapshot.works, []);
+  assert.deepEqual(snapshot.discover, []);
 });
 
 test('normalizeHomeAiSnapshot maps ai-app generation list cover object', () => {

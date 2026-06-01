@@ -1,7 +1,7 @@
 import { homeAiAssets } from './assets';
 import type { HomeAiSnapshot } from './types';
 
-export const demoSnapshot: HomeAiSnapshot = {
+export const appShellSnapshot: HomeAiSnapshot = {
   banners: [homeAiAssets.splashReplaceBg, homeAiAssets.splashColoringBg, homeAiAssets.surveyBg],
   features: [
     {
@@ -45,64 +45,12 @@ export const demoSnapshot: HomeAiSnapshot = {
       icon: homeAiAssets.upload,
     },
   ],
-  discover: [
-    {
-      title: '奶油风客厅',
-      subtitle: '柔和浅色墙面、低饱和家具和隐藏灯带。',
-      coverUrl: homeAiAssets.guide.interiorGood,
-      tag: '室内',
-      buildingType: 'interior',
-      spaceType: 'living_room',
-    },
-    {
-      title: '庭院步道改造',
-      subtitle: '用绿植、石材与低位照明提升入户仪式感。',
-      coverUrl: homeAiAssets.guide.gardenGood,
-      tag: '庭院',
-      buildingType: 'garden',
-      spaceType: 'outdoor',
-    },
-    {
-      title: '旧房焕新案例',
-      subtitle: '保持原有格局，替换墙面、地板和灯光气质。',
-      coverUrl: homeAiAssets.guide.renovationGood,
-      tag: '翻新',
-      buildingType: 'renovation',
-      spaceType: 'bedroom',
-    },
-    {
-      title: '店铺门头灵感',
-      subtitle: '更醒目的招牌、橱窗和夜间照明方案。',
-      coverUrl: homeAiAssets.guide.exteriorGood,
-      tag: '外立面',
-      buildingType: 'exterior',
-      spaceType: 'storefront',
-    },
-  ],
-  works: [
-    {
-      id: 'demo-1',
-      recordId: 'demo-record-1',
-      templateId: 'interior',
-      title: '现代客厅方案',
-      status: '已生成',
-      coverUrl: homeAiAssets.guide.interiorGood,
-      createdAt: '2026-05-20',
-    },
-    {
-      id: 'demo-2',
-      recordId: 'demo-record-2',
-      templateId: 'renovation',
-      title: '旧房翻新草图',
-      status: '排队中',
-      coverUrl: homeAiAssets.splashReplace,
-      createdAt: '2026-05-20',
-    },
-  ],
+  discover: [],
+  works: [],
   user: {
-    nickname: 'HomeAI 访客',
-    userId: 'homeai-demo',
-    diamondCount: 12,
-    vipLabel: '体验会员',
+    nickname: '未登录',
+    userId: '-',
+    diamondCount: 0,
+    vipLabel: '未登录',
   },
 };

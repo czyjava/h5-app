@@ -7,7 +7,7 @@ import {
   type ReplicaRequestParamValue,
 } from '@wmxs/h5-replica-common/client';
 import { homeAiReplicaConfig } from '../../app.config';
-import { demoSnapshot } from './demoData';
+import { appShellSnapshot } from './appShellData';
 import { mapGenerationDetail, mapGenerationList, normalizeHomeAiSnapshot, type HomeAiGenerationDetail } from './homeaiMappers';
 import type { HomeAiSnapshot, WorkItem } from './types';
 
@@ -106,7 +106,7 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     } catch (error) {
       const message = apiErrorMessage(error);
       errors.push(`${label}: ${message}`);
-      console.warn('[HomeAI API] 接口降级到演示数据', redactObject({ label, message }));
+      console.warn('[HomeAI API] 接口请求失败，保留空态', redactObject({ label, message }));
       return null;
     }
   };
@@ -129,14 +129,10 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
 
   const mappedSnapshot = normalizeHomeAiSnapshot({ user, generationList, recommendList });
   const snapshot: HomeAiSnapshot = {
-    ...demoSnapshot,
+    ...appShellSnapshot,
     ...mappedSnapshot,
-    banners: demoSnapshot.banners,
-    features: demoSnapshot.features,
-    // 接口无数据时保留更贴近 APK 的本地演示数据。
-    discover: mappedSnapshot.discover.length > 0 ? mappedSnapshot.discover : demoSnapshot.discover,
-    works: mappedSnapshot.works.length > 0 ? mappedSnapshot.works : demoSnapshot.works,
-    user: mappedSnapshot.user ?? demoSnapshot.user,
+    banners: appShellSnapshot.banners,
+    features: appShellSnapshot.features,
   };
 
   if (errors.length > 0) {

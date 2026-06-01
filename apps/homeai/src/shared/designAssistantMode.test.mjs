@@ -11,5 +11,5 @@ test('已登录时 AI 设计助手不应要求登录', () => {
 });
 
 test('AI 设计助手不允许使用本地 fallback', () => {
-  assert.equal(shouldUseLocalAssistantExperience({ demoMode: true, authToken: 'token' }), false);
+  assert.equal(shouldUseLocalAssistantExperience({ authToken: 'token' }), false);
 });

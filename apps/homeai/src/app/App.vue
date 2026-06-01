@@ -154,7 +154,7 @@
             <img class="upload-art" :src="selectedFeature.guideImage" alt="" />
             <h2>上传空间照片</h2>
             <p>HomeAI 会识别房间结构，再生成对应的装修方案。</p>
-            <button class="upload-zone" type="button" @click="mockUpload">
+            <button class="upload-zone" type="button" @click="selectDesignInputImage">
               <img :src="homeAiAssets.upload" alt="" />
               <span>{{ selectedImageName || '从相册选择图片' }}</span>
             </button>
@@ -610,7 +610,6 @@ import {
   createSmsAuthClient,
   createReplicaSession,
   persistReplicaAuthToken,
-  persistReplicaDemoMode,
   persistReplicaEnvironment,
   type ReplicaEnvironment,
 } from '@wmxs/h5-replica-common/client';
@@ -623,7 +622,7 @@ import {
 } from '@wmxs/h5-replica-common/ui';
 import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
-import { demoSnapshot } from '../shared/demoData';
+import { appShellSnapshot } from '../shared/appShellData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import {
   ASSISTANT_MESSAGE_REGENERATED_STATE,
@@ -717,11 +716,10 @@ const smsAuthClient = createSmsAuthClient(homeAiReplicaConfig);
 const session = createReplicaSession(homeAiReplicaConfig.appId);
 const activeTab = ref<MainTab>('home');
 const environment = ref<ReplicaEnvironment>(session.environment);
-const demoMode = ref(session.demoMode);
 const authTokenDraft = ref(session.authToken);
-const snapshot = ref<HomeAiSnapshot>(structuredClone(demoSnapshot));
+const snapshot = ref<HomeAiSnapshot>(structuredClone(appShellSnapshot));
 const apiState = ref<HomeAiApiState>({
-  mode: demoMode.value ? 'demo' : 'live',
+  mode: 'live',
   environmentLabel: environment.value,
   lastError: '',
 });
@@ -947,17 +945,13 @@ function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
 }
 
-function persistDemoModeState() {
-  persistReplicaDemoMode(homeAiReplicaConfig.appId, demoMode.value);
-}
-
 function saveToken() {
   persistReplicaAuthToken(homeAiReplicaConfig.appId, authTokenDraft.value);
 }
 
 function updateApiState(lastError = '') {
   apiState.value = {
-    mode: demoMode.value ? 'demo' : 'live',
+    mode: 'live',
     environmentLabel: environment.value,
     lastError,
   };
@@ -1110,8 +1104,8 @@ function openAssistantHome() {
   activeTab.value = 'assistant';
 }
 
-function mockUpload() {
-  // 首版复刻只保存交互态，真实上传接口后续通过透明代理逐项对齐原 APP。
+function selectDesignInputImage() {
+  // 这里只记录用户选择的本地输入态，不生成任何业务作品；作品必须来自真实 generation 接口。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
 }
 
@@ -1133,9 +1127,10 @@ function openWorkDetail(work: WorkItem, presetPrompt = '') {
 }
 
 async function refreshWorkList() {
-  if (demoMode.value || !authTokenDraft.value) {
-    workList.value = snapshot.value.works;
-    workListError.value = demoMode.value ? '' : '登录后可刷新真实作品列表';
+  if (!authTokenDraft.value) {
+    workList.value = [];
+    snapshot.value = { ...snapshot.value, works: [] };
+    workListError.value = '登录后可刷新真实作品列表';
     return;
   }
   workListLoading.value = true;
@@ -1145,7 +1140,7 @@ async function refreshWorkList() {
     // 作品列表是用户进入详情的起点，这里同步 snapshot 以便其它入口继续复用最新作品。
     snapshot.value = {
       ...snapshot.value,
-      works: workList.value.length > 0 ? workList.value : snapshot.value.works,
+      works: workList.value,
     };
     console.info('[HomeAI Work] 作品列表刷新完成', { count: workList.value.length });
   } catch (error) {
@@ -1158,7 +1153,8 @@ async function refreshWorkList() {
 }
 
 async function loadSelectedWorkDetail(work: WorkItem) {
-  if (demoMode.value || !authTokenDraft.value) {
+  if (!authTokenDraft.value) {
+    workDetailError.value = '登录后可查询真实作品详情';
     return;
   }
   const recordCode = work.recordId || work.id;
@@ -1819,9 +1815,7 @@ async function openCustomDesignFromResult(customPrompt?: string) {
 }
 
 function resolveCustomDesignWorkContext() {
-  const realWork =
-    displayWorks.value.find((work) => work.id && !work.id.startsWith('demo-')) ??
-    (demoMode.value ? displayWorks.value.find((work) => work.id) : undefined);
+  const realWork = displayWorks.value.find((work) => work.id);
   if (!realWork) {
     return null;
   }
@@ -1895,15 +1889,8 @@ function nextDesignStep() {
 
 async function reload() {
   persistEnvironment();
-  persistDemoModeState();
   saveToken();
   updateApiState();
-
-  if (demoMode.value) {
-    snapshot.value = structuredClone(demoSnapshot);
-    workList.value = snapshot.value.works;
-    return;
-  }
 
   try {
     snapshot.value = await loadHomeAiSnapshot({
@@ -1920,9 +1907,9 @@ async function reload() {
       workList.value = maybeSnapshot.works;
     }
     apiState.value = {
-      mode: 'demo',
+      mode: 'live',
       environmentLabel: environment.value,
-      lastError: error instanceof Error ? error.message : '接口请求失败，已展示演示数据',
+      lastError: error instanceof Error ? error.message : '接口请求失败，未使用本地兜底数据',
     };
   }
 }

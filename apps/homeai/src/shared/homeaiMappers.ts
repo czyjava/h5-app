@@ -10,34 +10,11 @@ export interface HomeAiGenerationDetail {
   works: WorkItem[];
 }
 
-const mapperFallback: Pick<HomeAiSnapshot, 'discover' | 'works' | 'user'> = {
-  discover: [
-    {
-      title: '现代客厅灵感',
-      subtitle: '上传户型照片，快速获得装修参考。',
-      coverUrl: '/assets/homeai/interior_guide_good.png',
-      tag: '室内',
-      buildingType: 'interior',
-      spaceType: 'living_room',
-    },
-  ],
-  works: [
-    {
-      id: 'demo-1',
-      recordId: 'demo-record-1',
-      templateId: 'interior',
-      title: '客厅改造',
-      status: 'FINISHED',
-      coverUrl: '/assets/homeai/type_1_processed.png',
-      createdAt: '2026-05-20',
-    },
-  ],
-  user: {
-    nickname: 'HomeAI 访客',
-    userId: 'homeai-demo',
-    diamondCount: 12,
-    vipLabel: '体验会员',
-  },
+const emptyUser: UserSummary = {
+  nickname: '未登录',
+  userId: '-',
+  diamondCount: 0,
+  vipLabel: '未登录',
 };
 
 function pickArray(input: unknown): unknown[] {
@@ -155,29 +132,27 @@ function normalizeGenerationStatus(value: unknown, fallback: string) {
   return fallback;
 }
 
-function mapDiscoverItem(raw: unknown, index: number): DiscoverItem {
+function mapDiscoverItem(raw: unknown): DiscoverItem {
   const record = pickRecord(raw);
-  const fallback = mapperFallback.discover[index % mapperFallback.discover.length];
   return {
-    title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
-    subtitle: pickString(record, ['subTitle', 'subtitle', 'description', 'desc'], fallback.subtitle),
-    coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'cover', 'imageUrl', 'image', 'url', 'thumbnailUrl'], fallback.coverUrl)),
-    tag: pickString(record, ['tag', 'categoryTitle', 'spaceType'], fallback.tag),
-    buildingType: pickString(record, ['buildingType', 'buildingTypeCode'], fallback.buildingType),
-    spaceType: pickString(record, ['spaceType', 'spaceTypeCode'], fallback.spaceType),
+    title: pickString(record, ['title', 'name', 'templateName'], '未命名灵感'),
+    subtitle: pickString(record, ['subTitle', 'subtitle', 'description', 'desc'], ''),
+    coverUrl: normalizeImageUrl(pickString(record, ['coverUrl', 'cover', 'imageUrl', 'image', 'url', 'thumbnailUrl'], '')),
+    tag: pickString(record, ['tag', 'categoryTitle', 'spaceType'], '全部'),
+    buildingType: pickString(record, ['buildingType', 'buildingTypeCode'], ''),
+    spaceType: pickString(record, ['spaceType', 'spaceTypeCode'], ''),
   };
 }
 
 export function mapWorkItem(raw: unknown, index: number): WorkItem {
   const record = pickRecord(raw);
-  const fallback = mapperFallback.works[index % mapperFallback.works.length];
   return {
     id: pickString(record, ['workId', 'workID', 'work_id', 'id', 'recordCode', 'code'], `work-${index}`),
     recordId: pickString(record, ['recordId', 'recordID', 'record_id', 'recordCode', 'generationRecordId', 'id', 'code'], ''),
     templateId: pickString(record, ['templateId', 'templateID', 'template_id', 'templateCode'], ''),
-    title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
-    status: normalizeGenerationStatus(record.status ?? record.generationStatus, fallback.status),
-    coverUrl: resolveRecordCoverUrl(record, fallback.coverUrl),
+    title: pickString(record, ['title', 'name', 'templateName'], '未命名作品'),
+    status: normalizeGenerationStatus(record.status ?? record.generationStatus, ''),
+    coverUrl: resolveRecordCoverUrl(record),
     createdAt: pickString(record, ['createdAt', 'createTime', 'gmtCreate'], ''),
   };
 }
@@ -204,44 +179,46 @@ export function mapGenerationWork(raw: unknown, index: number, detail: Pick<Home
 
 export function mapGenerationDetail(raw: unknown, fallbackWork?: WorkItem | null): HomeAiGenerationDetail {
   const record = pickRecord(raw);
-  const fallback = fallbackWork ?? mapperFallback.works[0];
-  const recordId = pickString(record, ['recordCode', 'code', 'recordId', 'id'], fallback.recordId || fallback.id);
+  const recordId = pickString(record, ['recordCode', 'code', 'recordId', 'id'], fallbackWork?.recordId || fallbackWork?.id || '');
   const detail: HomeAiGenerationDetail = {
     recordId,
-    title: pickString(record, ['title', 'name', 'templateName'], fallback.title),
-    status: normalizeGenerationStatus(record.status ?? record.generationStatus, fallback.status),
-    templateCode: pickString(record, ['templateCode', 'templateId', 'templateID', 'template_id'], fallback.templateId || ''),
-    coverUrl: resolveRecordCoverUrl(record, fallback.coverUrl),
-    createdAt: pickString(record, ['createdAt', 'createTime', 'gmtCreate'], fallback.createdAt || ''),
+    title: pickString(record, ['title', 'name', 'templateName'], fallbackWork?.title || '未命名作品'),
+    status: normalizeGenerationStatus(record.status ?? record.generationStatus, fallbackWork?.status || ''),
+    templateCode: pickString(record, ['templateCode', 'templateId', 'templateID', 'template_id'], fallbackWork?.templateId || ''),
+    coverUrl: resolveRecordCoverUrl(record, fallbackWork?.coverUrl || ''),
+    createdAt: pickString(record, ['createdAt', 'createTime', 'gmtCreate'], fallbackWork?.createdAt || ''),
     works: [],
   };
   const works = pickArray(record.workList ?? record.works ?? record.items)
     .map((work, index) => mapGenerationWork(work, index, detail))
     .filter((work) => work.coverUrl);
-  detail.works =
-    works.length > 0
-      ? works
-      : [
-          {
-            id: fallback.id || recordId,
-            recordId,
-            templateId: detail.templateCode,
-            title: detail.title,
-            status: detail.status,
-            coverUrl: detail.coverUrl,
-            createdAt: detail.createdAt,
-          },
-        ];
+  if (works.length > 0) {
+    detail.works = works;
+    return detail;
+  }
+  if (detail.coverUrl) {
+    detail.works = [
+      {
+        id: fallbackWork?.id || recordId,
+        recordId,
+        templateId: detail.templateCode,
+        title: detail.title,
+        status: detail.status,
+        coverUrl: detail.coverUrl,
+        createdAt: detail.createdAt,
+      },
+    ];
+  }
   return detail;
 }
 
 function mapUser(raw: unknown): UserSummary {
   const record = pickRecord(raw);
   return {
-    nickname: pickString(record, ['nickname', 'nickName', 'name'], mapperFallback.user.nickname),
-    userId: pickString(record, ['userId', 'id'], mapperFallback.user.userId),
-    diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? mapperFallback.user.diamondCount),
-    vipLabel: pickString(record, ['vipLabel', 'vipName'], mapperFallback.user.vipLabel),
+    nickname: pickString(record, ['nickname', 'nickName', 'name'], emptyUser.nickname),
+    userId: pickString(record, ['userId', 'id'], emptyUser.userId),
+    diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? emptyUser.diamondCount),
+    vipLabel: pickString(record, ['vipLabel', 'vipName'], emptyUser.vipLabel),
   };
 }
 
@@ -260,8 +237,8 @@ export function normalizeHomeAiSnapshot({
   const discover = pickArray(parsedRecommend).map(mapDiscoverItem).filter((item) => item.coverUrl);
 
   return {
-    user: user ? mapUser(user) : mapperFallback.user,
-    works: works.length > 0 ? works.slice(0, 8) : mapperFallback.works,
-    discover: discover.length > 0 ? discover.slice(0, 12) : mapperFallback.discover,
+    user: user ? mapUser(user) : emptyUser,
+    works: works.slice(0, 8),
+    discover: discover.slice(0, 12),
   };
 }

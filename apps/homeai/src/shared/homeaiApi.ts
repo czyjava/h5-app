@@ -8,8 +8,8 @@ import {
 } from '@wmxs/h5-replica-common/client';
 import { homeAiReplicaConfig } from '../../app.config';
 import { demoSnapshot } from './demoData';
-import { normalizeHomeAiSnapshot } from './homeaiMappers';
-import type { HomeAiSnapshot } from './types';
+import { mapGenerationDetail, mapGenerationList, normalizeHomeAiSnapshot, type HomeAiGenerationDetail } from './homeaiMappers';
+import type { HomeAiSnapshot, WorkItem } from './types';
 
 interface ApiEnvelope<T = unknown> {
   data?: T;
@@ -77,6 +77,26 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
   return (payload.data ?? payload) as T;
 }
 
+export async function listHomeAiWorks(context: HomeAiRequestContext, page = 1, limit = 20): Promise<WorkItem[]> {
+  const response = await requestBusiness(homeAiReplicaConfig.endpoints.generationList, context, {
+    params: { page, limit },
+  });
+  // generation/list 与 ai-app 保持一致：列表只承载 record 级封面，详情页再拉 workList。
+  return mapGenerationList(response, limit);
+}
+
+export async function getHomeAiGenerationDetail(
+  context: HomeAiRequestContext,
+  recordCode: string,
+  fallbackWork?: WorkItem | null,
+): Promise<HomeAiGenerationDetail> {
+  console.info('[HomeAI API] 查询作品详情', { recordCode });
+  const response = await requestBusiness(homeAiReplicaConfig.endpoints.generationDetail, context, {
+    params: { recordCode },
+  });
+  return mapGenerationDetail(response, fallbackWork);
+}
+
 export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise<HomeAiSnapshot> {
   const errors: string[] = [];
 
@@ -96,7 +116,7 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     context.authToken
       ? safeLoad('generationList', () =>
           requestBusiness(homeAiReplicaConfig.endpoints.generationList, context, {
-            params: { page: 1, pageSize: 10 },
+            params: { page: 1, limit: 10 },
           }),
         )
       : Promise.resolve(null),

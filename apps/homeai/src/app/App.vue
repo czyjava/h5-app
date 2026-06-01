@@ -219,8 +219,12 @@
               <ChevronLeft :size="20" />
             </button>
             <strong>作品详情</strong>
-            <button class="work-record-pill" type="button" @click="showToast('真实过程记录将在接入接口后按 generationRecord 查询')">记录</button>
+            <button class="work-record-pill" type="button" :disabled="workDetailLoading" @click="refreshSelectedWorkDetail">
+              {{ workDetailLoading ? '加载' : '刷新' }}
+            </button>
           </header>
+
+          <p v-if="workDetailError" class="work-detail-error">{{ workDetailError }}</p>
 
           <section class="work-detail-hero">
             <img :src="selectedWork.coverUrl" alt="作品图" />
@@ -256,7 +260,7 @@
                 :key="work.id"
                 type="button"
                 :class="{ active: work.id === selectedWork.id }"
-                @click="selectedWork = work"
+                @click="selectGenerationWork(work)"
               >
                 <img :src="work.coverUrl" alt="" />
                 <span>{{ work.title }}</span>
@@ -266,7 +270,7 @@
 
           <section class="work-detail-actions">
             <button type="button" class="primary" @click="openCustomDesignFromSelectedWork">定制设计</button>
-            <button type="button" @click="showToast('真实接口接入后按 generationRecord 展示全部过程记录')">查看过程记录</button>
+            <button type="button" @click="openCustomDesignRecordsFromSelectedWork">查看过程记录</button>
           </section>
         </section>
 
@@ -555,8 +559,16 @@
           </section>
 
           <section class="work-list">
-            <h3>我的作品</h3>
-            <article v-for="work in snapshot.works" :key="work.id" class="work-row">
+            <header>
+              <h3>我的作品</h3>
+              <button type="button" :disabled="workListLoading" @click="refreshWorkList">
+                {{ workListLoading ? '加载中' : '刷新' }}
+              </button>
+            </header>
+            <p v-if="workListError" class="work-list-error">{{ workListError }}</p>
+            <p v-if="workListLoading && displayWorks.length === 0" class="work-list-empty">正在加载作品...</p>
+            <p v-else-if="displayWorks.length === 0" class="work-list-empty">暂无作品</p>
+            <article v-for="work in displayWorks" :key="work.id" class="work-row">
               <img :src="work.coverUrl" alt="" />
               <div class="work-info">
                 <strong>{{ work.title }}</strong>
@@ -633,8 +645,9 @@ import {
   resolveCustomDesignOutputImageUrl,
   submitHomeAiCustomDesign,
 } from '../shared/customDesignApi';
-import { loadHomeAiSnapshot } from '../shared/homeaiApi';
+import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot } from '../shared/homeaiApi';
 import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
+import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
 type AssistantUiMessage = DesignAssistantMessage & {
@@ -743,6 +756,12 @@ const assistantSessions = ref<DesignAssistantSessionItem[]>([]);
 const regeneratedAssistantMessageIds = ref(new Set<string>());
 const selectedWork = ref<WorkItem | null>(null);
 const workDetailPresetPrompt = ref('');
+const workList = ref<WorkItem[]>([]);
+const workListLoading = ref(false);
+const workListError = ref('');
+const selectedGenerationDetail = ref<HomeAiGenerationDetail | null>(null);
+const workDetailLoading = ref(false);
+const workDetailError = ref('');
 const customDesignContext = ref<CustomDesignPageContext | null>(null);
 const customDesignImages = ref<CustomDesignImageEntry[]>([]);
 const customDesignImageIndex = ref(0);
@@ -852,12 +871,16 @@ const filteredDiscover = computed(() => {
   }
   return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
 });
+const displayWorks = computed(() => (workList.value.length > 0 ? workList.value : snapshot.value.works));
 const selectedGenerationWorks = computed(() => {
   if (!selectedWork.value) {
     return [];
   }
   const recordId = selectedWork.value.recordId || selectedWork.value.id;
-  const works = snapshot.value.works.filter((work) => (work.recordId || work.id) === recordId);
+  if (selectedGenerationDetail.value?.recordId === recordId && selectedGenerationDetail.value.works.length > 0) {
+    return selectedGenerationDetail.value.works;
+  }
+  const works = displayWorks.value.filter((work) => (work.recordId || work.id) === recordId);
   return works.length > 0 ? works : [selectedWork.value];
 });
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
@@ -1092,10 +1115,84 @@ function mockUpload() {
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
 }
 
+function selectGenerationWork(work: WorkItem) {
+  selectedWork.value = work;
+}
+
 function openWorkDetail(work: WorkItem, presetPrompt = '') {
+  const currentRecordId = selectedGenerationDetail.value?.recordId;
+  const nextRecordId = work.recordId || work.id;
   selectedWork.value = work;
   workDetailPresetPrompt.value = presetPrompt;
+  workDetailError.value = '';
+  if (currentRecordId !== nextRecordId) {
+    selectedGenerationDetail.value = null;
+  }
   activeTab.value = 'workDetail';
+  void loadSelectedWorkDetail(work);
+}
+
+async function refreshWorkList() {
+  if (demoMode.value || !authTokenDraft.value) {
+    workList.value = snapshot.value.works;
+    workListError.value = demoMode.value ? '' : '登录后可刷新真实作品列表';
+    return;
+  }
+  workListLoading.value = true;
+  workListError.value = '';
+  try {
+    workList.value = await listHomeAiWorks(getAssistantContext(), 1, 20);
+    // 作品列表是用户进入详情的起点，这里同步 snapshot 以便其它入口继续复用最新作品。
+    snapshot.value = {
+      ...snapshot.value,
+      works: workList.value.length > 0 ? workList.value : snapshot.value.works,
+    };
+    console.info('[HomeAI Work] 作品列表刷新完成', { count: workList.value.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '作品列表加载失败';
+    workListError.value = message;
+    console.warn('[HomeAI Work] 作品列表刷新失败', { message });
+  } finally {
+    workListLoading.value = false;
+  }
+}
+
+async function loadSelectedWorkDetail(work: WorkItem) {
+  if (demoMode.value || !authTokenDraft.value) {
+    return;
+  }
+  const recordCode = work.recordId || work.id;
+  if (!recordCode) {
+    workDetailError.value = '缺少 generationRecord，无法查询详情';
+    return;
+  }
+  workDetailLoading.value = true;
+  workDetailError.value = '';
+  try {
+    const detail = await getHomeAiGenerationDetail(getAssistantContext(), recordCode, work);
+    const activeWork = selectedWork.value;
+    if (!activeWork || (activeWork.recordId || activeWork.id) !== recordCode) {
+      return;
+    }
+    selectedGenerationDetail.value = detail;
+    const preferredWorkId = activeWork.id === work.id ? work.id : activeWork.id;
+    const matchedWork = detail.works.find((item) => item.id === preferredWorkId) ?? detail.works[0] ?? work;
+    selectedWork.value = matchedWork;
+    console.info('[HomeAI Work] 作品详情加载完成', { recordCode, workCount: detail.works.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '作品详情加载失败';
+    workDetailError.value = message;
+    console.warn('[HomeAI Work] 作品详情加载失败', { recordCode, message });
+  } finally {
+    workDetailLoading.value = false;
+  }
+}
+
+function refreshSelectedWorkDetail() {
+  if (!selectedWork.value) {
+    return;
+  }
+  void loadSelectedWorkDetail(selectedWork.value);
 }
 
 function openCustomDesignFromSelectedWork() {
@@ -1115,6 +1212,23 @@ function openCustomDesignFromSelectedWork() {
     workDetailPresetPrompt.value,
   );
   workDetailPresetPrompt.value = '';
+}
+
+function openCustomDesignRecordsFromSelectedWork() {
+  if (!selectedWork.value) {
+    showToast('请先选择一个 generationWork');
+    return;
+  }
+  const work = selectedWork.value;
+  customDesignContext.value = {
+    batchNo: customDesignContext.value?.batchNo || generateCustomDesignId('custom-design-records'),
+    workId: work.id,
+    recordId: work.recordId || work.id,
+    templateCode: work.templateId,
+    imageUrl: work.coverUrl,
+    workTitle: work.title,
+  };
+  activeTab.value = 'customDesignRecords';
 }
 
 function generateCustomDesignId(prefix: string) {
@@ -1685,7 +1799,7 @@ async function openCustomDesignFromResult(customPrompt?: string) {
     showToast('请先生成或选择一个作品，再进入定制设计');
     return false;
   }
-  const matchingWork = snapshot.value.works.find((work) => work.id === workContext.workId) ?? null;
+  const matchingWork = displayWorks.value.find((work) => work.id === workContext.workId) ?? null;
   if (matchingWork) {
     openWorkDetail(matchingWork, customPrompt || '');
     return true;
@@ -1706,8 +1820,8 @@ async function openCustomDesignFromResult(customPrompt?: string) {
 
 function resolveCustomDesignWorkContext() {
   const realWork =
-    snapshot.value.works.find((work) => work.id && !work.id.startsWith('demo-')) ??
-    (demoMode.value ? snapshot.value.works.find((work) => work.id) : undefined);
+    displayWorks.value.find((work) => work.id && !work.id.startsWith('demo-')) ??
+    (demoMode.value ? displayWorks.value.find((work) => work.id) : undefined);
   if (!realWork) {
     return null;
   }
@@ -1787,6 +1901,7 @@ async function reload() {
 
   if (demoMode.value) {
     snapshot.value = structuredClone(demoSnapshot);
+    workList.value = snapshot.value.works;
     return;
   }
 
@@ -1795,11 +1910,14 @@ async function reload() {
       authToken: authTokenDraft.value,
       environment: environment.value,
     });
+    workList.value = snapshot.value.works;
+    workListError.value = '';
     updateApiState();
   } catch (error) {
     const maybeSnapshot = error && typeof error === 'object' && 'snapshot' in error ? (error as { snapshot?: HomeAiSnapshot }).snapshot : null;
     if (maybeSnapshot) {
       snapshot.value = maybeSnapshot;
+      workList.value = maybeSnapshot.works;
     }
     apiState.value = {
       mode: 'demo',
@@ -2713,6 +2831,21 @@ button {
   background: #eaf1ff;
   font-size: 12px;
   font-weight: 900;
+}
+
+.work-record-pill:disabled {
+  color: #7d8da8;
+  background: #eef2f7;
+}
+
+.work-detail-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #9d2b2b;
+  background: #fff0f0;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .work-detail-hero {
@@ -4137,6 +4270,46 @@ button {
 
 .work-list {
   padding-bottom: 6px;
+}
+
+.work-list > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.work-list > header button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.work-list > header button:disabled {
+  background: #aeb8c8;
+}
+
+.work-list-error,
+.work-list-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.work-list-error {
+  color: #9d2b2b;
+  background: #fff0f0;
+}
+
+.work-list-empty {
+  color: #66758c;
+  background: #fff;
 }
 
 .work-row {

@@ -217,11 +217,15 @@ export function mapGenerationDetail(raw: unknown, fallbackWork?: WorkItem | null
 
 function mapUser(raw: unknown): UserSummary {
   const record = pickRecord(raw);
+  const userId = pickString(record, ['userId', 'id'], emptyUser.userId);
+  const nickname = pickString(record, ['nickname', 'nickName', 'name'], emptyUser.nickname);
+  const loggedIn = userId !== emptyUser.userId || nickname !== emptyUser.nickname;
   return {
-    nickname: pickString(record, ['nickname', 'nickName', 'name'], emptyUser.nickname),
-    userId: pickString(record, ['userId', 'id'], emptyUser.userId),
+    nickname,
+    userId,
     diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? emptyUser.diamondCount),
-    vipLabel: pickString(record, ['vipLabel', 'vipName'], emptyUser.vipLabel),
+    // current-user 经常只返回基础用户资料，不带会员标签；只要有用户身份，就不再显示“未登录”。
+    vipLabel: pickString(record, ['vipLabel', 'vipName'], loggedIn ? '已登录' : emptyUser.vipLabel),
   };
 }
 

@@ -25,6 +25,7 @@ export interface HomeAiRequestContext {
 
 interface RequestOptions {
   method?: 'GET' | 'POST';
+  hostType?: 'business' | 'auth';
   params?: Record<string, ReplicaRequestParamValue>;
   form?: Record<string, ReplicaRequestParamValue>;
 }
@@ -34,7 +35,8 @@ function apiErrorMessage(error: unknown) {
 }
 
 export async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
-  const host = homeAiReplicaConfig.hosts.business;
+  const hostType = options.hostType ?? 'business';
+  const host = homeAiReplicaConfig.hosts[hostType];
   const url = new URL(`${host.proxyPrefix}${path}`, window.location.origin);
   const commonQuery = buildReplicaCommonQuery(homeAiReplicaConfig, {
     authToken: context.authToken,
@@ -46,14 +48,14 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
   });
   appendReplicaRequestParams(url, commonQuery as unknown as Record<string, ReplicaRequestParamValue>);
   appendReplicaRequestParams(url, options.params);
-  if (context.environment === 'test') {
+  if (hostType === 'business' && context.environment === 'test') {
     url.searchParams.set('__homeai_env', 'test');
   }
 
   const hasBody = options.method === 'POST';
   const body = hasBody ? encodeReplicaFormParams(options.form) : undefined;
   // 业务日志统一脱敏，只记录接口路径和参数摘要，避免 authToken 等敏感信息进入控制台。
-  console.info('[HomeAI API] 请求业务接口', redactObject({ path, method: options.method ?? 'GET', params: options.params, form: options.form }));
+  console.info('[HomeAI API] 请求接口', redactObject({ hostType, path, method: options.method ?? 'GET', params: options.params, form: options.form }));
   const response = await fetch(url.toString(), {
     method: options.method ?? 'GET',
     headers: hasBody
@@ -65,7 +67,7 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
   });
   const rawText = await response.text();
   const payload = rawText ? (JSON.parse(rawText) as ApiEnvelope<T>) : ({} as ApiEnvelope<T>);
-  console.info('[HomeAI API] 业务接口响应', { path, status: response.status, ok: response.ok });
+  console.info('[HomeAI API] 接口响应', { hostType, path, status: response.status, ok: response.ok });
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -112,7 +114,14 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
   };
 
   const [user, generationList, recommendList] = await Promise.all([
-    context.authToken ? safeLoad('currentUser', () => requestBusiness(homeAiReplicaConfig.endpoints.currentUser, context)) : Promise.resolve(null),
+    context.authToken
+      ? safeLoad('currentUser', () =>
+          requestBusiness(homeAiReplicaConfig.endpoints.currentUser, context, {
+            // current-user 属于认证域；业务服务没有该路径，误走 business 会导致已带 token 仍显示未登录。
+            hostType: 'auth',
+          }),
+        )
+      : Promise.resolve(null),
     context.authToken
       ? safeLoad('generationList', () =>
           requestBusiness(homeAiReplicaConfig.endpoints.generationList, context, {

@@ -6,6 +6,7 @@ const appConfigSource = await readFile(new URL('../../app.config.ts', import.met
 const appVueSource = await readFile(new URL('../app/App.vue', import.meta.url), 'utf8');
 const customDesignApiSource = await readFile(new URL('./customDesignApi.ts', import.meta.url), 'utf8');
 const designAssistantApiSource = await readFile(new URL('./designAssistantApi.ts', import.meta.url), 'utf8');
+const homeAiApiSource = await readFile(new URL('./homeaiApi.ts', import.meta.url), 'utf8');
 const localAuthTokenApiSource = await readFile(new URL('./localAuthTokenApi.ts', import.meta.url), 'utf8');
 const viteConfigSource = await readFile(new URL('../../vite.config.ts', import.meta.url), 'utf8');
 const gitIgnoreSource = await readFile(new URL('../../../../.gitignore', import.meta.url), 'utf8');
@@ -59,6 +60,14 @@ test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.doesNotMatch(designAssistantApiSource, /feedbackDesignAssistantMessage/);
   assert.match(appConfigSource, /designAssistantRegenerate:\s*'\/api\/open\/homeai\/design-assistant\/regenerate\.htm'/);
   assert.match(appConfigSource, /designAssistantApplyDesign:\s*'\/api\/open\/homeai\/design-assistant\/apply-design\.htm'/);
+});
+
+test('HomeAI 当前用户信息必须走认证域 current-user 接口', () => {
+  assert.match(homeAiApiSource, /hostType\?: 'business' \| 'auth'/);
+  assert.match(
+    homeAiApiSource,
+    /requestBusiness\(homeAiReplicaConfig\.endpoints\.currentUser,\s*context,\s*\{[\s\S]*?hostType:\s*'auth'/,
+  );
 });
 
 test('HomeAI 定制设计会话使用最后作品ID语义', () => {

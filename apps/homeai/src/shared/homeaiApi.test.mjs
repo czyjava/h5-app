@@ -38,6 +38,16 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads', () => {
   assert.equal(snapshot.discover[0].tag, '室内');
 });
 
+test('normalizeHomeAiSnapshot shows logged-in status when current user has no vip label', () => {
+  const snapshot = normalizeHomeAiSnapshot({
+    user: { nickname: '洋娃娃的暖心', userId: 'user-1' },
+  });
+
+  assert.equal(snapshot.user.nickname, '洋娃娃的暖心');
+  assert.equal(snapshot.user.userId, 'user-1');
+  assert.equal(snapshot.user.vipLabel, '已登录');
+});
+
 test('normalizeHomeAiSnapshot does not synthesize local business data when APIs are empty', () => {
   const snapshot = normalizeHomeAiSnapshot();
 

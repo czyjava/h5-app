@@ -436,9 +436,8 @@
                 <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" @error="handleAssistantImageError" />
                 <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
                 <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
-                <footer v-if="shouldRenderAssistantActions(message)" class="assistant-message-actions">
-                  <button type="button" @click="regenerateAssistant(message)">重生成</button>
-                  <button v-if="shouldRenderApplyDesignAction(message)" type="button" @click="applyCustomDesign(message)">应用设计</button>
+                <footer v-if="shouldRenderApplyDesignAction(message)" class="assistant-message-actions">
+                  <button type="button" @click="applyCustomDesign(message)">应用设计</button>
                 </footer>
               </article>
             </section>
@@ -631,15 +630,10 @@ import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { appShellSnapshot } from '../shared/appShellData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
-import {
-  ASSISTANT_MESSAGE_REGENERATED_STATE,
-  shouldDisableAssistantComposer,
-  shouldShowAssistantMessageActions,
-} from '../shared/designAssistantMessageUi';
+import { shouldDisableAssistantComposer, shouldShowAssistantMessageActions } from '../shared/designAssistantMessageUi';
 import {
   applyDesignAssistantImage,
   listDesignAssistantMessages,
-  regenerateDesignAssistantMessage,
   resolveAssistantImageUrl,
   resolveAssistantText,
   sendDesignAssistantMessage,
@@ -652,13 +646,11 @@ import {
 } from '../shared/customDesignApi';
 import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot, uploadHomeAiImage } from '../shared/homeaiApi';
 import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
-import type { AssistantMessageLocalOperationState } from '../shared/designAssistantMessageUi';
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
 import type { DesignAssistantMessage, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
 type AssistantUiMessage = DesignAssistantMessage & {
   localId?: string;
-  localOperationState?: AssistantMessageLocalOperationState | null;
 };
 
 interface AssistantSendOptions {
@@ -758,7 +750,6 @@ const assistantSending = ref(false);
 const assistantEntryAutoSending = ref(false);
 const assistantWorkContext = ref<CustomDesignPageContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
-const regeneratedAssistantMessageIds = ref(new Set<string>());
 const selectedWork = ref<WorkItem | null>(null);
 const workDetailPresetPrompt = ref('');
 const workList = ref<WorkItem[]>([]);
@@ -1146,7 +1137,6 @@ function openAssistantHome() {
     assistantWorkContext.value = null;
     assistantSessionKey.value = '';
     assistantMessages.value = [];
-    resetAssistantMessageInteractionState();
   }
   activeTab.value = 'assistant';
 }
@@ -1573,47 +1563,6 @@ function requireAssistantLogin() {
   return false;
 }
 
-function resetAssistantMessageInteractionState() {
-  regeneratedAssistantMessageIds.value = new Set();
-}
-
-function decorateAssistantMessages(messages: DesignAssistantMessage[]): AssistantUiMessage[] {
-  // 列表接口可能晚于当前点击态返回，前端保留本地交互标记，避免操作按钮短暂回显。
-  return messages.map((message) => {
-    const messageId = message.messageId || '';
-    const shouldMarkRegenerated = Boolean(messageId && regeneratedAssistantMessageIds.value.has(messageId));
-    if (!shouldMarkRegenerated) {
-      return message;
-    }
-    return {
-      ...message,
-      localOperationState: shouldMarkRegenerated ? ASSISTANT_MESSAGE_REGENERATED_STATE : undefined,
-    };
-  });
-}
-
-function updateAssistantMessageInteractionState(messageId: string, patch: Pick<Partial<AssistantUiMessage>, 'localOperationState'>) {
-  assistantMessages.value = assistantMessages.value.map((message) => (message.messageId === messageId ? { ...message, ...patch } : message));
-  console.info('[HomeAI Assistant] 更新消息交互状态', {
-    messageId,
-    localOperationState: patch.localOperationState || '',
-  });
-}
-
-function markAssistantMessageRegenerated(messageId: string) {
-  const nextRegeneratedIds = new Set(regeneratedAssistantMessageIds.value);
-  nextRegeneratedIds.add(messageId);
-  regeneratedAssistantMessageIds.value = nextRegeneratedIds;
-  updateAssistantMessageInteractionState(messageId, { localOperationState: ASSISTANT_MESSAGE_REGENERATED_STATE });
-}
-
-function clearAssistantMessageRegenerated(messageId: string) {
-  const nextRegeneratedIds = new Set(regeneratedAssistantMessageIds.value);
-  nextRegeneratedIds.delete(messageId);
-  regeneratedAssistantMessageIds.value = nextRegeneratedIds;
-  updateAssistantMessageInteractionState(messageId, { localOperationState: null });
-}
-
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
   return resolveAssistantText(message.messageContent);
 }
@@ -1622,12 +1571,8 @@ function resolveAssistantMessageImage(message: DesignAssistantMessage) {
   return resolveAssistantImageUrl(message.messageContent);
 }
 
-function shouldRenderAssistantActions(message: AssistantUiMessage) {
-  return shouldShowAssistantMessageActions(message);
-}
-
 function shouldRenderApplyDesignAction(message: AssistantUiMessage) {
-  return shouldRenderAssistantActions(message) && assistantSceneType.value === 'CUSTOM_DESIGN' && Boolean(resolveAssistantMessageImage(message));
+  return shouldShowAssistantMessageActions(message) && assistantSceneType.value === 'CUSTOM_DESIGN' && Boolean(resolveAssistantMessageImage(message));
 }
 
 function useAssistantQuickQuestion(question: string) {
@@ -1732,7 +1677,7 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
   });
   assistantSessionKey.value = response.sessionKey;
   if (Array.isArray(response.messages) && response.messages.length > 0) {
-    assistantMessages.value = decorateAssistantMessages(response.messages);
+    assistantMessages.value = response.messages;
   }
   return response.sessionKey;
 }
@@ -1742,7 +1687,7 @@ async function restoreAssistantMessages() {
     return;
   }
   const messages = await listDesignAssistantMessages(getAssistantContext(), assistantSessionKey.value);
-  assistantMessages.value = decorateAssistantMessages(messages);
+  assistantMessages.value = messages;
 }
 
 function hasAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string) {
@@ -1752,12 +1697,11 @@ function hasAssistantReplyForMessage(messages: DesignAssistantMessage[], replyTo
 }
 
 function renderAssistantMessagesWithPending(messages: DesignAssistantMessage[], replyToMessageId: string) {
-  const decorated = decorateAssistantMessages(messages);
-  if (!replyToMessageId || hasAssistantReplyForMessage(decorated, replyToMessageId)) {
-    assistantMessages.value = decorated;
+  if (!replyToMessageId || hasAssistantReplyForMessage(messages, replyToMessageId)) {
+    assistantMessages.value = messages;
     return;
   }
-  assistantMessages.value = [...decorated, createAssistantWaitingMessage(replyToMessageId)];
+  assistantMessages.value = [...messages, createAssistantWaitingMessage(replyToMessageId)];
 }
 
 function waitAssistantPollInterval() {
@@ -1771,7 +1715,7 @@ async function pollAssistantReply(sessionKey: string, replyToMessageId: string) 
   while (Date.now() - startedAt < ASSISTANT_REPLY_POLL_TIMEOUT_MS) {
     const messages = await listDesignAssistantMessages(getAssistantContext(), sessionKey);
     if (hasAssistantReplyForMessage(messages, replyToMessageId)) {
-      assistantMessages.value = decorateAssistantMessages(messages);
+      assistantMessages.value = messages;
       return;
     }
     renderAssistantMessagesWithPending(messages, replyToMessageId);
@@ -1788,7 +1732,6 @@ async function startManualAssistantSession() {
   try {
     await ensureAssistantSession('MANUAL_NEW');
     assistantMessages.value = [];
-    resetAssistantMessageInteractionState();
     showToast('已新建设计助手会话');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '新建会话失败');
@@ -1905,37 +1848,6 @@ function resolveCustomDesignWorkContext() {
 
 function openCustomDesignFromFeedback() {
   openCustomDesignFromResult('我不满意当前效果，请帮我换一种更自然、更高级的设计');
-}
-
-async function regenerateAssistant(message: AssistantUiMessage) {
-  if (!message.messageId || !assistantSessionKey.value) {
-    return;
-  }
-  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
-    return;
-  }
-  assistantSending.value = true;
-  markAssistantMessageRegenerated(message.messageId);
-  try {
-    const response = await regenerateDesignAssistantMessage(getAssistantContext(), {
-      sessionKey: assistantSessionKey.value,
-      messageId: message.messageId,
-      priceChecked: assistantSceneType.value === 'CUSTOM_DESIGN' ? true : undefined,
-    });
-    const replyToMessageId = response.messageId || response.userMessage?.messageId || message.replyToMessageId || '';
-    if (!replyToMessageId) {
-      await restoreAssistantMessages();
-      return;
-    }
-    renderAssistantMessagesWithPending(response.messages ?? [], replyToMessageId);
-    await pollAssistantReply(assistantSessionKey.value, replyToMessageId);
-  } catch (error) {
-    assistantMessages.value = assistantMessages.value.filter((item) => item.status !== 'PENDING');
-    clearAssistantMessageRegenerated(message.messageId);
-    showToast(error instanceof Error ? error.message : '重生成失败');
-  } finally {
-    assistantSending.value = false;
-  }
 }
 
 async function applyCustomDesign(message: AssistantUiMessage) {

@@ -6,7 +6,7 @@ import {
   shouldShowAssistantMessageActions,
 } from './designAssistantMessageUi.mjs';
 
-test('成功的助手消息默认展示操作按钮', () => {
+test('成功的助手消息满足消息操作基础条件', () => {
   assert.equal(
     shouldShowAssistantMessageActions({
       role: 'ASSISTANT',
@@ -15,17 +15,6 @@ test('成功的助手消息默认展示操作按钮', () => {
     }),
     true,
   );
-});
-
-test('重生成后隐藏原消息操作按钮', () => {
-  const message = {
-    role: 'ASSISTANT',
-    messageId: 'assistant-message-1',
-    status: 'SUCCEEDED',
-    localOperationState: 'REGENERATED',
-  };
-
-  assert.equal(shouldShowAssistantMessageActions(message), false);
 });
 
 test('非可操作消息不展示操作按钮', () => {

@@ -36,12 +36,6 @@ interface SendParams {
   priceChecked?: boolean;
 }
 
-interface RegenerateParams {
-  sessionKey: string;
-  messageId: string;
-  priceChecked?: boolean;
-}
-
 interface ApplyDesignParams {
   sessionKey: string;
   messageId: string;
@@ -125,15 +119,6 @@ export async function listDesignAssistantSessions(
     { method: 'POST', form: compactForm({ sceneType, pageNo: 1, pageSize: 50 }) },
   );
   return response.items ?? response.sessions ?? [];
-}
-
-export async function regenerateDesignAssistantMessage(context: HomeAiRequestContext, params: RegenerateParams) {
-  const response = await requestBusiness<DesignAssistantSendResponse>(
-    homeAiReplicaConfig.endpoints.designAssistantRegenerate,
-    context,
-    { method: 'POST', form: compactForm({ ...params }) },
-  );
-  return { ...response, messages: normalizeMessages(response) };
 }
 
 export async function applyDesignAssistantImage(context: HomeAiRequestContext, params: ApplyDesignParams) {

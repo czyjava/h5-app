@@ -1,13 +1,10 @@
-export const ASSISTANT_MESSAGE_REGENERATED_STATE = 'REGENERATED';
-
 export function shouldShowAssistantMessageActions(message) {
-  // 消息级操作一旦触发重生成，就隐藏原消息按钮，避免重复操作同一条回复。
+  // 仅保留图片定制设计的“应用设计”类动作；普通 AI 问答不再展示消息级操作。
   return (
     message.role === 'ASSISTANT' &&
     Boolean(message.messageId) &&
     message.status !== 'PENDING' &&
-    message.status !== 'FAILED' &&
-    message.localOperationState !== ASSISTANT_MESSAGE_REGENERATED_STATE
+    message.status !== 'FAILED'
   );
 }
 

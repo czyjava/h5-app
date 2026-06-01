@@ -32,6 +32,27 @@ export interface CustomDesignFetchResponse {
   errorMessage?: string | null;
 }
 
+export interface CustomDesignRecordItemResponse {
+  customDesignCode: string;
+  generationRecordId: string;
+  sourceWorkId: string;
+  templateCode?: string;
+  prompt?: string;
+  status: CustomDesignRemoteStatus;
+  inputMediaList?: DesignAssistantMediaInfo[];
+  outputMediaList?: DesignAssistantMediaInfo[];
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  createTime?: string | number;
+  finishTime?: string | number;
+}
+
+export interface CustomDesignRecordsResponse {
+  generationRecordId: string;
+  sourceWorkId?: string;
+  records?: CustomDesignRecordItemResponse[];
+}
+
 export async function submitHomeAiCustomDesign(context: HomeAiRequestContext, params: CustomDesignSubmitParams) {
   return requestBusiness<CustomDesignSubmitResponse>(
     homeAiReplicaConfig.endpoints.customDesignSubmit,
@@ -54,7 +75,29 @@ export async function fetchHomeAiCustomDesign(context: HomeAiRequestContext, cus
   );
 }
 
+export async function listHomeAiCustomDesignRecords(
+  context: HomeAiRequestContext,
+  params: { generationRecordId: string; sourceWorkId?: string; limit?: number },
+) {
+  return requestBusiness<CustomDesignRecordsResponse>(
+    homeAiReplicaConfig.endpoints.customDesignRecords,
+    context,
+    {
+      method: 'POST',
+      form: { ...params },
+    },
+  );
+}
+
 export function resolveCustomDesignOutputImageUrl(response: CustomDesignFetchResponse) {
   // 定制设计结果必须来自服务端转存后的媒体结构，避免继续使用静态复刻素材。
   return resolveAssistantImageUrl(response.outputImage) || (response.outputMediaList ?? []).map(resolveAssistantImageUrl).find(Boolean) || '';
+}
+
+export function resolveCustomDesignRecordInputImageUrl(record: CustomDesignRecordItemResponse) {
+  return (record.inputMediaList ?? []).map(resolveAssistantImageUrl).find(Boolean) || '';
+}
+
+export function resolveCustomDesignRecordOutputImageUrl(record: CustomDesignRecordItemResponse) {
+  return (record.outputMediaList ?? []).map(resolveAssistantImageUrl).find(Boolean) || '';
 }

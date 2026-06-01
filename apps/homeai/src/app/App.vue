@@ -367,8 +367,8 @@
           </section>
 
           <section v-if="visibleCustomDesignProcessRecords.length === 0" class="custom-record-empty">
-            <strong>暂无过程记录</strong>
-            <span>从这个作品发起一次定制设计后，这里会记录它对应的修改意图、状态和结果图。</span>
+            <strong>{{ customDesignRecordsLoading ? '正在加载过程记录' : '暂无过程记录' }}</strong>
+            <span>{{ customDesignRecordsLoading ? '正在从业务服务读取这个作品的定制设计过程。' : '从这个作品发起一次定制设计后，这里会记录它对应的修改意图、状态和结果图。' }}</span>
             <button type="button" @click="activeTab = 'customDesign'">返回定制设计</button>
           </section>
 
@@ -643,8 +643,12 @@ import {
 } from '../shared/designAssistantApi';
 import {
   fetchHomeAiCustomDesign,
+  listHomeAiCustomDesignRecords,
+  resolveCustomDesignRecordInputImageUrl,
+  resolveCustomDesignRecordOutputImageUrl,
   resolveCustomDesignOutputImageUrl,
   submitHomeAiCustomDesign,
+  type CustomDesignRecordItemResponse,
 } from '../shared/customDesignApi';
 import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot, uploadHomeAiImage } from '../shared/homeaiApi';
 import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
@@ -769,6 +773,7 @@ const customDesignStatus = ref<CustomDesignStatus>('idle');
 const customDesignLastPrompt = ref('');
 const customStylePanelVisible = ref(false);
 const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
+const customDesignRecordsLoading = ref(false);
 let customDesignPollingTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
@@ -1260,6 +1265,7 @@ function openCustomDesignRecordsFromCurrentDesign() {
     return;
   }
   activeTab.value = 'customDesignRecords';
+  void loadCustomDesignProcessRecords();
 }
 
 function generateCustomDesignId(prefix: string) {
@@ -1273,6 +1279,88 @@ function formatCustomDesignRecordTime() {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date());
+}
+
+function formatCustomDesignRemoteRecordTime(value: CustomDesignRecordItemResponse['createTime']) {
+  if (!value) {
+    return formatCustomDesignRecordTime();
+  }
+  const time = new Date(value);
+  if (Number.isNaN(time.getTime())) {
+    return String(value);
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(time);
+}
+
+function normalizeCustomDesignRecordStatus(status: string): CustomDesignProcessStatus {
+  const normalized = String(status || '').toUpperCase();
+  if (normalized === 'SUCCEEDED' || normalized === 'APPLIED') {
+    return 'completed';
+  }
+  if (normalized === 'FAILED') {
+    return 'failed';
+  }
+  return 'processing';
+}
+
+function mapRemoteCustomDesignRecord(record: CustomDesignRecordItemResponse): CustomDesignProcessRecord {
+  const outputImageUrl = resolveCustomDesignRecordOutputImageUrl(record);
+  return {
+    recordKey: record.customDesignCode,
+    processRecordCode: record.customDesignCode,
+    generationRecordId: record.generationRecordId,
+    sourceWorkId: record.sourceWorkId,
+    prompt: record.prompt || '',
+    templateCode: record.templateCode || customDesignContext.value?.templateCode || '-',
+    status: normalizeCustomDesignRecordStatus(record.status),
+    inputImageUrl: resolveCustomDesignRecordInputImageUrl(record) || customDesignContext.value?.imageUrl || '',
+    outputImageUrl,
+    createdAt: formatCustomDesignRemoteRecordTime(record.createTime),
+  };
+}
+
+async function loadCustomDesignProcessRecords() {
+  const context = customDesignContext.value;
+  if (!context?.recordId || !context.workId || !authTokenDraft.value.trim()) {
+    return;
+  }
+  customDesignRecordsLoading.value = true;
+  try {
+    const response = await listHomeAiCustomDesignRecords(getAssistantContext(), {
+      generationRecordId: context.recordId,
+      sourceWorkId: context.workId,
+      limit: 100,
+    });
+    const remoteRecords = (response.records ?? []).map(mapRemoteCustomDesignRecord);
+    const remoteRecordCodes = new Set(remoteRecords.map((record) => record.processRecordCode));
+    const localPendingRecords = customDesignProcessRecords.value.filter(
+      (record) =>
+        record.generationRecordId === context.recordId &&
+        record.sourceWorkId === context.workId &&
+        record.status === 'processing' &&
+        !remoteRecordCodes.has(record.processRecordCode),
+    );
+    const otherContextRecords = customDesignProcessRecords.value.filter(
+      (record) => record.generationRecordId !== context.recordId || record.sourceWorkId !== context.workId,
+    );
+    // 过程记录以业务服务落库结果为准，仅保留本轮刚提交且服务端列表还没刷出的本地占位。
+    customDesignProcessRecords.value = [...localPendingRecords, ...remoteRecords, ...otherContextRecords];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '过程记录加载失败';
+    showToast(message);
+    console.warn('[HomeAI CustomDesign] 定制设计过程记录加载失败', {
+      recordId: context.recordId,
+      workId: context.workId,
+      message,
+    });
+  } finally {
+    customDesignRecordsLoading.value = false;
+  }
 }
 
 function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>, presetPrompt = '') {
@@ -1296,8 +1384,8 @@ function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>
   customDesignLastPrompt.value = '';
   customDesignStatus.value = 'idle';
   customStylePanelVisible.value = false;
-  customDesignProcessRecords.value = [];
   activeTab.value = 'customDesign';
+  void loadCustomDesignProcessRecords();
   console.info('[HomeAI CustomDesign] 进入独立定制设计页', {
     workId: pageContext.workId || '',
     recordId: pageContext.recordId || '',
@@ -1442,6 +1530,7 @@ async function fetchCustomDesignResult(recordKey: string, customDesignCode: stri
       outputImageLocalId,
     });
     customDesignStatus.value = 'completed';
+    void loadCustomDesignProcessRecords();
   } catch (error) {
     const message = error instanceof Error ? error.message : '定制设计轮询失败';
     updateCustomDesignProcessRecord(recordKey, { status: 'failed' });
@@ -1477,7 +1566,6 @@ function resetCustomDesignPage() {
   customDesignLastPrompt.value = '';
   customDesignStatus.value = 'idle';
   customStylePanelVisible.value = false;
-  customDesignProcessRecords.value = [];
 }
 
 function handleCustomDesignImageError() {
@@ -1495,7 +1583,28 @@ function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
 }
 
 function showCustomDesignRecordResult(record: CustomDesignProcessRecord) {
-  if (!record.outputImageLocalId) {
+  if (!record.outputImageLocalId && !record.outputImageUrl) {
+    return;
+  }
+  if (!record.outputImageLocalId && record.outputImageUrl) {
+    const existingIndex = customDesignImages.value.findIndex((image) => image.imageUrl === record.outputImageUrl);
+    if (existingIndex >= 0) {
+      customDesignImageIndex.value = existingIndex;
+      activeTab.value = 'customDesign';
+      return;
+    }
+    const outputImageLocalId = generateCustomDesignId('custom-design-output');
+    customDesignImages.value = [
+      ...customDesignImages.value,
+      {
+        localId: outputImageLocalId,
+        imageUrl: record.outputImageUrl,
+        isOriginal: false,
+      },
+    ];
+    updateCustomDesignProcessRecord(record.recordKey, { outputImageLocalId });
+    customDesignImageIndex.value = customDesignImages.value.length - 1;
+    activeTab.value = 'customDesign';
     return;
   }
   const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
@@ -1507,11 +1616,14 @@ function showCustomDesignRecordResult(record: CustomDesignProcessRecord) {
 
 function continueCustomDesignFromRecord(record: CustomDesignProcessRecord) {
   customDesignInput.value = record.prompt;
-  if (record.outputImageLocalId) {
-    const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
-    if (targetIndex >= 0) {
-      customDesignImageIndex.value = targetIndex;
-    }
+  if (record.outputImageUrl && !record.outputImageLocalId) {
+    showCustomDesignRecordResult(record);
+    customDesignInput.value = record.prompt;
+    return;
+  }
+  const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
+  if (targetIndex >= 0) {
+    customDesignImageIndex.value = targetIndex;
   }
   activeTab.value = 'customDesign';
 }

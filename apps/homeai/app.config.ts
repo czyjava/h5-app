@@ -57,6 +57,7 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     upload: '/api/h5/file/upload.htm',
     customDesignSubmit: '/api/open/homeai/custom-design/submit.htm',
     customDesignFetch: '/api/open/homeai/custom-design/fetch.htm',
+    customDesignRecords: '/api/open/homeai/custom-design/records.htm',
     customDesignApply: '/api/open/homeai/custom-design/apply.htm',
     designAssistantStart: '/api/open/homeai/design-assistant/start.htm',
     designAssistantSend: '/api/open/homeai/design-assistant/send.htm',

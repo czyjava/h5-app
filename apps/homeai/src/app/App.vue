@@ -4,7 +4,11 @@
   <main v-else class="app-frame">
     <section
       class="phone-shell"
-      :class="{ onboarding: bootFlowVisible, guide: guideVisible, immersive: activeTab === 'assistant' || activeTab === 'customDesign' }"
+      :class="{
+        onboarding: bootFlowVisible,
+        guide: guideVisible,
+        immersive: activeTab === 'assistant' || activeTab === 'customDesign' || activeTab === 'customDesignRecords',
+      }"
       aria-label="装修 APP H5 复刻"
     >
       <header class="status-bar">
@@ -214,9 +218,12 @@
               <ChevronLeft :size="21" />
             </button>
             <strong>定制设计</strong>
-            <button class="custom-round-button" type="button" aria-label="重置" @click="resetCustomDesignPage">
-              <X :size="18" />
-            </button>
+            <span class="custom-header-actions">
+              <button class="custom-record-button" type="button" @click="openCustomDesignRecords">记录</button>
+              <button class="custom-round-button" type="button" aria-label="重置" @click="resetCustomDesignPage">
+                <X :size="18" />
+              </button>
+            </span>
           </header>
 
           <section class="custom-image-stage" :class="{ processing: customDesignBusy }">
@@ -265,6 +272,68 @@
               />
               <button type="button" class="custom-send-button" :disabled="customDesignSubmitDisabled" @click="submitCustomDesignText">发</button>
             </section>
+          </section>
+        </section>
+
+        <section v-else-if="activeTab === 'customDesignRecords'" class="page page-custom-records">
+          <header class="custom-records-header">
+            <button class="custom-records-back" type="button" aria-label="返回定制设计" @click="activeTab = 'customDesign'">
+              <ChevronLeft :size="21" />
+            </button>
+            <div>
+              <strong>过程记录</strong>
+              <small>{{ customDesignRecordsSubtitle }}</small>
+            </div>
+          </header>
+
+          <section class="custom-record-summary">
+            <article>
+              <span>{{ customDesignProcessRecords.length }}</span>
+              <small>本次提交</small>
+            </article>
+            <article>
+              <span>{{ completedCustomDesignRecordCount }}</span>
+              <small>已完成</small>
+            </article>
+            <article>
+              <span>{{ customDesignContext?.templateCode || '-' }}</span>
+              <small>模板</small>
+            </article>
+          </section>
+
+          <section v-if="customDesignProcessRecords.length === 0" class="custom-record-empty">
+            <strong>暂无过程记录</strong>
+            <span>提交一次定制设计后，这里会记录本轮意图、状态和结果图。</span>
+            <button type="button" @click="activeTab = 'customDesign'">返回去提交</button>
+          </section>
+
+          <section v-else class="custom-record-list">
+            <article v-for="record in customDesignProcessRecords" :key="record.recordKey" class="custom-record-card">
+              <header>
+                <span :class="['custom-record-status', record.status]">{{ customDesignRecordStatusText(record.status) }}</span>
+                <small>{{ record.createdAt }}</small>
+              </header>
+              <section class="custom-record-images">
+                <figure>
+                  <img :src="record.inputImageUrl" alt="" />
+                  <figcaption>输入图</figcaption>
+                </figure>
+                <figure :class="{ pending: !record.outputImageUrl }">
+                  <img v-if="record.outputImageUrl" :src="record.outputImageUrl" alt="" />
+                  <span v-else>生成中</span>
+                  <figcaption>输出图</figcaption>
+                </figure>
+              </section>
+              <section class="custom-record-body">
+                <strong>{{ record.prompt }}</strong>
+                <span>processRecordCode: {{ record.processRecordCode }}</span>
+                <span>templateCode: {{ record.templateCode }}</span>
+              </section>
+              <footer>
+                <button type="button" :disabled="record.status !== 'completed'" @click="showCustomDesignRecordResult(record)">查看结果</button>
+                <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
+              </footer>
+            </article>
           </section>
         </section>
 
@@ -444,7 +513,7 @@
         </section>
       </section>
 
-      <nav v-if="!bootFlowVisible && activeTab !== 'assistant' && activeTab !== 'customDesign'" class="bottom-nav">
+      <nav v-if="!bootFlowVisible && activeTab !== 'assistant' && activeTab !== 'customDesign' && activeTab !== 'customDesignRecords'" class="bottom-nav">
         <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ active: activeTab === tab.key }" @click="switchTab(tab.key)">
           <img :src="tab.icon" alt="" />
           <span>{{ tab.label }}</span>
@@ -530,6 +599,20 @@ interface CustomDesignImageEntry {
 
 type CustomDesignStatus = 'idle' | 'processing' | 'completed' | 'failed';
 
+type CustomDesignProcessStatus = 'processing' | 'completed' | 'failed';
+
+interface CustomDesignProcessRecord {
+  recordKey: string;
+  processRecordCode: string;
+  prompt: string;
+  templateCode: string;
+  status: CustomDesignProcessStatus;
+  inputImageUrl: string;
+  outputImageUrl?: string;
+  outputImageLocalId?: string;
+  createdAt: string;
+}
+
 const API_DEBUG_HASH = '#/api-debug';
 const ASSISTANT_REPLY_POLL_INTERVAL_MS = 1500;
 const ASSISTANT_REPLY_POLL_TIMEOUT_MS = 180000;
@@ -595,6 +678,7 @@ const customDesignInput = ref('');
 const customDesignStatus = ref<CustomDesignStatus>('idle');
 const customDesignLastPrompt = ref('');
 const customStylePanelVisible = ref(false);
+const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
 let customDesignMockTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
@@ -743,6 +827,15 @@ const customDesignPanelSubtitle = computed(() => {
   return customDesignContext.value?.templateCode
     ? `模板 ${customDesignContext.value.templateCode}`
     : '描述你想调整的风格、颜色、软装或问题';
+});
+const completedCustomDesignRecordCount = computed(
+  () => customDesignProcessRecords.value.filter((record) => record.status === 'completed').length,
+);
+const customDesignRecordsSubtitle = computed(() => {
+  if (!customDesignContext.value) {
+    return '当前没有定制设计批次';
+  }
+  return `batchNo ${customDesignContext.value.batchNo.slice(0, 18)}`;
 });
 
 function persistEnvironment() {
@@ -921,6 +1014,15 @@ function generateCustomDesignId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function formatCustomDesignRecordTime() {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
+}
+
 function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>, presetPrompt = '') {
   if (customDesignMockTimer) {
     window.clearTimeout(customDesignMockTimer);
@@ -945,6 +1047,7 @@ function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>
   customDesignLastPrompt.value = '';
   customDesignStatus.value = 'idle';
   customStylePanelVisible.value = false;
+  customDesignProcessRecords.value = [];
   activeTab.value = 'customDesign';
   console.info('[HomeAI CustomDesign] 进入独立定制设计页', {
     workId: pageContext.workId || '',
@@ -975,24 +1078,52 @@ function submitCustomDesignInstruction(prompt: string) {
     showToast('请先选择一个作品，再进入定制设计');
     return;
   }
+  const recordKey = generateCustomDesignId('custom-design-process');
+  const processRecordCode = generateCustomDesignId('process-record');
+  const inputImageUrl = currentCustomDesignImage.value.imageUrl;
+  const templateCode = customDesignContext.value?.templateCode || 'homeai_custom_design_default';
   customDesignInput.value = '';
   customDesignLastPrompt.value = normalizedPrompt;
   customDesignStatus.value = 'processing';
   customStylePanelVisible.value = false;
+  customDesignProcessRecords.value = [
+    {
+      recordKey,
+      processRecordCode,
+      prompt: normalizedPrompt,
+      templateCode,
+      status: 'processing',
+      inputImageUrl,
+      createdAt: formatCustomDesignRecordTime(),
+    },
+    ...customDesignProcessRecords.value,
+  ];
   if (customDesignMockTimer) {
     window.clearTimeout(customDesignMockTimer);
   }
   // 当前阶段只画静态页，用短延迟模拟 submit + fetch 完成后的结果追加。
   customDesignMockTimer = window.setTimeout(() => {
+    const outputImageUrl = createMockCustomDesignResultImage();
+    const outputImageLocalId = generateCustomDesignId('custom-design-output');
     customDesignImages.value = [
       ...customDesignImages.value,
       {
-        localId: generateCustomDesignId('custom-design-output'),
-        imageUrl: createMockCustomDesignResultImage(),
+        localId: outputImageLocalId,
+        imageUrl: outputImageUrl,
         isOriginal: false,
       },
     ];
     customDesignImageIndex.value = customDesignImages.value.length - 1;
+    customDesignProcessRecords.value = customDesignProcessRecords.value.map((record) =>
+      record.recordKey === recordKey
+        ? {
+            ...record,
+            status: 'completed',
+            outputImageUrl,
+            outputImageLocalId,
+          }
+        : record,
+    );
     customDesignStatus.value = 'completed';
     customDesignMockTimer = null;
   }, 1400);
@@ -1030,10 +1161,47 @@ function resetCustomDesignPage() {
   customDesignLastPrompt.value = '';
   customDesignStatus.value = 'idle';
   customStylePanelVisible.value = false;
+  customDesignProcessRecords.value = [];
 }
 
 function handleCustomDesignImageError() {
   showToast('图片加载失败，请稍后重试');
+}
+
+function openCustomDesignRecords() {
+  activeTab.value = 'customDesignRecords';
+}
+
+function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
+  if (status === 'completed') {
+    return '已完成';
+  }
+  if (status === 'failed') {
+    return '失败';
+  }
+  return '生成中';
+}
+
+function showCustomDesignRecordResult(record: CustomDesignProcessRecord) {
+  if (!record.outputImageLocalId) {
+    return;
+  }
+  const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
+  if (targetIndex >= 0) {
+    customDesignImageIndex.value = targetIndex;
+  }
+  activeTab.value = 'customDesign';
+}
+
+function continueCustomDesignFromRecord(record: CustomDesignProcessRecord) {
+  customDesignInput.value = record.prompt;
+  if (record.outputImageLocalId) {
+    const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
+    if (targetIndex >= 0) {
+      customDesignImageIndex.value = targetIndex;
+    }
+  }
+  activeTab.value = 'customDesign';
 }
 
 function createLocalAssistantMessage(role: 'USER' | 'ASSISTANT', text: string, imageUrl = '') {
@@ -2376,7 +2544,7 @@ button {
 
 .custom-design-header {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  grid-template-columns: 42px minmax(0, 1fr) 92px;
   align-items: center;
   min-height: 44px;
   color: #fff;
@@ -2399,6 +2567,24 @@ button {
   border-radius: 50%;
   color: #fff;
   background: rgba(255, 255, 255, 0.09);
+}
+
+.custom-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.custom-record-button {
+  height: 34px;
+  min-width: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 17px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .custom-image-stage {
@@ -2640,6 +2826,266 @@ button {
   color: #111;
   background: #fff500;
   font-size: 16px;
+}
+
+.page-custom-records {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 14px 16px;
+  background: #f4f7fb;
+}
+
+.custom-records-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+}
+
+.custom-records-back {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #1b2638;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(31, 55, 83, 0.1);
+}
+
+.custom-records-header div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.custom-records-header strong {
+  color: #152033;
+  font-size: 21px;
+}
+
+.custom-records-header small {
+  min-width: 0;
+  overflow: hidden;
+  color: #68768a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-record-summary {
+  display: grid;
+  grid-template-columns: 0.8fr 0.8fr 1.35fr;
+  gap: 9px;
+}
+
+.custom-record-summary article {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(38, 61, 92, 0.08);
+}
+
+.custom-record-summary span {
+  min-width: 0;
+  overflow: hidden;
+  color: #142033;
+  font-size: 18px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-record-summary small {
+  color: #778397;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.custom-record-empty {
+  align-self: start;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 28px 20px;
+  border-radius: 20px;
+  background: #fff;
+  text-align: center;
+}
+
+.custom-record-empty strong {
+  color: #17243a;
+  font-size: 19px;
+}
+
+.custom-record-empty span {
+  color: #6d7a8d;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.custom-record-empty button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 19px;
+  padding: 0 16px;
+  color: #111;
+  background: #fff500;
+  font-weight: 900;
+}
+
+.custom-record-list {
+  min-height: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+.custom-record-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(38, 61, 92, 0.09);
+}
+
+.custom-record-card header,
+.custom-record-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.custom-record-card header small {
+  color: #7d8798;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.custom-record-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.custom-record-status.processing {
+  color: #7a5600;
+  background: #fff3bf;
+}
+
+.custom-record-status.completed {
+  color: #17623e;
+  background: #dff8ea;
+}
+
+.custom-record-status.failed {
+  color: #9d2b2b;
+  background: #ffe8e8;
+}
+
+.custom-record-images {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.custom-record-images figure {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  border-radius: 14px;
+  background: #eef3f8;
+}
+
+.custom-record-images img,
+.custom-record-images figure > span {
+  width: 100%;
+  aspect-ratio: 1.18;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+}
+
+.custom-record-images figure > span {
+  color: #7a8798;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.custom-record-images figcaption {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.48);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.custom-record-body {
+  display: grid;
+  gap: 5px;
+}
+
+.custom-record-body strong {
+  color: #17243a;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.custom-record-body span {
+  min-width: 0;
+  overflow: hidden;
+  color: #748197;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-record-card footer {
+  justify-content: flex-end;
+}
+
+.custom-record-card footer button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 17px;
+  padding: 0 12px;
+  color: #2654bd;
+  background: #eaf1ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.custom-record-card footer button:first-child {
+  color: #111;
+  background: #fff500;
+}
+
+.custom-record-card footer button:disabled {
+  color: #9aa5b5;
+  background: #edf1f6;
+  cursor: not-allowed;
 }
 
 .assistant-header {

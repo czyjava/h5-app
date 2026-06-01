@@ -69,6 +69,7 @@ test('normalizeHomeAiSnapshot maps ai-app generation list cover object', () => {
 
   assert.equal(snapshot.works[0].id, 'record-100');
   assert.equal(snapshot.works[0].recordId, 'record-100');
+  assert.equal(snapshot.works[0].sourceType, 'record');
   assert.equal(snapshot.works[0].templateId, 'homeai_custom_design');
   assert.equal(snapshot.works[0].title, '奶油风客厅');
   assert.equal(snapshot.works[0].status, 'FINISHED');
@@ -121,5 +122,9 @@ test('mapGenerationDetail maps record detail work list into generation works', (
       ['work-a', 'record-200', 'https://cdn.example.com/work-a.png'],
       ['work-b', 'record-200', 'https://cdn.example.com/work-b-small.png'],
     ],
+  );
+  assert.deepEqual(
+    detail.works.map((work) => work.sourceType),
+    ['work', 'work'],
   );
 });

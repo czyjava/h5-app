@@ -269,7 +269,9 @@
           </section>
 
           <section class="work-detail-actions">
-            <button type="button" class="primary" @click="openCustomDesignFromSelectedWork">定制设计</button>
+            <button type="button" class="primary" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignFromSelectedWork">
+              {{ workDetailLoading ? '加载作品中' : '定制设计' }}
+            </button>
             <button type="button" @click="openCustomDesignRecordsFromSelectedWork">查看过程记录</button>
           </section>
         </section>
@@ -894,6 +896,16 @@ const selectedGenerationWorks = computed(() => {
   const works = displayWorks.value.filter((work) => (work.recordId || work.id) === recordId);
   return works.length > 0 ? works : [selectedWork.value];
 });
+const workDetailCustomDesignDisabled = computed(() => {
+  if (workDetailLoading.value || !selectedWork.value || selectedWork.value.sourceType !== 'work') {
+    return true;
+  }
+  const recordId = selectedWork.value.recordId || selectedWork.value.id;
+  return (
+    selectedGenerationDetail.value?.recordId !== recordId ||
+    !selectedGenerationDetail.value.works.some((work) => work.id === selectedWork.value?.id && work.sourceType === 'work')
+  );
+});
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
 const assistantEmptyDescription = computed(() =>
@@ -1221,6 +1233,10 @@ function refreshSelectedWorkDetail() {
 function openCustomDesignFromSelectedWork() {
   if (!selectedWork.value) {
     showToast('请先选择一个 generationWork');
+    return;
+  }
+  if (workDetailCustomDesignDisabled.value) {
+    showToast(workDetailLoading.value ? '作品详情加载中，请稍后再试' : '请先选择真实的 generationWork');
     return;
   }
   const work = selectedWork.value;
@@ -3014,6 +3030,12 @@ button {
 .work-detail-actions button.primary {
   color: #111;
   background: #fff500;
+}
+
+.work-detail-actions button:disabled {
+  color: #7c8796;
+  background: #eef2f7;
+  cursor: not-allowed;
 }
 
 .page-custom-design {

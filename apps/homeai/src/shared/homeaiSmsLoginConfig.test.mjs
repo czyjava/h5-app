@@ -89,3 +89,9 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
   assert.doesNotMatch(appVueSource, /createMockCustomDesignResultImage/);
   assert.doesNotMatch(appVueSource, /静态复刻阶段用本地装修素材模拟结果图/);
 });
+
+test('HomeAI 作品详情必须选中真实 generationWork 后才能进入定制设计', () => {
+  assert.match(appVueSource, /workDetailCustomDesignDisabled/);
+  assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);
+  assert.match(appVueSource, /selectedWork\.value\.sourceType !== 'work'/);
+});

@@ -119,6 +119,7 @@ export interface WorkItem {
   id: string;
   recordId?: string;
   templateId?: string;
+  sourceType?: 'record' | 'work';
   title: string;
   status: string;
   coverUrl: string;

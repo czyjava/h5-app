@@ -341,6 +341,18 @@ test('HomeAI AI 设计助手 IM 页面必须接入 vue-advanced-chat', () => {
   assert.match(appVueSource, /@send-message="handleAdvancedChatSendMessage"/);
   assert.match(appVueSource, /function mapAssistantMessageToAdvancedChatMessage/);
   assert.match(appVueSource, /function handleAdvancedChatSendMessage/);
+  assert.match(appVueSource, /slot="room-header"/);
+  assert.match(appVueSource, /:slot="`message_\$\{message\._id\}`"/);
+  assert.match(appVueSource, /:slot="`message-avatar_\$\{message\._id\}`"/);
+  assert.match(appVueSource, /class="assistant-vac-message"/);
+  assert.match(appVueSource, /class="assistant-vac-avatar"/);
+  assert.match(appVueSource, /general:\s*\{/);
+  assert.match(appVueSource, /header:\s*\{/);
+  assert.match(appVueSource, /footer:\s*\{/);
+  assert.match(appVueSource, /content:\s*\{/);
+  assert.match(appVueSource, /icons:\s*\{/);
+  assert.doesNotMatch(appVueSource, /roomHeader:/);
+  assert.doesNotMatch(appVueSource, /roomsList:/);
   assert.doesNotMatch(appVueSource, /class="assistant-message-list"/);
   assert.doesNotMatch(appVueSource, /class="assistant-composer"/);
 });

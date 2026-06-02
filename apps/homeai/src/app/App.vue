@@ -502,7 +502,39 @@
               :styles="advancedChatStyles"
               @send-message="handleAdvancedChatSendMessage"
               @open-file="handleAdvancedChatOpenFile"
-            />
+            >
+              <div slot="room-header" class="assistant-vac-room-header" aria-hidden="true"></div>
+              <div
+                v-for="message in advancedChatMessages"
+                :key="`message-${message._id}`"
+                :slot="`message_${message._id}`"
+                class="assistant-vac-message"
+                :class="{
+                  user: message.senderId === ADVANCED_CHAT_CURRENT_USER_ID,
+                  failed: message.failure,
+                }"
+              >
+                <img
+                  v-if="message.senderId === ADVANCED_CHAT_CURRENT_USER_ID && message.files?.[0]?.url"
+                  class="assistant-vac-message-image"
+                  :src="message.files[0].url"
+                  alt="用户上传的设计参考图"
+                  @click="openAssistantSlotFile(message.files[0].url)"
+                />
+                <p v-if="message.content">{{ message.content }}</p>
+                <time>{{ message.timestamp }}</time>
+              </div>
+              <span
+                v-for="message in advancedChatMessages"
+                :key="`avatar-${message._id}`"
+                :slot="`message-avatar_${message._id}`"
+                class="assistant-vac-avatar"
+                :class="{ user: message.senderId === ADVANCED_CHAT_CURRENT_USER_ID }"
+                aria-hidden="true"
+              >
+                <img v-if="message.senderId !== ADVANCED_CHAT_CURRENT_USER_ID" :src="homeAiAssets.magicWand" alt="" />
+              </span>
+            </vue-advanced-chat>
           </section>
         </section>
 
@@ -1198,7 +1230,7 @@ const vipPurchaseDescription = computed(() => {
   }
   return '解锁更多 AI 装修设计能力，持续优化你的家装方案。';
 });
-const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
+const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计师'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
 const assistantEmptyDescription = computed(() =>
   assistantSceneType.value === 'CUSTOM_DESIGN'
@@ -1260,19 +1292,53 @@ const advancedChatTextMessages = computed(() => ({
 }));
 const advancedChatTextFormatting = { disabled: true };
 const advancedChatStyles = {
+  general: {
+    color: '#172033',
+    colorPlaceholder: '#8f9bad',
+    colorCaret: '#3478f6',
+    colorSpinner: '#3478f6',
+    borderStyle: '0',
+    backgroundInput: '#ffffff',
+    backgroundScrollIcon: '#ffffff',
+  },
   container: {
-    borderRadius: '18px',
-    boxShadow: '0 18px 38px rgba(24, 45, 78, 0.08)',
+    border: '0',
+    borderRadius: '0',
+    boxShadow: 'none',
   },
-  roomHeader: {
-    display: 'none',
+  header: {
+    background: '#f4f7fb',
+    colorRoomName: 'transparent',
+    colorRoomInfo: 'transparent',
+    position: 'absolute',
+    width: '100%',
   },
-  roomsList: {
-    display: 'none',
+  footer: {
+    background: '#f4f7fb',
+    backgroundReply: '#edf2f8',
+    backgroundTag: '#f4f7fb',
+    backgroundTagActive: '#eaf1ff',
+    borderStyleInput: '1px solid rgba(116, 135, 158, 0.2)',
+    borderInputSelected: '#3478f6',
+  },
+  content: {
+    background: '#f4f7fb',
   },
   message: {
-    fontSize: '14px',
-    lineHeight: '1.55',
+    background: '#ffffff',
+    backgroundMe: '#3478f6',
+    backgroundImage: '#ffffff',
+    backgroundMedia: 'transparent',
+    color: '#172033',
+    colorTimestamp: '#7c8798',
+    colorNewMessages: '#3478f6',
+  },
+  icons: {
+    file: '#3478f6',
+    paperclip: '#3478f6',
+    send: '#3478f6',
+    sendDisabled: '#a5afbf',
+    microphone: '#3478f6',
   },
 };
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
@@ -2618,6 +2684,15 @@ function handleAdvancedChatOpenFile(event: Event) {
     return;
   }
   window.open(payload.file.url, '_blank', 'noopener,noreferrer');
+}
+
+function openAssistantSlotFile(fileUrl: string) {
+  // 自定义消息 slot 会绕开组件内置 open-file 事件，这里补齐图片预览入口。
+  if (!fileUrl) {
+    showToast('图片加载失败，请稍后重试');
+    return;
+  }
+  window.open(fileUrl, '_blank', 'noopener,noreferrer');
 }
 
 function createAssistantWaitingMessage(replyToMessageId?: string) {
@@ -4691,8 +4766,8 @@ button:focus-visible {
 
 .assistant-chat {
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   overflow: hidden;
   padding: 10px 0 0;
@@ -4746,10 +4821,83 @@ button:focus-visible {
 }
 
 .assistant-advanced-chat {
+  flex: 1 1 auto;
   min-height: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.assistant-vac-room-header {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.assistant-vac-message {
+  max-width: 100%;
+  display: grid;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(24, 45, 78, 0.08);
+}
+
+.assistant-vac-message.user {
+  background: #3478f6;
+  box-shadow: 0 4px 12px rgba(52, 120, 246, 0.18);
+}
+
+.assistant-vac-message p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+
+.assistant-vac-message time {
+  justify-self: end;
+  color: #7c8798;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.assistant-vac-message.user p,
+.assistant-vac-message.user time {
+  color: #fff;
+}
+
+.assistant-vac-message.failed p {
+  color: #d43131;
+}
+
+.assistant-vac-message-image {
+  width: min(210px, 100%);
+  max-height: 210px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #fff;
+  cursor: pointer;
+}
+
+.assistant-vac-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #111317;
+}
+
+.assistant-vac-avatar.user {
+  display: none;
+}
+
+.assistant-vac-avatar img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .page-header,

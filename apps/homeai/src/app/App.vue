@@ -236,23 +236,23 @@
 
           <section class="work-detail-meta">
             <article>
-              <small>generationRecord</small>
-              <strong>{{ selectedWork.recordId || selectedWork.id }}</strong>
+              <small>记录 ID</small>
+              <strong>{{ formatShortCode(selectedWork.recordId || selectedWork.id) }}</strong>
             </article>
             <article>
-              <small>当前 generationWork</small>
-              <strong>{{ selectedWork.id }}</strong>
+              <small>作品 ID</small>
+              <strong>{{ formatShortCode(selectedWork.id) }}</strong>
             </article>
             <article>
-              <small>templateCode</small>
-              <strong>{{ selectedWork.templateId || '-' }}</strong>
+              <small>模板 ID</small>
+              <strong>{{ formatShortCode(selectedWork.templateId || '-') }}</strong>
             </article>
           </section>
 
           <section class="work-group-section">
             <header>
-              <h3>同一 generationRecord 下的作品</h3>
-              <span>{{ selectedGenerationWorks.length }} 个 work</span>
+              <h3>同组作品</h3>
+              <span>{{ selectedGenerationWorks.length }} 个作品</span>
             </header>
             <div class="work-group-list">
               <button
@@ -370,7 +370,7 @@
               <small>已完成</small>
             </article>
             <article>
-              <span>{{ customDesignContext?.templateCode || '-' }}</span>
+              <span>{{ formatShortCode(customDesignContext?.templateCode || '-') }}</span>
               <small>模板</small>
             </article>
           </section>
@@ -400,10 +400,10 @@
               </section>
               <section class="custom-record-body">
                 <strong>{{ record.prompt }}</strong>
-                <span>generationRecord: {{ record.generationRecordId || '-' }}</span>
-                <span>sourceWork: {{ record.sourceWorkId || '-' }}</span>
-                <span>processRecordCode: {{ record.processRecordCode }}</span>
-                <span>templateCode: {{ record.templateCode }}</span>
+                <span>记录 ID: {{ formatShortCode(record.generationRecordId || '-') }}</span>
+                <span>作品 ID: {{ formatShortCode(record.sourceWorkId || '-') }}</span>
+                <span>过程 ID: {{ formatShortCode(record.processRecordCode) }}</span>
+                <span>模板 ID: {{ formatShortCode(record.templateCode) }}</span>
               </section>
               <footer>
                 <button type="button" :disabled="record.status !== 'completed'" @click="showCustomDesignRecordResult(record)">查看结果</button>
@@ -558,7 +558,7 @@
               <img :src="work.coverUrl" alt="" />
               <div class="work-info">
                 <strong>{{ work.title }}</strong>
-                <span>{{ work.status }} · record {{ work.recordId || work.id }}</span>
+                <span>{{ work.status }} · 记录 {{ formatShortCode(work.recordId || work.id) }}</span>
               </div>
               <button type="button" class="custom" @click="openWorkDetail(work)">查看详情</button>
             </article>
@@ -617,8 +617,6 @@
         <p v-if="apiState.lastError" class="settings-error">{{ apiState.lastError }}</p>
       </section>
     </section>
-
-    <ReplicaProxyLifecycleOverlay />
 
     <p v-if="toastMessage" class="toast-message" :class="toastKind">{{ toastMessage }}</p>
   </main>
@@ -972,7 +970,7 @@ const customDesignPanelSubtitle = computed(() => {
     return '请换个描述重新提交';
   }
   return customDesignContext.value?.templateCode
-    ? `模板 ${customDesignContext.value.templateCode}`
+    ? `模板 ${formatShortCode(customDesignContext.value.templateCode)}`
     : '描述你想调整的风格、颜色、软装或问题';
 });
 const visibleCustomDesignProcessRecords = computed(() => {
@@ -992,10 +990,19 @@ const customDesignRecordsSubtitle = computed(() => {
   if (!customDesignContext.value) {
     return '当前没有选中的作品';
   }
-  const generationRecordId = customDesignContext.value.recordId || '-';
-  const workId = customDesignContext.value.workId || '-';
-  return `只看 record ${generationRecordId} · work ${workId}`;
+  const generationRecordId = formatShortCode(customDesignContext.value.recordId || '-');
+  const workId = formatShortCode(customDesignContext.value.workId || '-');
+  return `只看记录 ${generationRecordId} · 作品 ${workId}`;
 });
+
+function formatShortCode(value?: string | null) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '-';
+  }
+  // 页面只展示首尾短码，真实 ID 仍保留在接口上下文里，避免长串业务字段撑破 APP 布局。
+  return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-5)}` : text;
+}
 
 function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
@@ -2146,6 +2153,10 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible {
+  outline: 0;
+}
+
 .app-frame {
   min-height: 100vh;
   display: grid;
@@ -2972,7 +2983,7 @@ button {
   gap: 13px;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 16px 18px;
+  padding: 12px 16px 0;
   background: #f4f7fb;
 }
 
@@ -3149,8 +3160,15 @@ button {
 }
 
 .work-detail-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  align-self: end;
   display: grid;
   gap: 10px;
+  margin: 0 -16px;
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(244, 247, 251, 0), #f4f7fb 22px, #f4f7fb);
 }
 
 .work-detail-actions button {
@@ -4334,9 +4352,13 @@ button {
 }
 
 .profile-head p {
+  min-width: 0;
+  overflow: hidden;
   margin-top: 5px;
   color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-head > span {

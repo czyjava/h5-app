@@ -40,6 +40,11 @@ test('HomeAI 登录和接口环境配置必须独立弹窗展示', () => {
   assert.match(appVueSource, /settingsDialogVisible/);
   assert.match(appVueSource, /class="settings-modal"/);
   assert.match(appVueSource, /class="profile-settings-button"/);
+  assert.match(appVueSource, /class="settings-user-panel"/);
+  assert.match(appVueSource, />User ID</);
+  assert.match(appVueSource, /settingsUserIdText/);
+  assert.match(appVueSource, /copySettingsUserId/);
+  assert.match(appVueSource, /navigator\.clipboard\.writeText\(settingsUserIdText\.value\)/);
   assert.doesNotMatch(appVueSource, /<section class="settings-shell" aria-label="设置">/);
 });
 

@@ -777,6 +777,16 @@
           @notice="showToast"
           @error="showToast"
         />
+        <section class="settings-user-panel" aria-label="当前用户信息">
+          <span>
+            <strong>User ID</strong>
+            <small>{{ settingsUserIdText }}</small>
+          </span>
+          <button type="button" :disabled="!settingsUserIdCopyable" @click="copySettingsUserId">
+            <Copy :size="16" />
+            复制
+          </button>
+        </section>
         <div class="settings-row-list">
           <button v-for="row in settingRows" :key="row.key" type="button" @click="handleSettingRow(row)">
             <UserRound v-if="row.key === 'profile'" :size="20" />
@@ -795,7 +805,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Camera, ChevronLeft, ChevronRight, History, Image as ImageIcon, MessageSquare, Plus, SendHorizontal, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
+import { Camera, ChevronLeft, ChevronRight, Copy, History, Image as ImageIcon, MessageSquare, Plus, SendHorizontal, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -1219,6 +1229,11 @@ const selectedGenerationWorkIndexText = computed(() => {
   return index >= 0 ? `第 ${index + 1} 张` : '当前图';
 });
 const isHomeAiVipMember = computed(() => snapshot.value.user.vipActive);
+const settingsUserIdText = computed(() => {
+  const userId = snapshot.value.user.userId.trim();
+  return userId && userId !== '-' ? userId : '未登录';
+});
+const settingsUserIdCopyable = computed(() => settingsUserIdText.value !== '未登录');
 const profileUserHint = computed(() => {
   if (!authTokenDraft.value.trim()) {
     return '登录后可查看真实作品';
@@ -1532,6 +1547,19 @@ function showToast(message: string) {
       toastMessage.value = '';
     }
   }, 2600);
+}
+
+async function copySettingsUserId() {
+  if (!settingsUserIdCopyable.value) {
+    showToast('当前未获取到 User ID');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(settingsUserIdText.value);
+    showToast('User ID 已复制');
+  } catch {
+    showToast('复制失败，请手动选择 User ID');
+  }
 }
 
 function openVipPurchasePage(source: 'manual' | 'assistantQuota' | 'assistantRoundLimit' | 'customDesign' = 'manual') {
@@ -5745,6 +5773,60 @@ button:focus-visible {
 .settings-address-actions button[type='submit'] {
   color: #102237;
   background: #36d6f4;
+}
+
+.settings-user-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #e8edf5;
+  border-radius: 14px;
+  color: #121a2a;
+  background: #f7f9fc;
+}
+
+.settings-user-panel span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-user-panel strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.settings-user-panel small {
+  overflow: hidden;
+  color: #697487;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-user-panel button {
+  min-width: 72px;
+  height: 34px;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 5px;
+  place-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  color: #101928;
+  background: #fff500;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.settings-user-panel button:disabled {
+  color: #9aa3b2;
+  background: #e9edf4;
 }
 
 .settings-row-list {

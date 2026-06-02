@@ -195,12 +195,18 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
   assert.match(appConfigSource, /customDesignSubmit:\s*'\/api\/open\/homeai\/custom-design\/submit\.htm'/);
   assert.match(appConfigSource, /customDesignFetch:\s*'\/api\/open\/homeai\/custom-design\/fetch\.htm'/);
   assert.match(appConfigSource, /customDesignRecords:\s*'\/api\/open\/homeai\/custom-design\/records\.htm'/);
+  assert.match(customDesignApiSource, /WAITING_USER_INPUT/);
+  assert.match(customDesignApiSource, /assistantText\?:\s*string \| null/);
   assert.match(customDesignApiSource, /submitHomeAiCustomDesign/);
   assert.match(customDesignApiSource, /fetchHomeAiCustomDesign/);
   assert.match(customDesignApiSource, /listHomeAiCustomDesignRecords/);
   assert.match(appVueSource, /submitHomeAiCustomDesign\(getAssistantContext\(\)/);
   assert.match(appVueSource, /fetchHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
   assert.match(appVueSource, /listHomeAiCustomDesignRecords\(getAssistantContext\(\)/);
+  assert.match(appVueSource, /status === 'WAITING_USER_INPUT'/);
+  assert.match(appVueSource, /status:\s*'waitingUserInput'/);
+  assert.match(appVueSource, /class="custom-chat-text-reply"/);
+  assert.match(appVueSource, /record\.assistantText/);
   assert.match(appVueSource, /const CUSTOM_DESIGN_FETCH_INTERVAL_MS = 5000/);
   assert.match(appVueSource, /window\.setTimeout\([\s\S]*?CUSTOM_DESIGN_FETCH_INTERVAL_MS/);
   assert.doesNotMatch(appVueSource, /createMockCustomDesignResultImage/);

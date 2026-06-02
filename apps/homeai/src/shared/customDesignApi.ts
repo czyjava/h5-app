@@ -3,7 +3,7 @@ import { requestBusiness, type HomeAiRequestContext } from './homeaiApi';
 import { resolveAssistantImageUrl } from './designAssistantApi';
 import type { DesignAssistantMediaInfo } from './types';
 
-export type CustomDesignRemoteStatus = 'SUBMITTED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'APPLIED' | string;
+export type CustomDesignRemoteStatus = 'SUBMITTED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'WAITING_USER_INPUT' | 'APPLIED' | string;
 
 export interface CustomDesignSubmitParams {
   generationRecordId: string;
@@ -27,6 +27,7 @@ export interface CustomDesignFetchResponse {
   status: CustomDesignRemoteStatus;
   nextFetchPeriodMs?: number;
   outputImage?: DesignAssistantMediaInfo | null;
+  assistantText?: string | null;
   outputMediaList?: DesignAssistantMediaInfo[];
   errorCode?: string | null;
   errorMessage?: string | null;
@@ -40,6 +41,7 @@ export interface CustomDesignRecordItemResponse {
   prompt?: string;
   status: CustomDesignRemoteStatus;
   inputMediaList?: DesignAssistantMediaInfo[];
+  assistantText?: string | null;
   outputMediaList?: DesignAssistantMediaInfo[];
   errorCode?: string | null;
   errorMessage?: string | null;

@@ -326,6 +326,10 @@
                       <img :src="record.outputImageUrl" alt="定制设计结果图" @error="handleCustomDesignImageError" />
                     </figure>
 
+                    <section v-else-if="record.assistantText" class="custom-chat-text-reply">
+                      <span>{{ record.assistantText }}</span>
+                    </section>
+
                     <section v-else-if="record.status === 'failed'" class="custom-chat-state failed">
                       <strong>生成失败</strong>
                       <span>可以调整描述后重新生成。</span>
@@ -943,7 +947,7 @@ interface CustomDesignImageEntry {
 
 type CustomDesignStatus = 'idle' | 'processing' | 'completed' | 'failed';
 
-type CustomDesignProcessStatus = 'submitted' | 'processing' | 'completed' | 'applied' | 'failed';
+type CustomDesignProcessStatus = 'submitted' | 'processing' | 'waitingUserInput' | 'completed' | 'applied' | 'failed';
 
 interface CustomDesignProcessRecord {
   recordKey: string;
@@ -954,6 +958,7 @@ interface CustomDesignProcessRecord {
   templateCode: string;
   status: CustomDesignProcessStatus;
   inputImageUrl: string;
+  assistantText?: string;
   outputImageUrl?: string;
   outputImageLocalId?: string;
   appliedAt?: string;
@@ -2059,6 +2064,9 @@ function normalizeCustomDesignRecordStatus(status: string): CustomDesignProcessS
   if (normalized === 'FAILED') {
     return 'failed';
   }
+  if (normalized === 'WAITING_USER_INPUT') {
+    return 'waitingUserInput';
+  }
   if (normalized === 'RUNNING' || normalized === 'PROCESSING') {
     return 'processing';
   }
@@ -2079,6 +2087,7 @@ function mapRemoteCustomDesignRecord(record: CustomDesignRecordItemResponse): Cu
     templateCode: record.templateCode || customDesignContext.value?.templateCode || '-',
     status: normalizeCustomDesignRecordStatus(record.status),
     inputImageUrl: resolveCustomDesignRecordInputImageUrl(record) || customDesignContext.value?.imageUrl || '',
+    assistantText: record.assistantText || '',
     outputImageUrl,
     createdAt: formatCustomDesignRemoteRecordTime(record.createTime),
   };
@@ -2266,6 +2275,15 @@ async function fetchCustomDesignResult(recordKey: string, customDesignCode: stri
       showToast(response.errorMessage || '定制设计生成失败');
       return;
     }
+    if (status === 'WAITING_USER_INPUT') {
+      updateCustomDesignProcessRecord(recordKey, {
+        status: 'waitingUserInput',
+        assistantText: response.assistantText || '我还需要你补充一下具体想调整的方向。',
+      });
+      customDesignStatus.value = 'idle';
+      void loadCustomDesignProcessRecords();
+      return;
+    }
     if (status !== 'SUCCEEDED' && status !== 'APPLIED') {
       scheduleCustomDesignFetch(recordKey, customDesignCode, fetchCount + 1);
       return;
@@ -2351,6 +2369,9 @@ function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
   if (status === 'failed') {
     return '失败';
   }
+  if (status === 'waitingUserInput') {
+    return '等待补充';
+  }
   return '生成中';
 }
 
@@ -2363,6 +2384,9 @@ function customDesignRecordChatTitle(record: CustomDesignProcessRecord) {
   }
   if (record.status === 'failed') {
     return '这次没有生成成功';
+  }
+  if (record.status === 'waitingUserInput') {
+    return '需要补充信息';
   }
   return '正在生成新的设计';
 }
@@ -4401,6 +4425,19 @@ button:focus-visible {
 .custom-chat-state.failed span {
   color: rgba(255, 255, 255, 0.62);
   font-size: 12px;
+}
+
+.custom-chat-text-reply {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.custom-chat-text-reply span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .custom-chat-actions {

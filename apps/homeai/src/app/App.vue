@@ -2205,7 +2205,8 @@ watch(activeTab, (tab) => {
       await restoreAssistantMessages();
     } catch (error) {
       const message = error instanceof Error ? error.message : '设计助手会话初始化失败';
-      // 进入 AI 页时只是预热会话，失败不打断用户；用户真正发送消息时仍会走显式错误提示。
+      // 会话额度、会员限制等业务失败需要直接反馈给用户，否则后端 message 只会停留在控制台。
+      showToast(message);
       console.warn('[HomeAI Assistant] AI 设计助手自动初始化失败', { message });
     }
   })();

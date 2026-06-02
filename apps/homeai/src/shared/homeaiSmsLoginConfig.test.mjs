@@ -284,16 +284,15 @@ test('HomeAI 助手历史列表必须使用移动端会话列表样式', () => {
   assert.doesNotMatch(appVueSource, /border-color:\s*#ff4b4b/);
 });
 
-test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {
+test('HomeAI 定制设计页不再展示独立过程记录入口', () => {
   const workDetailActionsSource = appVueSource.match(/<section class="work-detail-actions">[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);
-  assert.match(appVueSource, /aria-label="查看过程记录"/);
-  assert.match(appVueSource, /@click="openCustomDesignRecordsFromCurrentDesign"/);
-  assert.match(appVueSource, /function openCustomDesignRecordsFromCurrentDesign\(\)/);
   assert.match(appVueSource, /visibleCustomDesignProcessRecords/);
+  assert.match(appVueSource, /customDesignChatRecords/);
   assert.match(appVueSource, /record\.generationRecordId === context\.recordId && record\.sourceWorkId === context\.workId/);
-  assert.match(appVueSource, /aria-label="返回定制设计"/);
-  assert.match(appVueSource, /@click="activeTab = 'customDesign'"/);
+  assert.doesNotMatch(appVueSource, /aria-label="查看过程记录"/);
+  assert.doesNotMatch(appVueSource, /@click="openCustomDesignRecordsFromCurrentDesign"/);
+  assert.doesNotMatch(appVueSource, /function openCustomDesignRecordsFromCurrentDesign\(\)/);
   assert.doesNotMatch(appVueSource, /openCustomDesignRecordsFromSelectedWork/);
   assert.doesNotMatch(workDetailActionsSource, /查看过程记录/);
   assert.doesNotMatch(appVueSource, /@click="openCustomDesignRecords"/);

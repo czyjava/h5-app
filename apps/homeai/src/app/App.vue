@@ -287,9 +287,6 @@
             </button>
             <strong>定制设计</strong>
             <span class="custom-header-actions">
-              <button class="custom-round-button" type="button" aria-label="查看过程记录" @click="openCustomDesignRecordsFromCurrentDesign">
-                <History :size="18" />
-              </button>
               <button class="custom-round-button" type="button" aria-label="重置" @click="resetCustomDesignPage">
                 <X :size="18" />
               </button>
@@ -842,7 +839,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Camera, ChevronLeft, ChevronRight, Copy, History, Image as ImageIcon, MessageSquare, Plus, SendHorizontal, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
+import { Camera, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, MessageSquare, Plus, SendHorizontal, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -2022,15 +2019,6 @@ function openCustomDesignFromSelectedWork() {
     workDetailPresetPrompt.value,
   );
   workDetailPresetPrompt.value = '';
-}
-
-function openCustomDesignRecordsFromCurrentDesign() {
-  if (!customDesignContext.value?.recordId || !customDesignContext.value.workId) {
-    showToast('请先从真实作品进入定制设计');
-    return;
-  }
-  activeTab.value = 'customDesignRecords';
-  void loadCustomDesignProcessRecords();
 }
 
 function generateCustomDesignId(prefix: string) {

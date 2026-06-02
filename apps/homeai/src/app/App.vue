@@ -2470,7 +2470,7 @@ function mapAssistantMessageToAdvancedChatMessage(message: AssistantUiMessage): 
   const timestamp = parseAssistantSessionTime(message.messageTime) || Date.now();
   const isUser = message.role === 'USER';
   const imageUrl = isUser ? resolveAssistantMessageImage(message) : '';
-  const content = message.status === 'FAILED' ? message.errorMessage || '生成失败，请稍后再试' : resolveAssistantMessageText(message);
+  const content = message.status === 'FAILED' ? sanitizeAssistantFailureMessage(message.errorMessage, message.errorCode) : resolveAssistantMessageText(message);
   const files = imageUrl
     ? [
         {
@@ -2502,6 +2502,16 @@ function mapAssistantMessageToAdvancedChatMessage(message: AssistantUiMessage): 
 
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
   return resolveAssistantText(message.messageContent);
+}
+
+function sanitizeAssistantFailureMessage(errorMessage?: string | null, errorCode?: string | null) {
+  const rawMessage = String(errorMessage || '').trim();
+  const rawCode = String(errorCode || '').trim().toUpperCase();
+  // Agent、HTTP 状态码等属于后端调试信息，不能直接暴露在用户会话气泡里。
+  if (/AGENT|HTTP|\b\d{3}\b/i.test(rawCode) || /Agent调用失败|HTTP|\b\d{3}\b/i.test(rawMessage)) {
+    return '本次回复生成失败，请稍后重试或换个问题再试。';
+  }
+  return rawMessage || '本次回复生成失败，请稍后重试或换个问题再试。';
 }
 
 function resolveAssistantMessageImage(message: DesignAssistantMessage) {
@@ -2739,6 +2749,12 @@ function hasAssistantReplyForMessage(messages: DesignAssistantMessage[], replyTo
   );
 }
 
+function findAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string) {
+  return messages.find(
+    (message) => message.role === 'ASSISTANT' && message.replyToMessageId === replyToMessageId && message.status !== 'PENDING',
+  );
+}
+
 function renderAssistantMessagesWithPending(messages: DesignAssistantMessage[], replyToMessageId: string) {
   if (!replyToMessageId || hasAssistantReplyForMessage(messages, replyToMessageId)) {
     assistantMessages.value = messages;
@@ -2757,7 +2773,16 @@ async function pollAssistantReply(sessionKey: string, replyToMessageId: string) 
   const startedAt = Date.now();
   while (Date.now() - startedAt < ASSISTANT_REPLY_POLL_TIMEOUT_MS) {
     const messages = await listDesignAssistantMessages(getAssistantContext(), sessionKey);
-    if (hasAssistantReplyForMessage(messages, replyToMessageId)) {
+    const assistantReply = findAssistantReplyForMessage(messages, replyToMessageId);
+    if (assistantReply) {
+      if (assistantReply.status === 'FAILED') {
+        console.warn('[HomeAI Assistant] 后端 Agent 回复失败', {
+          sessionKey,
+          replyToMessageId,
+          errorCode: assistantReply.errorCode,
+          errorMessage: assistantReply.errorMessage,
+        });
+      }
       assistantMessages.value = messages;
       return;
     }
@@ -2815,6 +2840,8 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   try {
     const sessionKey = await ensureAssistantSession();
     const response = await sendDesignAssistantMessage(getAssistantContext(), {
+      // 发送阶段也要带上场景，避免后端异步 Agent 丢失普通助手/定制设计的路由上下文。
+      sceneType: assistantSceneType.value,
       sessionKey,
       prompt,
       messages: batchMessages,
@@ -2845,11 +2872,12 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
       status: 'FAILED',
       contentType: 'TEXT',
       messageContent: { type: 'TEXT', text: { text: '' } },
-      errorMessage: error instanceof Error ? error.message : '生成失败，请稍后再试',
+      errorMessage: sanitizeAssistantFailureMessage(error instanceof Error ? error.message : ''),
       messageTime: Date.now(),
     });
     const message = error instanceof Error ? error.message : '发送失败';
-    showToast(message);
+    console.warn('[HomeAI Assistant] 发送或轮询助手消息失败', { message });
+    showToast(sanitizeAssistantFailureMessage(message));
     return false;
   } finally {
     assistantSending.value = false;

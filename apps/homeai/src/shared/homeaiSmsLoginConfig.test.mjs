@@ -121,11 +121,13 @@ test('HomeAI 定制设计会话使用最后作品ID语义', () => {
 
 test('HomeAI AI 设计助手支持同批次图片和文本一起发送', () => {
   const sendParamsSource = extractInterfaceBlock(designAssistantApiSource, 'SendParams');
+  assert.match(sendParamsSource, /sceneType: DesignAssistantSceneType/);
   assert.match(sendParamsSource, /messages\?: DesignAssistantMessageInput\[\]/);
   assert.match(designAssistantApiSource, /messages:\s*params\.messages\?\.length \? JSON\.stringify\(params\.messages\) : undefined/);
   assert.match(appVueSource, /const batchMessages = \[/);
   assert.match(appVueSource, /\.\.\.messageImageUrls\.map\(\(imageUrl\) => \(\{ contentType: 'IMAGE' as const, imageUrl \}\)\)/);
   assert.match(appVueSource, /\.\.\.\(prompt \? \[\{ contentType: 'TEXT' as const, text: prompt \}\] : \[\]\)/);
+  assert.match(appVueSource, /sceneType:\s*assistantSceneType\.value/);
   assert.match(appVueSource, /messages:\s*batchMessages/);
 });
 
@@ -386,6 +388,14 @@ test('HomeAI AI 设计助手 IM 页面必须使用受控移动端聊天布局', 
   assert.doesNotMatch(appVueSource, /registerAdvancedChat/);
   assert.doesNotMatch(appVueSource, /assistant-vac-/);
   assert.doesNotMatch(appVueSource, /shadowRoot/);
+});
+
+test('HomeAI AI 设计助手失败气泡不能暴露后端 Agent 技术错误', () => {
+  assert.match(appVueSource, /function sanitizeAssistantFailureMessage/);
+  assert.match(appVueSource, /Agent、HTTP 状态码等属于后端调试信息/);
+  assert.match(appVueSource, /本次回复生成失败，请稍后重试或换个问题再试。/);
+  assert.match(appVueSource, /sanitizeAssistantFailureMessage\(message\.errorMessage, message\.errorCode\)/);
+  assert.doesNotMatch(appVueSource, /message\.status === 'FAILED' \? message\.errorMessage \|\| '生成失败，请稍后再试'/);
 });
 
 test('HomeAI 定制设计图标按钮必须有可访问语义', () => {

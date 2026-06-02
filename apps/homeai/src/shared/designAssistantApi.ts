@@ -24,6 +24,7 @@ interface StartParams {
 }
 
 interface SendParams {
+  sceneType: DesignAssistantSceneType;
   sessionKey: string;
   prompt: string;
   messages?: DesignAssistantMessageInput[];

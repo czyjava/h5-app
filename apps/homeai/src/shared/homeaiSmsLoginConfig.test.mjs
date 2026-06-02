@@ -218,9 +218,10 @@ test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
   assert.doesNotMatch(appVueSource, /编号：\{\{ formatShortCode\(record\.processRecordCode\) \}\}/);
 });
 
-test('HomeAI AI 设计助手初始化失败应展示接口错误提示', () => {
-  assert.match(appVueSource, /AI 设计助手自动初始化失败/);
-  assert.match(appVueSource, /showToast\(message\)/);
+test('HomeAI AI 设计助手初始化失败不应主动弹出错误提示', () => {
+  const autoInitSource = appVueSource.match(/watch\(activeTab,[\s\S]*?AI 设计助手自动初始化失败[\s\S]*?\n\s*\}\n\s*\}\)\(\);\n\}\);/)?.[0] ?? '';
+  assert.match(autoInitSource, /AI 设计助手自动初始化失败/);
+  assert.doesNotMatch(autoInitSource, /showToast/);
 });
 
 test('HomeAI 定制设计图标按钮必须有可访问语义', () => {

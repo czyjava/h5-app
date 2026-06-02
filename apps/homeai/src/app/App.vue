@@ -753,6 +753,12 @@ type AssistantUiMessage = DesignAssistantMessage & {
   localId?: string;
 };
 
+interface AssistantHistorySession extends DesignAssistantSessionItem {
+  firstUserText: string;
+  lastPreviewText: string;
+  lastUserMessageTime?: string | number | null;
+}
+
 interface AssistantSendOptions {
   prompt?: string;
   imageUrls?: string[];
@@ -918,7 +924,7 @@ const workDetailPresetPrompt = ref('');
 const workList = ref<WorkItem[]>([]);
 const workListLoading = ref(false);
 const workListError = ref('');
-const assistantHistorySessions = ref<DesignAssistantSessionItem[]>([]);
+const assistantHistorySessions = ref<AssistantHistorySession[]>([]);
 const assistantHistoryLoading = ref(false);
 const assistantHistoryError = ref('');
 const selectedGenerationDetail = ref<HomeAiGenerationDetail | null>(null);
@@ -1051,7 +1057,7 @@ const filteredDiscover = computed(() => {
 });
 const displayWorks = computed(() => (workList.value.length > 0 ? workList.value : snapshot.value.works));
 const assistantHistoryGroups = computed(() => {
-  const groups = new Map<string, DesignAssistantSessionItem[]>();
+  const groups = new Map<string, AssistantHistorySession[]>();
   for (const session of assistantHistorySessions.value) {
     const label = formatAssistantHistoryGroupLabel(session);
     groups.set(label, [...(groups.get(label) ?? []), session]);
@@ -1221,29 +1227,47 @@ function formatWorkDisplayMeta(work: WorkItem) {
   return `${formatWorkStatusText(work.status)} · ${formatDisplayTime(work.createdAt)}`;
 }
 
-function resolveAssistantSessionTime(session: DesignAssistantSessionItem) {
-  return Math.max(parseAssistantSessionTime(session.updateTime), parseAssistantSessionTime(session.createTime));
+function resolveAssistantSessionTime(session: AssistantHistorySession | DesignAssistantSessionItem) {
+  const lastUserMessageTime = 'lastUserMessageTime' in session ? session.lastUserMessageTime : null;
+  return Math.max(parseAssistantSessionTime(lastUserMessageTime), parseAssistantSessionTime(session.updateTime), parseAssistantSessionTime(session.createTime));
 }
 
-function formatAssistantHistoryTitle(session: DesignAssistantSessionItem) {
+function compactAssistantHistoryText(value?: string | null, maxLength = 42) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) {
+    return '';
+  }
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function formatAssistantHistoryTitle(session: AssistantHistorySession) {
+  const firstUserText = compactAssistantHistoryText(session.firstUserText, 28);
+  if (firstUserText) {
+    return firstUserText;
+  }
   const summary = String(session.summary || '').trim();
   if (summary) {
-    return summary.split('\n')[0]?.slice(0, 28) || '设计助手会话';
+    return compactAssistantHistoryText(summary.split('\n')[0], 28) || '设计助手会话';
   }
   return session.sceneType === 'CUSTOM_DESIGN' ? '定制设计会话' : '设计助手会话';
 }
 
-function formatAssistantHistorySubtitle(session: DesignAssistantSessionItem) {
-  if (session.sceneType === 'CUSTOM_DESIGN') {
-    return '基于作品的定制设计对话';
+function formatAssistantHistorySubtitle(session: AssistantHistorySession) {
+  const lastPreviewText = compactAssistantHistoryText(session.lastPreviewText, 42);
+  if (lastPreviewText) {
+    return lastPreviewText;
+  }
+  const summary = compactAssistantHistoryText(session.summary, 42);
+  if (summary) {
+    return summary;
   }
   if (session.status) {
-    return `继续上次对话 · ${session.status}`;
+    return `查看助手对话 · ${session.status}`;
   }
-  return '继续上次设计建议';
+  return session.sceneType === 'CUSTOM_DESIGN' ? '查看定制设计对话' : '查看助手对话';
 }
 
-function formatAssistantHistoryIcon(session: DesignAssistantSessionItem) {
+function formatAssistantHistoryIcon(session: AssistantHistorySession) {
   if (session.sceneType === 'CUSTOM_DESIGN') {
     return '改';
   }
@@ -1251,8 +1275,8 @@ function formatAssistantHistoryIcon(session: DesignAssistantSessionItem) {
   return title.includes('图') ? '图' : 'AI';
 }
 
-function formatAssistantHistoryTime(session: DesignAssistantSessionItem) {
-  const timestamp = resolveAssistantSessionTime(session);
+function formatAssistantHistoryTime(session: AssistantHistorySession) {
+  const timestamp = parseAssistantSessionTime(session.lastUserMessageTime) || resolveAssistantSessionTime(session);
   if (!timestamp) {
     return '最近';
   }
@@ -1271,7 +1295,7 @@ function formatAssistantHistoryTime(session: DesignAssistantSessionItem) {
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(date);
 }
 
-function formatAssistantHistoryGroupLabel(session: DesignAssistantSessionItem) {
+function formatAssistantHistoryGroupLabel(session: AssistantHistorySession) {
   const timestamp = resolveAssistantSessionTime(session);
   if (!timestamp) {
     return '历史记录';
@@ -1552,6 +1576,56 @@ async function refreshWorkList() {
   }
 }
 
+function resolveAssistantMessageTextValue(message: DesignAssistantMessage) {
+  return resolveAssistantText(message.messageContent).trim();
+}
+
+function findFirstUserText(messages: DesignAssistantMessage[]) {
+  const firstUserMessage = messages.find((message) => message.role === 'USER' && resolveAssistantMessageTextValue(message));
+  return firstUserMessage ? resolveAssistantMessageTextValue(firstUserMessage) : '';
+}
+
+function findLastPreviewText(messages: DesignAssistantMessage[]) {
+  return [...messages]
+    .reverse()
+    .map((message) => resolveAssistantMessageTextValue(message))
+    .find(Boolean) ?? '';
+}
+
+function findLastUserMessageTime(messages: DesignAssistantMessage[]) {
+  return [...messages].reverse().find((message) => message.role === 'USER' && message.messageTime)?.messageTime ?? null;
+}
+
+async function buildAssistantHistorySession(session: DesignAssistantSessionItem) {
+  try {
+    const messages = await listDesignAssistantMessages(getAssistantContext(), session.sessionKey);
+    return {
+      ...session,
+      firstUserText: findFirstUserText(messages),
+      lastPreviewText: findLastPreviewText(messages),
+      lastUserMessageTime: findLastUserMessageTime(messages),
+    } satisfies AssistantHistorySession;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '会话消息加载失败';
+    // 单条会话消息失败时保留列表入口，避免一个异常导致我的页助手 tab 整体不可用。
+    console.warn('[HomeAI Assistant] 助手会话消息摘要加载失败', { message });
+    return {
+      ...session,
+      firstUserText: '',
+      lastPreviewText: '',
+      lastUserMessageTime: null,
+    } satisfies AssistantHistorySession;
+  }
+}
+
+function hasAssistantHistoryContent(session: AssistantHistorySession) {
+  return Boolean(
+    compactAssistantHistoryText(session.firstUserText) ||
+      compactAssistantHistoryText(session.lastPreviewText) ||
+      compactAssistantHistoryText(session.summary),
+  );
+}
+
 async function loadAssistantHistory() {
   if (!authTokenDraft.value) {
     assistantHistorySessions.value = [];
@@ -1562,10 +1636,14 @@ async function loadAssistantHistory() {
   assistantHistoryError.value = '';
   try {
     const sessions = await listDesignAssistantSessions(getAssistantContext(), 'ASSISTANT_CHAT');
-    assistantHistorySessions.value = [...sessions]
-      .filter((session) => session.sessionKey)
+    const historySessions = await Promise.all(sessions.filter((session) => session.sessionKey).map((session) => buildAssistantHistorySession(session)));
+    assistantHistorySessions.value = historySessions
+      .filter(hasAssistantHistoryContent)
       .sort((left, right) => resolveAssistantSessionTime(right) - resolveAssistantSessionTime(left));
-    console.info('[HomeAI Assistant] 助手会话列表加载完成', { count: assistantHistorySessions.value.length });
+    console.info('[HomeAI Assistant] 助手会话列表加载完成', {
+      count: assistantHistorySessions.value.length,
+      hiddenEmptyCount: historySessions.length - assistantHistorySessions.value.length,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : '助手会话加载失败';
     assistantHistoryError.value = message;
@@ -1575,7 +1653,7 @@ async function loadAssistantHistory() {
   }
 }
 
-async function openAssistantHistorySession(session: DesignAssistantSessionItem) {
+async function openAssistantHistorySession(session: AssistantHistorySession) {
   if (!session.sessionKey || !requireAssistantLogin()) {
     return;
   }

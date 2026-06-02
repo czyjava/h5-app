@@ -197,6 +197,21 @@ test('HomeAI 我的页必须提供作品和助手二级 tab', () => {
   assert.match(appVueSource, /listDesignAssistantMessages\(getAssistantContext\(\), session\.sessionKey\)/);
 });
 
+test('HomeAI 助手历史列表必须用真实消息生成标题描述和时间', () => {
+  assert.match(appVueSource, /interface AssistantHistorySession/);
+  assert.match(appVueSource, /buildAssistantHistorySession/);
+  assert.match(appVueSource, /firstUserText/);
+  assert.match(appVueSource, /lastPreviewText/);
+  assert.match(appVueSource, /lastUserMessageTime/);
+  assert.match(appVueSource, /hasAssistantHistoryContent/);
+  assert.match(appVueSource, /filter\(hasAssistantHistoryContent\)/);
+  assert.match(appVueSource, /message\.role === 'USER'/);
+  assert.match(appVueSource, /formatAssistantHistoryTitle\(session\)[\s\S]*?session\.firstUserText/);
+  assert.match(appVueSource, /formatAssistantHistorySubtitle\(session\)[\s\S]*?session\.lastPreviewText/);
+  assert.match(appVueSource, /formatAssistantHistoryTime\(session\)[\s\S]*?session\.lastUserMessageTime/);
+  assert.doesNotMatch(appVueSource, /继续上次设计建议/);
+});
+
 test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {
   const workDetailActionsSource = appVueSource.match(/<section class="work-detail-actions">[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);

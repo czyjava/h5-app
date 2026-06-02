@@ -872,6 +872,7 @@ interface AssistantHistorySession extends DesignAssistantSessionItem {
   firstUserText: string;
   lastPreviewText: string;
   lastUserMessageTime?: string | number | null;
+  summaryLoaded?: boolean;
 }
 
 interface AssistantSendOptions {
@@ -1062,6 +1063,7 @@ const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
 const customDesignRecordsLoading = ref(false);
 const customDesignApplyingCode = ref('');
 let customDesignPollingTimer: number | null = null;
+let assistantHistoryLoadVersion = 0;
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
@@ -1826,8 +1828,34 @@ async function buildAssistantHistorySession(session: DesignAssistantSessionItem)
       firstUserText: '',
       lastPreviewText: '',
       lastUserMessageTime: null,
+      summaryLoaded: true,
     } satisfies AssistantHistorySession;
   }
+}
+
+function createAssistantHistoryPlaceholder(session: DesignAssistantSessionItem) {
+  return {
+    ...session,
+    firstUserText: '',
+    lastPreviewText: '',
+    lastUserMessageTime: null,
+    summaryLoaded: false,
+  } satisfies AssistantHistorySession;
+}
+
+function replaceAssistantHistorySession(nextSession: AssistantHistorySession) {
+  assistantHistorySessions.value = assistantHistorySessions.value
+    .map((session) => (session.sessionKey === nextSession.sessionKey ? nextSession : session))
+    .filter((session) => !session.summaryLoaded || hasAssistantHistoryContent(session))
+    .sort((left, right) => resolveAssistantSessionTime(right) - resolveAssistantSessionTime(left));
+}
+
+async function enrichAssistantHistorySession(session: DesignAssistantSessionItem, loadVersion: number) {
+  const nextSession = await buildAssistantHistorySession(session);
+  if (loadVersion !== assistantHistoryLoadVersion) {
+    return;
+  }
+  replaceAssistantHistorySession({ ...nextSession, summaryLoaded: true });
 }
 
 function hasAssistantHistoryContent(session: AssistantHistorySession) {
@@ -1839,6 +1867,7 @@ function hasAssistantHistoryContent(session: AssistantHistorySession) {
 }
 
 async function loadAssistantHistory() {
+  const loadVersion = ++assistantHistoryLoadVersion;
   if (!authTokenDraft.value) {
     assistantHistorySessions.value = [];
     assistantHistoryError.value = '登录后可查看助手会话';
@@ -1848,13 +1877,17 @@ async function loadAssistantHistory() {
   assistantHistoryError.value = '';
   try {
     const sessions = await listDesignAssistantSessions(getAssistantContext(), 'ASSISTANT_CHAT');
-    const historySessions = await Promise.all(sessions.filter((session) => session.sessionKey).map((session) => buildAssistantHistorySession(session)));
-    assistantHistorySessions.value = historySessions
-      .filter(hasAssistantHistoryContent)
+    const validSessions = sessions.filter((session) => session.sessionKey);
+    // 会话列表首屏只依赖 sessions 接口；每条消息摘要后台补齐，避免 N+1 消息请求阻塞“我的-助手”列表。
+    assistantHistorySessions.value = validSessions
+      .map(createAssistantHistoryPlaceholder)
       .sort((left, right) => resolveAssistantSessionTime(right) - resolveAssistantSessionTime(left));
     console.info('[HomeAI Assistant] 助手会话列表加载完成', {
       count: assistantHistorySessions.value.length,
-      hiddenEmptyCount: historySessions.length - assistantHistorySessions.value.length,
+      pendingSummaryCount: validSessions.length,
+    });
+    validSessions.forEach((session) => {
+      void enrichAssistantHistorySession(session, loadVersion);
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : '助手会话加载失败';

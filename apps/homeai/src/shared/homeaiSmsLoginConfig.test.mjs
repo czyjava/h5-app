@@ -237,11 +237,15 @@ test('HomeAI 我的页必须提供作品和助手二级 tab', () => {
 test('HomeAI 助手历史列表必须用真实消息生成标题描述和时间', () => {
   assert.match(appVueSource, /interface AssistantHistorySession/);
   assert.match(appVueSource, /buildAssistantHistorySession/);
+  assert.match(appVueSource, /createAssistantHistoryPlaceholder/);
+  assert.match(appVueSource, /enrichAssistantHistorySession/);
+  assert.match(appVueSource, /assistantHistoryLoadVersion/);
   assert.match(appVueSource, /firstUserText/);
   assert.match(appVueSource, /lastPreviewText/);
   assert.match(appVueSource, /lastUserMessageTime/);
   assert.match(appVueSource, /hasAssistantHistoryContent/);
-  assert.match(appVueSource, /filter\(hasAssistantHistoryContent\)/);
+  assert.match(appVueSource, /summaryLoaded/);
+  assert.match(appVueSource, /validSessions\.forEach\(\(session\) => \{\s*void enrichAssistantHistorySession\(session, loadVersion\);/);
   assert.match(appVueSource, /message\.role === 'USER'/);
   assert.match(appVueSource, /formatAssistantHistoryTitle\(session\)[\s\S]*?session\.firstUserText/);
   assert.match(appVueSource, /formatAssistantHistorySubtitle\(session\)[\s\S]*?session\.lastPreviewText/);

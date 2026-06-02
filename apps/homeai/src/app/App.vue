@@ -475,14 +475,15 @@
               </button>
             </section>
             <vue-advanced-chat
+              ref="assistantAdvancedChatElement"
               class="assistant-advanced-chat"
               height="100%"
               theme="light"
               :accepted-files="advancedChatAcceptedFiles"
               :current-user-id="ADVANCED_CHAT_CURRENT_USER_ID"
-              :rooms="advancedChatRooms"
+              :rooms="advancedChatRoomsJson"
               :room-id="ADVANCED_CHAT_ROOM_ID"
-              :messages="advancedChatMessages"
+              :messages="advancedChatMessagesJson"
               :room-message="assistantInput"
               :rooms-loaded="true"
               :messages-loaded="true"
@@ -497,9 +498,9 @@
               :message-actions="[]"
               :room-actions="[]"
               :menu-actions="[]"
-              :text-messages="advancedChatTextMessages"
-              :text-formatting="advancedChatTextFormatting"
-              :styles="advancedChatStyles"
+              :text-messages="advancedChatTextMessagesJson"
+              :text-formatting="advancedChatTextFormattingJson"
+              :styles="advancedChatStylesJson"
               @send-message="handleAdvancedChatSendMessage"
               @open-file="handleAdvancedChatOpenFile"
             >
@@ -512,17 +513,20 @@
                 :class="{
                   user: message.senderId === ADVANCED_CHAT_CURRENT_USER_ID,
                   failed: message.failure,
+                  'image-only': message.files?.length && !message.content,
                 }"
               >
-                <img
-                  v-if="message.senderId === ADVANCED_CHAT_CURRENT_USER_ID && message.files?.[0]?.url"
-                  class="assistant-vac-message-image"
-                  :src="message.files[0].url"
-                  alt="用户上传的设计参考图"
-                  @click="openAssistantSlotFile(message.files[0].url)"
-                />
-                <p v-if="message.content">{{ message.content }}</p>
-                <time>{{ message.timestamp }}</time>
+                <div class="assistant-vac-bubble">
+                  <img
+                    v-if="message.senderId === ADVANCED_CHAT_CURRENT_USER_ID && message.files?.[0]?.url"
+                    class="assistant-vac-message-image"
+                    :src="message.files[0].url"
+                    alt="用户上传的设计参考图"
+                    @click="openAssistantSlotFile(message.files[0].url)"
+                  />
+                  <p v-if="message.content">{{ message.content }}</p>
+                </div>
+                <time class="assistant-vac-meta">{{ message.timestamp }}</time>
               </div>
               <span
                 v-for="message in advancedChatMessages"
@@ -762,7 +766,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { register as registerAdvancedChat } from 'vue-advanced-chat';
 import { ChevronLeft, ChevronRight, History, MessageSquare, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
 import {
@@ -1032,6 +1036,8 @@ const assistantUploadingImage = ref(false);
 const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
+const assistantAdvancedChatElement = ref<HTMLElement | null>(null);
+const advancedChatLastUnlockedKey = ref('');
 const assistantEntryAutoSending = ref(false);
 const assistantWorkContext = ref<CustomDesignPageContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
@@ -1295,6 +1301,7 @@ const advancedChatTextMessages = computed(() => ({
   ROOM_EMPTY: assistantEmptyDescription.value,
   TYPE_MESSAGE: assistantComposerPlaceholder.value,
   MESSAGES_EMPTY: assistantEmptyTitle.value,
+  CONVERSATION_STARTED: '',
   IS_TYPING: '正在回复中...',
 }));
 const advancedChatTextFormatting = { disabled: true };
@@ -1338,6 +1345,7 @@ const advancedChatStyles = {
     backgroundMedia: 'transparent',
     color: '#172033',
     colorTimestamp: '#7c8798',
+    colorStarted: 'transparent',
     colorNewMessages: '#3478f6',
   },
   icons: {
@@ -1348,6 +1356,51 @@ const advancedChatStyles = {
     microphone: '#3478f6',
   },
 };
+function stringifyAdvancedChatPayload(payload: unknown) {
+  // vue-advanced-chat 作为 Web Component 使用时，复杂 props 需要传 JSON 字符串，否则浏览器会退化成 [object Object]。
+  return JSON.stringify(payload);
+}
+const advancedChatMessagesJson = computed(() => stringifyAdvancedChatPayload(advancedChatMessages.value));
+const advancedChatRoomsJson = computed(() => stringifyAdvancedChatPayload(advancedChatRooms.value));
+const advancedChatTextMessagesJson = computed(() => stringifyAdvancedChatPayload(advancedChatTextMessages.value));
+const advancedChatTextFormattingJson = stringifyAdvancedChatPayload(advancedChatTextFormatting);
+const advancedChatStylesJson = stringifyAdvancedChatPayload(advancedChatStyles);
+function syncAdvancedChatLoadedState() {
+  if (activeTab.value !== 'assistant' || assistantMessages.value.length === 0) {
+    return;
+  }
+  const shadowRoot = assistantAdvancedChatElement.value?.shadowRoot;
+  if (!shadowRoot) {
+    return;
+  }
+  const hiddenMessages = shadowRoot.querySelector<HTMLElement>('.vac-messages-hidden');
+  const loader = shadowRoot.querySelector<HTMLElement>('.vac-loader-wrapper');
+  if (!hiddenMessages && !loader) {
+    return;
+  }
+  if (hiddenMessages) {
+    hiddenMessages.style.opacity = '1';
+  }
+  if (loader) {
+    loader.style.display = 'none';
+  }
+  const unlockKey = `${assistantSessionKey.value || 'empty'}:${assistantMessages.value.length}`;
+  if (advancedChatLastUnlockedKey.value !== unlockKey) {
+    advancedChatLastUnlockedKey.value = unlockKey;
+    // 第三方组件切历史会话时偶发停留在内部 loading 态，这里只在已有消息时恢复可见性。
+    console.info('[HomeAI Assistant] 已恢复 vue-advanced-chat 历史消息可见状态', {
+      sessionKey: assistantSessionKey.value || 'empty',
+      messageCount: assistantMessages.value.length,
+    });
+  }
+}
+
+function scheduleAdvancedChatLoadedStateSync() {
+  void nextTick(() => {
+    window.setTimeout(syncAdvancedChatLoadedState, 0);
+    window.setTimeout(syncAdvancedChatLoadedState, 120);
+  });
+}
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
 const currentCustomDesignApplyCode = computed(() => {
   const customDesignCode = currentCustomDesignImage.value?.customDesignCode || '';
@@ -3060,6 +3113,8 @@ watch(activeTab, (tab) => {
   })();
 });
 
+watch([activeTab, assistantSessionKey, () => assistantMessages.value.length, advancedChatMessagesJson], scheduleAdvancedChatLoadedStateSync);
+
 onUnmounted(() => {
   window.removeEventListener('hashchange', syncApiDebugPage);
   window.removeEventListener('popstate', syncApiDebugPage);
@@ -3903,8 +3958,10 @@ button:focus-visible {
 
 .page-assistant {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
   min-height: 0;
+  overflow: hidden;
   padding: 12px 18px 18px;
   background: #f5f8fd;
 }
@@ -4781,6 +4838,7 @@ button:focus-visible {
 }
 
 .assistant-chat {
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -4851,49 +4909,73 @@ button:focus-visible {
 }
 
 .assistant-vac-message {
+  width: min(76vw, 310px);
   max-width: 100%;
   display: grid;
-  gap: 7px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(24, 45, 78, 0.08);
+  gap: 5px;
+  justify-items: start;
 }
 
 .assistant-vac-message.user {
-  background: #3478f6;
-  box-shadow: 0 4px 12px rgba(52, 120, 246, 0.18);
+  margin-left: auto;
+  justify-items: end;
 }
 
-.assistant-vac-message p {
+.assistant-vac-bubble {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px 16px 16px 6px;
+  color: #172033;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(35, 47, 70, 0.07);
+}
+
+.assistant-vac-message.user .assistant-vac-bubble {
+  border-radius: 16px 16px 6px;
+  color: #fff;
+  background: #256eff;
+  box-shadow: 0 10px 20px rgba(37, 110, 255, 0.2);
+}
+
+.assistant-vac-message.user.image-only .assistant-vac-bubble {
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.assistant-vac-bubble p {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.55;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.58;
 }
 
-.assistant-vac-message time {
-  justify-self: end;
+.assistant-vac-meta {
+  padding: 0 4px;
   color: #7c8798;
   font-size: 10px;
   line-height: 1;
 }
 
-.assistant-vac-message.user p,
-.assistant-vac-message.user time {
-  color: #fff;
+.assistant-vac-message.user .assistant-vac-meta {
+  color: #8e9aad;
 }
 
-.assistant-vac-message.failed p {
+.assistant-vac-message.failed .assistant-vac-bubble p {
   color: #d43131;
 }
 
 .assistant-vac-message-image {
   width: min(210px, 100%);
   max-height: 210px;
-  border-radius: 10px;
+  border-radius: 12px;
   object-fit: contain;
   background: #fff;
+  box-shadow: 0 10px 24px rgba(35, 47, 70, 0.1);
   cursor: pointer;
 }
 

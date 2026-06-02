@@ -4203,7 +4203,7 @@ button:focus-visible {
   overflow: hidden;
   overflow-x: hidden;
   padding: 12px 10px 10px;
-  background: #08090d;
+  background: #f4f7fb;
 }
 
 .custom-design-header {
@@ -4211,7 +4211,7 @@ button:focus-visible {
   grid-template-columns: 92px minmax(0, 1fr) 92px;
   align-items: center;
   min-height: 44px;
-  color: #fff;
+  color: #152033;
 }
 
 .custom-design-header strong {
@@ -4227,10 +4227,11 @@ button:focus-visible {
   height: 38px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e8edf5;
   border-radius: 50%;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.09);
+  color: #1b2638;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(31, 55, 83, 0.08);
 }
 
 .custom-design-header > .custom-round-button {
@@ -4247,8 +4248,8 @@ button:focus-visible {
 .custom-spinner {
   width: 30px;
   height: 30px;
-  border: 3px solid rgba(255, 255, 255, 0.22);
-  border-top-color: #fff500;
+  border: 3px solid #d9e3f2;
+  border-top-color: #3478f6;
   border-radius: 50%;
   animation: custom-spin 0.9s linear infinite;
 }
@@ -4265,7 +4266,9 @@ button:focus-visible {
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
   border-radius: 18px;
-  background: #101116;
+  border: 1px solid #e8edf5;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(37, 58, 89, 0.08);
 }
 
 .custom-chat-scroll {
@@ -4303,8 +4306,8 @@ button:focus-visible {
   display: grid;
   place-items: center;
   border-radius: 12px;
-  color: #111;
-  background: #fff500;
+  color: #fff;
+  background: #171b24;
   font-size: 12px;
   font-weight: 950;
 }
@@ -4316,14 +4319,16 @@ button:focus-visible {
   gap: 8px;
   padding: 12px;
   border-radius: 14px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  color: #152033;
+  background: #f7f9fc;
+  border: 1px solid #edf1f7;
 }
 
 .custom-chat-message.user .custom-chat-bubble {
   max-width: min(82%, 280px);
-  color: #111;
-  background: #fff500;
+  color: #fff;
+  background: #3478f6;
+  border-color: #3478f6;
 }
 
 .custom-chat-bubble > strong {
@@ -4332,13 +4337,13 @@ button:focus-visible {
 }
 
 .custom-chat-bubble > span {
-  color: rgba(255, 255, 255, 0.68);
+  color: #66758c;
   font-size: 12px;
   line-height: 1.5;
 }
 
 .custom-chat-message.user .custom-chat-bubble > span {
-  color: #111;
+  color: #fff;
   font-size: 14px;
   font-weight: 850;
 }
@@ -4361,7 +4366,7 @@ button:focus-visible {
 
 .custom-chat-bubble header small {
   flex: 0 0 auto;
-  color: rgba(255, 255, 255, 0.46);
+  color: #8b96a8;
   font-size: 11px;
   font-weight: 750;
 }
@@ -4371,7 +4376,7 @@ button:focus-visible {
   margin: 0;
   overflow: hidden;
   border-radius: 12px;
-  background: #181a21;
+  background: #eef2f7;
 }
 
 .custom-chat-image img {
@@ -4387,7 +4392,7 @@ button:focus-visible {
 
 .custom-chat-image figcaption {
   padding: 8px 10px;
-  color: rgba(255, 255, 255, 0.58);
+  color: #748196;
   font-size: 11px;
   font-weight: 800;
 }
@@ -4398,7 +4403,7 @@ button:focus-visible {
   gap: 7px;
   padding: 10px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #eef4ff;
 }
 
 .custom-chat-state.processing {
@@ -4413,28 +4418,28 @@ button:focus-visible {
 
 .custom-chat-state.processing span:last-child {
   grid-column: 2;
-  color: rgba(255, 255, 255, 0.58);
+  color: #66758c;
   font-size: 12px;
   line-height: 1.4;
 }
 
 .custom-chat-state.failed strong {
-  color: #ff8e86;
+  color: #c93636;
 }
 
 .custom-chat-state.failed span {
-  color: rgba(255, 255, 255, 0.62);
+  color: #8a4d4d;
   font-size: 12px;
 }
 
 .custom-chat-text-reply {
   padding: 10px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #eef4ff;
 }
 
 .custom-chat-text-reply span {
-  color: rgba(255, 255, 255, 0.78);
+  color: #26364f;
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -4451,20 +4456,20 @@ button:focus-visible {
   border: 0;
   border-radius: 17px;
   padding: 0 12px;
-  color: rgba(255, 255, 255, 0.86);
-  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+  background: #3478f6;
   font-size: 12px;
   font-weight: 850;
 }
 
 .custom-chat-actions button:last-child {
-  color: #111;
-  background: #fff500;
+  color: #fff;
+  background: #3478f6;
 }
 
 .custom-chat-actions button:disabled {
-  color: rgba(255, 255, 255, 0.48);
-  background: rgba(255, 255, 255, 0.1);
+  color: #8b96a8;
+  background: #eef2f7;
   cursor: not-allowed;
 }
 
@@ -4472,8 +4477,8 @@ button:focus-visible {
   display: grid;
   gap: 10px;
   padding: 10px 12px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(13, 14, 19, 0.96);
+  border-top: 1px solid #edf1f7;
+  background: #fff;
 }
 
 .custom-prompt-examples {
@@ -4496,11 +4501,11 @@ button:focus-visible {
 .custom-prompt-examples button {
   flex: 0 0 auto;
   min-height: 34px;
-  border: 0;
+  border: 1px solid #e6ebf2;
   border-radius: 17px;
   padding: 0 12px;
-  color: rgba(255, 255, 255, 0.86);
-  background: rgba(255, 255, 255, 0.13);
+  color: #324158;
+  background: #f7f9fc;
   font-size: 12px;
   font-weight: 850;
   white-space: nowrap;
@@ -4568,10 +4573,10 @@ button:focus-visible {
 .custom-style-toggle,
 .custom-send-button {
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid #e6ebf2;
   border-radius: 21px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  color: #324158;
+  background: #f7f9fc;
   font-weight: 950;
 }
 
@@ -4582,8 +4587,9 @@ button:focus-visible {
 }
 
 .custom-style-toggle.active {
-  color: #121212;
-  background: #fff500;
+  color: #fff;
+  background: #3478f6;
+  border-color: #3478f6;
 }
 
 .custom-style-toggle:disabled,
@@ -4595,23 +4601,23 @@ button:focus-visible {
 .custom-composer input {
   min-width: 0;
   min-height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e6ebf2;
   border-radius: 21px;
   padding: 0 14px;
   outline: 0;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.07);
+  color: #17243a;
+  background: #f7f9fc;
   font-size: 14px;
 }
 
 .custom-composer input::placeholder {
-  color: rgba(255, 255, 255, 0.42);
+  color: #9aa3b2;
 }
 
 .custom-send-button {
   border: 0;
-  color: #111;
-  background: #fff500;
+  color: #fff;
+  background: #3478f6;
   font-size: 14px;
 }
 

@@ -8,7 +8,11 @@
         onboarding: bootFlowVisible,
         guide: guideVisible,
         immersive:
-          activeTab === 'assistant' || activeTab === 'workDetail' || activeTab === 'customDesign' || activeTab === 'customDesignRecords',
+          activeTab === 'assistant' ||
+          activeTab === 'workDetail' ||
+          activeTab === 'customDesign' ||
+          activeTab === 'customDesignRecords' ||
+          activeTab === 'vipPurchase',
       }"
       aria-label="装修 APP H5 复刻"
     >
@@ -109,7 +113,7 @@
       <section v-else class="screen">
         <section v-if="activeTab === 'home'" class="page page-home native-home" @scroll.passive="isScrolled = true">
           <header class="home-native-head">
-            <button type="button" class="member-pill" @click="activeTab = 'mine'">
+            <button type="button" class="member-pill" @click="openVipPurchasePage('manual')">
               <span>👑</span>
               开通会员
             </button>
@@ -548,6 +552,39 @@
           </section>
         </section>
 
+        <section v-else-if="activeTab === 'vipPurchase'" class="page page-vip-purchase">
+          <header class="vip-purchase-head">
+            <button class="icon-button" type="button" aria-label="返回 AI 助手" @click="returnFromVipPurchase">
+              <ChevronLeft :size="20" />
+            </button>
+            <strong>AI装修大师 VIP</strong>
+            <span></span>
+          </header>
+          <section class="vip-purchase-hero">
+            <img :src="homeAiAssets.vipFontLogo" alt="VIP" />
+            <h2>{{ vipPurchaseTitle }}</h2>
+            <p>{{ vipPurchaseDescription }}</p>
+          </section>
+          <section class="vip-purchase-benefits">
+            <article>
+              <strong>不限对话轮数</strong>
+              <span>超过免费体验轮数后，开通会员可继续使用 AI 设计助手。</span>
+            </article>
+            <article>
+              <strong>不限助手会话</strong>
+              <span>支持持续创建和恢复你的装修咨询上下文。</span>
+            </article>
+            <article>
+              <strong>定制设计权益</strong>
+              <span>用于作品修改、方案细化和更多会员能力。</span>
+            </article>
+          </section>
+          <p v-if="vipPurchaseStatusText" class="vip-purchase-status">{{ vipPurchaseStatusText }}</p>
+          <button type="button" class="vip-purchase-action" :disabled="vipPurchaseLoading" @click="loadVipPurchaseChannel">
+            {{ vipPurchaseLoading ? '加载会员方案' : '继续开通会员' }}
+          </button>
+        </section>
+
         <section v-else class="page page-mine">
           <header class="profile-head">
             <img :src="homeAiAssets.appLogo" alt="" />
@@ -561,14 +598,14 @@
             </button>
           </header>
 
-          <section class="vip-card">
+          <button type="button" class="vip-card" @click="openVipPurchasePage('manual')">
             <img :src="homeAiAssets.vipCardBg" alt="" />
             <div>
               <img :src="homeAiAssets.vipFontLogo" alt="VIP" />
               <strong>{{ snapshot.user.diamondCount }} 钻石</strong>
               <span>会员权益与余额同步展示</span>
             </div>
-          </section>
+          </button>
 
           <nav class="mine-tabs" aria-label="我的内容切换">
             <button type="button" :class="{ active: mineTab === 'works' }" @click="chooseMineTab('works')">作品</button>
@@ -632,7 +669,8 @@
           activeTab !== 'assistant' &&
           activeTab !== 'workDetail' &&
           activeTab !== 'customDesign' &&
-          activeTab !== 'customDesignRecords'
+          activeTab !== 'customDesignRecords' &&
+          activeTab !== 'vipPurchase'
         "
         class="bottom-nav"
       >
@@ -744,7 +782,7 @@ import {
   submitHomeAiCustomDesign,
   type CustomDesignRecordItemResponse,
 } from '../shared/customDesignApi';
-import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot, uploadHomeAiImage } from '../shared/homeaiApi';
+import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot, requestBusiness, uploadHomeAiImage } from '../shared/homeaiApi';
 import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
@@ -896,6 +934,9 @@ const switchingEnvironment = ref(false);
 const settingsDialogVisible = ref(false);
 const toastMessage = ref('');
 const toastKind = ref<'notice' | 'error'>('notice');
+const vipPurchaseSource = ref<'manual' | 'assistantQuota' | 'assistantRoundLimit'>('manual');
+const vipPurchaseLoading = ref(false);
+const vipPurchaseStatusText = ref('');
 const isScrolled = ref(false);
 const privacyVisible = ref(localStorage.getItem(PRIVACY_STORAGE_KEY) !== '1');
 const onboardingVisible = ref(localStorage.getItem(ONBOARDING_STORAGE_KEY) !== '1');
@@ -1097,6 +1138,24 @@ const profileUserHint = computed(() => {
     return '登录后可查看真实作品';
   }
   return snapshot.value.user.vipLabel === '未登录' ? '账号信息同步中' : '账号已认证';
+});
+const vipPurchaseTitle = computed(() => {
+  if (vipPurchaseSource.value === 'assistantRoundLimit') {
+    return '超过免费体验轮数';
+  }
+  if (vipPurchaseSource.value === 'assistantQuota') {
+    return '会员权益已达免费上限';
+  }
+  return '开通会员解锁更多权益';
+});
+const vipPurchaseDescription = computed(() => {
+  if (vipPurchaseSource.value === 'assistantRoundLimit') {
+    return '当前 AI 设计助手会话已达到后台配置的免费对话轮数，开通会员后可继续提问。';
+  }
+  if (vipPurchaseSource.value === 'assistantQuota') {
+    return '免费权益已用完，开通会员后可继续创建和使用 AI 设计助手。';
+  }
+  return '解锁更多 AI 装修设计能力，持续优化你的家装方案。';
 });
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
@@ -1386,6 +1445,70 @@ function showToast(message: string) {
       toastMessage.value = '';
     }
   }, 2600);
+}
+
+function openVipPurchasePage(source: 'manual' | 'assistantQuota' | 'assistantRoundLimit' = 'manual') {
+  vipPurchaseSource.value = source;
+  vipPurchaseStatusText.value = '';
+  toastMessage.value = '';
+  activeTab.value = 'vipPurchase';
+}
+
+function returnFromVipPurchase() {
+  activeTab.value = vipPurchaseSource.value === 'manual' ? 'mine' : 'assistant';
+}
+
+async function loadVipPurchaseChannel() {
+  if (vipPurchaseLoading.value) {
+    return;
+  }
+  if (!requireAssistantLogin()) {
+    return;
+  }
+  vipPurchaseLoading.value = true;
+  vipPurchaseStatusText.value = '正在加载会员方案...';
+  try {
+    const channel = await requestBusiness<{ channelCode?: string }>(homeAiReplicaConfig.endpoints.goodsChannelCode, getAssistantContext(), {
+      params: { entrance: 'vip' },
+    });
+    const channelCode = channel.channelCode?.trim();
+    vipPurchaseStatusText.value = channelCode ? '会员方案已准备，请在原 APP 内完成支付' : '会员方案暂未返回，请稍后再试';
+    // 购买页只记录渠道是否可用，不把完整售卖配置或用户 token 写入日志。
+    console.info('[HomeAI VIP] 会员售卖渠道加载完成', { hasChannelCode: Boolean(channelCode) });
+  } catch (error) {
+    vipPurchaseStatusText.value = error instanceof Error ? error.message : '会员方案加载失败，请稍后再试';
+    console.warn('[HomeAI VIP] 会员售卖渠道加载失败', { message: vipPurchaseStatusText.value });
+  } finally {
+    vipPurchaseLoading.value = false;
+  }
+}
+
+function getAssistantLimitMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error || '');
+}
+
+function isAssistantRoundLimitError(error: unknown) {
+  const message = getAssistantLimitMessage(error);
+  return /(轮次|轮数|对话.*上限|超过.*轮|超过.*次数|次数.*(上限|不足|用完)|免费.*(轮|次))/i.test(message);
+}
+
+function isAssistantQuotaLimitError(error: unknown) {
+  const message = getAssistantLimitMessage(error);
+  return (
+    isAssistantRoundLimitError(error) ||
+    (/(只能创建一个|创建.*上限|会话.*上限|VIP|会员|免费用户|权益)/i.test(message) && /(助手|会话|创建|绘画|轮|次|使用)/.test(message))
+  );
+}
+
+function handleAssistantQuotaLimitError(error: unknown) {
+  if (!isAssistantQuotaLimitError(error)) {
+    return false;
+  }
+  const source = isAssistantRoundLimitError(error) ? 'assistantRoundLimit' : 'assistantQuota';
+  openVipPurchasePage(source);
+  // 额度命中属于业务引导，不再用错误 toast 打断用户，日志仅记录原因分类。
+  console.info('[HomeAI Assistant] 助手额度限制跳转会员购买页', { source });
+  return true;
 }
 
 function updateAuthToken(token: string) {
@@ -2487,6 +2610,9 @@ async function startManualAssistantSession() {
     assistantMessages.value = [];
     showToast('已新建设计助手会话');
   } catch (error) {
+    if (handleAssistantQuotaLimitError(error)) {
+      return;
+    }
     showToast(error instanceof Error ? error.message : '新建会话失败');
   } finally {
     assistantSending.value = false;
@@ -2516,7 +2642,8 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   // 作品定制设计入口会自动提交默认 prompt，这里统一清空输入区，避免停留在“待发送”的中转态。
   assistantInput.value = '';
   assistantImageUrls.value = [];
-  assistantMessages.value.push(createLocalAssistantMessage('USER', prompt || '图片附件', messageImageUrls[0] || ''));
+  const localUserMessage = createLocalAssistantMessage('USER', prompt || '图片附件', messageImageUrls[0] || '');
+  assistantMessages.value.push(localUserMessage);
   assistantSending.value = true;
   try {
     const sessionKey = await ensureAssistantSession();
@@ -2541,6 +2668,10 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
     return true;
   } catch (error) {
     assistantMessages.value = assistantMessages.value.filter((message) => message.status !== 'PENDING');
+    if (handleAssistantQuotaLimitError(error)) {
+      assistantMessages.value = assistantMessages.value.filter((message) => message.localId !== localUserMessage.localId);
+      return false;
+    }
     assistantMessages.value.push({
       localId: `ASSISTANT-FAILED-${Date.now()}`,
       role: 'ASSISTANT',
@@ -2550,7 +2681,8 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
       errorMessage: error instanceof Error ? error.message : '生成失败，请稍后再试',
       messageTime: Date.now(),
     });
-    showToast(error instanceof Error ? error.message : '发送失败');
+    const message = error instanceof Error ? error.message : '发送失败';
+    showToast(message);
     return false;
   } finally {
     assistantSending.value = false;
@@ -2661,6 +2793,9 @@ watch(activeTab, (tab) => {
       await ensureAssistantSession();
       await restoreAssistantMessages();
     } catch (error) {
+      if (handleAssistantQuotaLimitError(error)) {
+        return;
+      }
       const message = error instanceof Error ? error.message : '设计助手会话初始化失败';
       // 会话额度、会员限制等业务失败需要直接反馈给用户，否则后端 message 只会停留在控制台。
       showToast(message);
@@ -4853,8 +4988,119 @@ button:focus-visible {
 }
 
 .page-discover,
-.page-mine {
+.page-mine,
+.page-vip-purchase {
   background: #f6f8fb;
+}
+
+.page-vip-purchase {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 14px;
+  padding: 14px 16px 22px;
+  overflow: hidden;
+}
+
+.vip-purchase-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+}
+
+.vip-purchase-head strong {
+  color: #111827;
+  font-size: 17px;
+}
+
+.vip-purchase-head > span {
+  width: 36px;
+}
+
+.vip-purchase-hero {
+  display: grid;
+  gap: 10px;
+  padding: 22px 18px;
+  border-radius: 20px;
+  color: #2b1a08;
+  background: linear-gradient(135deg, #fff1a7 0%, #d7f971 55%, #8de3c5 100%);
+  box-shadow: 0 18px 32px rgba(71, 107, 58, 0.16);
+}
+
+.vip-purchase-hero img {
+  width: 128px;
+}
+
+.vip-purchase-hero h2,
+.vip-purchase-hero p {
+  margin: 0;
+}
+
+.vip-purchase-hero h2 {
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+.vip-purchase-hero p {
+  max-width: 300px;
+  color: rgba(43, 26, 8, 0.78);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.vip-purchase-benefits {
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  overflow-y: auto;
+}
+
+.vip-purchase-benefits article {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(43, 61, 89, 0.08);
+}
+
+.vip-purchase-benefits strong {
+  color: #172033;
+  font-size: 16px;
+}
+
+.vip-purchase-benefits span {
+  color: #6b7380;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.vip-purchase-action {
+  min-height: 48px;
+  border: 0;
+  border-radius: 24px;
+  color: #fff;
+  background: #151515;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.vip-purchase-action:disabled {
+  opacity: 0.72;
+}
+
+.vip-purchase-status {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #5f4912;
+  background: #fff6d8;
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.4;
 }
 
 .page-title-row {
@@ -4988,10 +5234,15 @@ button:focus-visible {
 .vip-card {
   position: relative;
   min-height: 124px;
+  width: 100%;
   overflow: hidden;
   margin-top: 12px;
+  padding: 0;
+  border: 0;
   border-radius: 20px;
   color: #3f2c12;
+  background: #fff3a3;
+  text-align: left;
 }
 
 .vip-card > img {

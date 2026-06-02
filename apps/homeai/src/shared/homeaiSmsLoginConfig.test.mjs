@@ -7,6 +7,7 @@ const appVueSource = await readFile(new URL('../app/App.vue', import.meta.url), 
 const customDesignApiSource = await readFile(new URL('./customDesignApi.ts', import.meta.url), 'utf8');
 const designAssistantApiSource = await readFile(new URL('./designAssistantApi.ts', import.meta.url), 'utf8');
 const homeAiApiSource = await readFile(new URL('./homeaiApi.ts', import.meta.url), 'utf8');
+const homeAiTypesSource = await readFile(new URL('./types.ts', import.meta.url), 'utf8');
 const localAuthTokenApiSource = await readFile(new URL('./localAuthTokenApi.ts', import.meta.url), 'utf8');
 const viteConfigSource = await readFile(new URL('../../vite.config.ts', import.meta.url), 'utf8');
 const gitIgnoreSource = await readFile(new URL('../../../../.gitignore', import.meta.url), 'utf8');
@@ -297,6 +298,25 @@ test('HomeAI AI 设计助手初始化失败应展示接口错误提示', () => {
   const autoInitSource = appVueSource.match(/watch\(activeTab,[\s\S]*?AI 设计助手自动初始化失败[\s\S]*?\n\s*\}\n\s*\}\)\(\);\n\}\);/)?.[0] ?? '';
   assert.match(autoInitSource, /AI 设计助手自动初始化失败/);
   assert.match(autoInitSource, /showToast\(message\)/);
+});
+
+test('HomeAI AI 设计助手轮次超限必须跳转会员购买页', () => {
+  const sendAssistantSource = appVueSource.match(/async function sendAssistantMessage[\s\S]*?\n}\n\nfunction handleAssistantImageError/)?.[0] ?? '';
+  const autoInitSource = appVueSource.match(/watch\(activeTab,[\s\S]*?AI 设计助手自动初始化失败[\s\S]*?\n\s*\}\n\s*\}\)\(\);\n\}\);/)?.[0] ?? '';
+  assert.match(homeAiTypesSource, /'vipPurchase'/);
+  assert.match(appVueSource, /activeTab === 'vipPurchase'/);
+  assert.match(appVueSource, /function openVipPurchasePage/);
+  assert.match(appVueSource, /function isAssistantRoundLimitError/);
+  assert.match(appVueSource, /function isAssistantQuotaLimitError/);
+  assert.match(appVueSource, /function handleAssistantQuotaLimitError/);
+  assert.match(appVueSource, /function loadVipPurchaseChannel/);
+  assert.match(appVueSource, /超过免费体验轮数/);
+  assert.match(appVueSource, /继续开通会员/);
+  assert.match(appVueSource, /goodsChannelCode/);
+  assert.doesNotMatch(appVueSource, /会员购买入口已打开/);
+  assert.match(sendAssistantSource, /handleAssistantQuotaLimitError\(error\)/);
+  assert.doesNotMatch(sendAssistantSource, /showToast\(error instanceof Error \? error\.message : '发送失败'\)/);
+  assert.match(autoInitSource, /handleAssistantQuotaLimitError\(error\)/);
 });
 
 test('HomeAI 定制设计图标按钮必须有可访问语义', () => {

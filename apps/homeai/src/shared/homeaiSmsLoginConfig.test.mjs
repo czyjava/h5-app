@@ -208,6 +208,8 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
 });
 
 test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () => {
+  const customChatActionsSource =
+    appVueSource.match(/<footer v-if="record\.status === 'completed' \|\| record\.status === 'applied'" class="custom-chat-actions">[\s\S]*?<\/footer>/)?.[0] ?? '';
   assert.match(appConfigSource, /customDesignApply:\s*'\/api\/open\/homeai\/custom-design\/apply\.htm'/);
   assert.match(customDesignApiSource, /export async function applyHomeAiCustomDesign/);
   assert.match(customDesignApiSource, /homeAiReplicaConfig\.endpoints\.customDesignApply/);
@@ -219,6 +221,8 @@ test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () =
   assert.match(appVueSource, /:disabled="record\.status === 'applied' \|\| customDesignApplyingCode === record\.processRecordCode"/);
   assert.match(appVueSource, /@click="applyCustomDesignRecordResult\(record\)"/);
   assert.match(appVueSource, /if \(record\.status === 'applied'\)[\s\S]*?这张设计已经应用过了/);
+  assert.match(customChatActionsSource, /customDesignRecordApplyButtonText/);
+  assert.doesNotMatch(customChatActionsSource, /查看结果|继续修改|showCustomDesignRecordResult|continueCustomDesignFromRecord/);
   assert.doesNotMatch(appConfigSource, /\/api\/open\/homeai\/design-assistant\/apply-design\.htm/);
   assert.doesNotMatch(appVueSource, /applyDesignAssistantImage/);
 });

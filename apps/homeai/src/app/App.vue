@@ -338,8 +338,6 @@
                     </section>
 
                     <footer v-if="record.status === 'completed' || record.status === 'applied'" class="custom-chat-actions">
-                      <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
-                      <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
                       <button
                         type="button"
                         :disabled="record.status === 'applied' || customDesignApplyingCode === record.processRecordCode"

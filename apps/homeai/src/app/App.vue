@@ -364,7 +364,7 @@
                 placeholder="描述你想调整的风格或问题"
                 @keydown.enter.prevent="submitCustomDesignText"
               />
-              <button type="button" class="custom-send-button" :disabled="customDesignSubmitDisabled" @click="submitCustomDesignText">发</button>
+              <button type="button" class="custom-send-button" :disabled="customDesignSubmitDisabled" @click="submitCustomDesignText">发送</button>
             </section>
           </section>
         </section>
@@ -4176,7 +4176,7 @@ button:focus-visible {
 
 .custom-design-header {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 92px;
+  grid-template-columns: 92px minmax(0, 1fr) 92px;
   align-items: center;
   min-height: 44px;
   color: #fff;
@@ -4199,6 +4199,10 @@ button:focus-visible {
   border-radius: 50%;
   color: #fff;
   background: rgba(255, 255, 255, 0.09);
+}
+
+.custom-design-header > .custom-round-button {
+  justify-self: start;
 }
 
 .custom-header-actions {
@@ -4463,7 +4467,7 @@ button:focus-visible {
 
 .custom-composer {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 46px;
+  grid-template-columns: 42px minmax(0, 1fr) 62px;
   gap: 10px;
   align-items: end;
 }
@@ -4472,7 +4476,7 @@ button:focus-visible {
 .custom-send-button {
   height: 42px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
+  border-radius: 21px;
   color: #fff;
   background: rgba(255, 255, 255, 0.08);
   font-weight: 950;
@@ -4481,6 +4485,7 @@ button:focus-visible {
 .custom-style-toggle {
   display: grid;
   place-items: center;
+  border-radius: 50%;
 }
 
 .custom-style-toggle.active {
@@ -4514,7 +4519,7 @@ button:focus-visible {
   border: 0;
   color: #111;
   background: #fff500;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .page-custom-records {

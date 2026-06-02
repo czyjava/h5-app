@@ -318,6 +318,12 @@ test('HomeAI 定制设计页必须给用户明确的操作引导', () => {
   assert.match(appVueSource, /useCustomDesignPromptExample/);
 });
 
+test('HomeAI 定制设计页标题和发送按钮必须符合正式交互口径', () => {
+  assert.match(appVueSource, /\.custom-design-header\s*\{[\s\S]*?grid-template-columns:\s*92px minmax\(0, 1fr\) 92px;/);
+  assert.match(appVueSource, /class="custom-send-button"[\s\S]*?>发送<\/button>/);
+  assert.doesNotMatch(appVueSource, /class="custom-send-button"[\s\S]*?>发<\/button>/);
+});
+
 test('HomeAI 定制设计过程记录按状态展示动作', () => {
   assert.match(appVueSource, /v-if="record\.status === 'completed'"/);
   assert.match(appVueSource, /v-else-if="record\.status === 'applied'"/);

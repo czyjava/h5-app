@@ -87,6 +87,17 @@ test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.doesNotMatch(appVueSource, /shouldRenderApplyDesignAction/);
 });
 
+test('HomeAI AI 设计助手新建受限时必须恢复已有会话', () => {
+  assert.match(designAssistantApiSource, /export async function listDesignAssistantSessions/);
+  assert.match(appVueSource, /listDesignAssistantSessions/);
+  assert.match(appVueSource, /function isAssistantSessionLimitError/);
+  assert.match(appVueSource, /function pickLatestAssistantSession/);
+  assert.match(appVueSource, /async function restoreLatestAssistantSession/);
+  assert.match(appVueSource, /startReason !== 'MANUAL_NEW'[\s\S]*?restoreLatestAssistantSession/);
+  assert.match(appVueSource, /已进入上次设计助手会话/);
+  assert.match(appVueSource, /listDesignAssistantMessages\(getAssistantContext\(\), session\.sessionKey\)/);
+});
+
 test('HomeAI 当前用户信息必须走认证域 current-user 接口', () => {
   assert.match(homeAiApiSource, /type HomeAiHostType = keyof typeof homeAiReplicaConfig\.hosts/);
   assert.match(
@@ -178,7 +189,6 @@ test('HomeAI 我的页不展示 AI 设计助手历史入口', () => {
   assert.doesNotMatch(appVueSource, /class="assistant-history-card"/);
   assert.doesNotMatch(appVueSource, /loadAssistantHistory/);
   assert.doesNotMatch(appVueSource, /openAssistantHistory/);
-  assert.doesNotMatch(appVueSource, /listDesignAssistantSessions/);
 });
 
 test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {

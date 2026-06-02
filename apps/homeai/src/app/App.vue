@@ -693,6 +693,7 @@ import { appShellSnapshot } from '../shared/appShellData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
 import { shouldDisableAssistantComposer } from '../shared/designAssistantMessageUi';
 import {
+  listDesignAssistantSessions,
   listDesignAssistantMessages,
   resolveAssistantImageUrl,
   resolveAssistantText,
@@ -712,7 +713,7 @@ import {
 import { getHomeAiGenerationDetail, listHomeAiWorks, loadHomeAiSnapshot, uploadHomeAiImage } from '../shared/homeaiApi';
 import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared/localAuthTokenApi';
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
-import type { DesignAssistantMessage, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
+import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
 type AssistantUiMessage = DesignAssistantMessage & {
   localId?: string;
@@ -2097,6 +2098,53 @@ function appendAssistantWaitingMessage(replyToMessageId?: string) {
   assistantMessages.value.push(createAssistantWaitingMessage(replyToMessageId));
 }
 
+function parseAssistantSessionTime(value?: string | number | null) {
+  const text = String(value ?? '').trim();
+  if (!text) {
+    return 0;
+  }
+  const numericValue = Number(text);
+  if (!Number.isNaN(numericValue) && /^\d{10,13}$/.test(text)) {
+    return text.length === 10 ? numericValue * 1000 : numericValue;
+  }
+  const parsedTime = Date.parse(text.replace(' ', 'T'));
+  return Number.isNaN(parsedTime) ? 0 : parsedTime;
+}
+
+function pickLatestAssistantSession(sessions: DesignAssistantSessionItem[]) {
+  return (
+    sessions
+      .filter((session) => session.sessionKey)
+      .sort((left, right) => {
+        const leftTime = Math.max(parseAssistantSessionTime(left.updateTime), parseAssistantSessionTime(left.createTime));
+        const rightTime = Math.max(parseAssistantSessionTime(right.updateTime), parseAssistantSessionTime(right.createTime));
+        return rightTime - leftTime;
+      })[0] ?? null
+  );
+}
+
+function isAssistantSessionLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /(只能创建一个|创建.*上限|会话.*上限|VIP|会员)/i.test(message) && /(助手|会话|创建|绘画)/.test(message);
+}
+
+async function restoreLatestAssistantSession() {
+  // 非 VIP 用户可能无法创建第二个 AI 助手会话，此时要回到已有会话，而不是让入口一直被额度提示挡住。
+  const sessions = await listDesignAssistantSessions(getAssistantContext(), assistantSceneType.value);
+  const session = pickLatestAssistantSession(sessions);
+  if (!session) {
+    return '';
+  }
+  assistantSessionKey.value = session.sessionKey;
+  const messages = await listDesignAssistantMessages(getAssistantContext(), session.sessionKey);
+  assistantMessages.value = messages;
+  console.info('[HomeAI Assistant] 恢复已有设计助手会话', {
+    sceneType: assistantSceneType.value,
+    messageCount: messages.length,
+  });
+  return session.sessionKey;
+}
+
 async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW' = 'APP_LAUNCH_FIRST_ENTER') {
   if (isLocalAssistantExperience() || !requireAssistantLogin()) {
     return '';
@@ -2104,20 +2152,37 @@ async function ensureAssistantSession(startReason: 'APP_LAUNCH_FIRST_ENTER' | 'M
   if (assistantSessionKey.value && startReason !== 'MANUAL_NEW') {
     return assistantSessionKey.value;
   }
-  const response = await startDesignAssistantSession(getAssistantContext(), {
-    sceneType: assistantSceneType.value,
-    startReason: assistantSceneType.value === 'CUSTOM_DESIGN' ? 'WORK_RESULT_ENTER' : startReason,
-    deviceId: `${homeAiReplicaConfig.appId}-h5`,
-    lastWorkId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.workId : undefined,
-    recordId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.recordId : undefined,
-    templateId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.templateId : undefined,
-    sourceImageUrl: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.imageUrl : undefined,
-  });
-  assistantSessionKey.value = response.sessionKey;
-  if (Array.isArray(response.messages) && response.messages.length > 0) {
-    assistantMessages.value = response.messages;
+  try {
+    const response = await startDesignAssistantSession(getAssistantContext(), {
+      sceneType: assistantSceneType.value,
+      startReason: assistantSceneType.value === 'CUSTOM_DESIGN' ? 'WORK_RESULT_ENTER' : startReason,
+      deviceId: `${homeAiReplicaConfig.appId}-h5`,
+      lastWorkId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.workId : undefined,
+      recordId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.recordId : undefined,
+      templateId: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.templateId : undefined,
+      sourceImageUrl: assistantSceneType.value === 'CUSTOM_DESIGN' ? assistantWorkContext.value?.imageUrl : undefined,
+    });
+    assistantSessionKey.value = response.sessionKey;
+    if (Array.isArray(response.messages) && response.messages.length > 0) {
+      assistantMessages.value = response.messages;
+    }
+    return response.sessionKey;
+  } catch (error) {
+    // 自动进入时允许恢复已有会话；用户主动点“新会话”时仍保留服务端的创建限制提示。
+    if (startReason !== 'MANUAL_NEW' && isAssistantSessionLimitError(error)) {
+      try {
+        const restoredSessionKey = await restoreLatestAssistantSession();
+        if (restoredSessionKey) {
+          showToast('已进入上次设计助手会话');
+          return restoredSessionKey;
+        }
+      } catch (restoreError) {
+        const message = restoreError instanceof Error ? restoreError.message : '恢复已有会话失败';
+        console.warn('[HomeAI Assistant] 恢复已有设计助手会话失败', { message });
+      }
+    }
+    throw error;
   }
-  return response.sessionKey;
 }
 
 async function restoreAssistantMessages() {

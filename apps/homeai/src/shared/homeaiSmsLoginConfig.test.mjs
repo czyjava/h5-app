@@ -198,3 +198,32 @@ test('HomeAI 定制设计过程记录按状态展示动作', () => {
   assert.match(appVueSource, /重新生成/);
   assert.doesNotMatch(appVueSource, /:disabled="record\.status !== 'completed'"/);
 });
+
+test('HomeAI 交付页必须隐藏后台状态、长编号和开发态说明', () => {
+  assert.match(appVueSource, /profileUserHint/);
+  assert.match(appVueSource, /formatWorkDisplayMeta/);
+  assert.match(appVueSource, /formatWorkStatusText/);
+  assert.match(appVueSource, /formatDisplayTime/);
+  assert.doesNotMatch(appVueSource, /ID \{\{ snapshot\.user\.userId \}\}/);
+  assert.doesNotMatch(appVueSource, /会员权益与余额信息来自原 APP 资源结构/);
+  assert.doesNotMatch(appVueSource, /\{\{ work\.status \}\} · 记录/);
+  assert.doesNotMatch(appVueSource, /\{\{ selectedWork\.status \}\} · \{\{ selectedWork\.createdAt/);
+});
+
+test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
+  assert.match(appVueSource, /已匹配当前作品模板/);
+  assert.match(appVueSource, /只看当前作品的修改记录/);
+  assert.doesNotMatch(appVueSource, /模板 \$\{formatShortCode\(customDesignContext\.value\.templateCode\)\}/);
+  assert.doesNotMatch(appVueSource, /只看记录 \$\{generationRecordId\} · 作品 \$\{workId\}/);
+  assert.doesNotMatch(appVueSource, /编号：\{\{ formatShortCode\(record\.processRecordCode\) \}\}/);
+});
+
+test('HomeAI AI 设计助手初始化失败应展示接口错误提示', () => {
+  assert.match(appVueSource, /AI 设计助手自动初始化失败/);
+  assert.match(appVueSource, /showToast\(message\)/);
+});
+
+test('HomeAI 定制设计图标按钮必须有可访问语义', () => {
+  assert.match(appVueSource, /aria-label="选择风格"/);
+  assert.match(appVueSource, /title="选择风格"/);
+});

@@ -230,7 +230,7 @@
             <img :src="selectedWork.coverUrl" alt="作品图" />
             <div>
               <strong>{{ selectedWork.title }}</strong>
-              <span>{{ selectedWork.status }} · {{ selectedWork.createdAt || '今天' }}</span>
+              <span>{{ formatWorkDisplayMeta(selectedWork) }}</span>
             </div>
           </section>
 
@@ -346,6 +346,8 @@
                 class="custom-style-toggle"
                 :class="{ active: customStylePanelVisible }"
                 :disabled="customDesignBusy"
+                aria-label="选择风格"
+                title="选择风格"
                 @click="customStylePanelVisible = !customStylePanelVisible"
               >
                 <WandSparkles :size="19" />
@@ -415,7 +417,6 @@
                 <strong>{{ record.prompt }}</strong>
                 <span>基于当前作品修改</span>
                 <span>模板：{{ record.templateCode ? '已匹配' : '默认' }}</span>
-                <span>编号：{{ formatShortCode(record.processRecordCode) }}</span>
               </section>
               <footer v-if="record.status === 'completed'">
                 <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
@@ -550,7 +551,7 @@
             <img :src="homeAiAssets.appLogo" alt="" />
             <div>
               <h2>{{ snapshot.user.nickname }}</h2>
-              <p>ID {{ snapshot.user.userId }}</p>
+              <p>{{ profileUserHint }}</p>
             </div>
             <span>{{ snapshot.user.vipLabel }}</span>
             <button class="profile-settings-button" type="button" aria-label="登录与接口配置" @click="settingsDialogVisible = true">
@@ -563,7 +564,7 @@
             <div>
               <img :src="homeAiAssets.vipFontLogo" alt="VIP" />
               <strong>{{ snapshot.user.diamondCount }} 钻石</strong>
-              <span>会员权益与余额信息来自原 APP 资源结构</span>
+              <span>会员权益与余额同步展示</span>
             </div>
           </section>
 
@@ -581,7 +582,7 @@
               <img :src="work.coverUrl" alt="" />
               <div class="work-info">
                 <strong>{{ work.title }}</strong>
-                <span>{{ work.status }} · 记录 {{ formatShortCode(work.recordId || work.id) }}</span>
+                <span>{{ formatWorkDisplayMeta(work) }}</span>
               </div>
               <button type="button" class="custom" @click="openWorkDetail(work)">查看详情</button>
             </article>
@@ -945,6 +946,12 @@ const selectedGenerationWorkIndexText = computed(() => {
   const index = selectedGenerationWorks.value.findIndex((work) => work.id === selectedWork.value?.id);
   return index >= 0 ? `第 ${index + 1} 张` : '当前图';
 });
+const profileUserHint = computed(() => {
+  if (!authTokenDraft.value.trim()) {
+    return '登录后可查看真实作品';
+  }
+  return snapshot.value.user.vipLabel === '未登录' ? '账号信息同步中' : '账号已认证';
+});
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
 const assistantEmptyDescription = computed(() =>
@@ -1002,7 +1009,7 @@ const customDesignPanelSubtitle = computed(() => {
     return '请换个描述重新提交';
   }
   return customDesignContext.value?.templateCode
-    ? `模板 ${formatShortCode(customDesignContext.value.templateCode)}`
+    ? '已匹配当前作品模板'
     : '描述你想调整的风格、颜色、软装或问题';
 });
 const visibleCustomDesignProcessRecords = computed(() => {
@@ -1022,9 +1029,7 @@ const customDesignRecordsSubtitle = computed(() => {
   if (!customDesignContext.value) {
     return '当前没有选中的作品';
   }
-  const generationRecordId = formatShortCode(customDesignContext.value.recordId || '-');
-  const workId = formatShortCode(customDesignContext.value.workId || '-');
-  return `只看记录 ${generationRecordId} · 作品 ${workId}`;
+  return '只看当前作品的修改记录';
 });
 
 function formatShortCode(value?: string | null) {
@@ -1034,6 +1039,45 @@ function formatShortCode(value?: string | null) {
   }
   // 页面只展示首尾短码，真实 ID 仍保留在接口上下文里，避免长串业务字段撑破 APP 布局。
   return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-5)}` : text;
+}
+
+function formatWorkStatusText(status?: string | null) {
+  const normalized = String(status || '').trim().toUpperCase();
+  const statusMap: Record<string, string> = {
+    PENDING: '排队中',
+    PROCESSING: '生成中',
+    RUNNING: '生成中',
+    FINISHED: '已完成',
+    SUCCEEDED: '已完成',
+    SUCCESS: '已完成',
+    FAILED: '生成失败',
+    EXPIRED: '已过期',
+  };
+  return statusMap[normalized] ?? String(status || '已生成');
+}
+
+function formatDisplayTime(value?: string | null) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '今天';
+  }
+  const numericValue = Number(text);
+  const date = !Number.isNaN(numericValue) && /^\d{10,13}$/.test(text)
+    ? new Date(text.length === 10 ? numericValue * 1000 : numericValue)
+    : new Date(text.replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) {
+    return text;
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatWorkDisplayMeta(work: WorkItem) {
+  return `${formatWorkStatusText(work.status)} · ${formatDisplayTime(work.createdAt)}`;
 }
 
 function persistEnvironment() {
@@ -2160,7 +2204,9 @@ watch(activeTab, (tab) => {
       await ensureAssistantSession();
       await restoreAssistantMessages();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '设计助手会话初始化失败');
+      const message = error instanceof Error ? error.message : '设计助手会话初始化失败';
+      // 进入 AI 页时只是预热会话，失败不打断用户；用户真正发送消息时仍会走显式错误提示。
+      console.warn('[HomeAI Assistant] AI 设计助手自动初始化失败', { message });
     }
   })();
 });

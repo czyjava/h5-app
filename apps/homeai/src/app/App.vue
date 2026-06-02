@@ -296,75 +296,111 @@
             </span>
           </header>
 
-          <section class="custom-image-stage" :class="{ processing: customDesignBusy }">
-            <img v-if="currentCustomDesignImage" class="custom-image-blur" :src="currentCustomDesignImage.imageUrl" alt="" />
-            <div class="custom-image-canvas">
-              <img v-if="currentCustomDesignImage" :src="currentCustomDesignImage.imageUrl" alt="定制设计图片" @error="handleCustomDesignImageError" />
-              <span v-else>暂无图片</span>
-            </div>
-            <span v-if="customDesignImages.length > 1" class="custom-image-index">{{ customDesignImageIndicator }}</span>
-            <div v-if="customDesignBusy" class="custom-processing-mask">
-              <span class="custom-spinner"></span>
-              <strong>AI 正在重新设计</strong>
-              <small>会保留原始空间结构，调整风格、软装和细节</small>
-            </div>
-          </section>
+          <section class="custom-chat-panel">
+            <section class="custom-chat-scroll" aria-label="定制设计对话">
+              <article class="custom-chat-message ai source">
+                <span class="custom-chat-avatar">AI</span>
+                <section class="custom-chat-bubble">
+                  <strong>基于当前作品定制设计</strong>
+                  <span>告诉我你想调整的风格、颜色、软装或空间问题，我会基于这张图生成新的设计。</span>
+                  <figure class="custom-chat-image source">
+                    <img v-if="customDesignContext?.imageUrl" :src="customDesignContext.imageUrl" alt="定制设计源图" @error="handleCustomDesignImageError" />
+                    <figcaption>{{ customDesignContext?.workTitle || '当前作品' }}</figcaption>
+                  </figure>
+                </section>
+              </article>
 
-          <section class="custom-control-panel">
-            <section class="custom-status-panel" :class="customDesignStatus">
-              <strong>{{ customDesignPanelTitle }}</strong>
-              <span>{{ customDesignPanelSubtitle }}</span>
-            </section>
-            <section v-if="currentCustomDesignResultCode" class="custom-result-actions">
-              <button
-                type="button"
-                :disabled="currentCustomDesignApplied || customDesignApplyingCode === currentCustomDesignApplyCode"
-                @click="applyCurrentCustomDesignResult"
-              >
-                {{ currentCustomDesignApplyButtonText }}
-              </button>
-              <small>{{ currentCustomDesignApplyHint }}</small>
+              <template v-for="record in customDesignChatRecords" :key="record.recordKey">
+                <article class="custom-chat-message user">
+                  <section class="custom-chat-bubble">
+                    <span>{{ record.prompt }}</span>
+                  </section>
+                </article>
+
+                <article class="custom-chat-message ai">
+                  <span class="custom-chat-avatar">AI</span>
+                  <section class="custom-chat-bubble result" :class="record.status">
+                    <header>
+                      <strong>{{ customDesignRecordChatTitle(record) }}</strong>
+                      <small>{{ record.createdAt }}</small>
+                    </header>
+
+                    <figure v-if="record.outputImageUrl" class="custom-chat-image result">
+                      <img :src="record.outputImageUrl" alt="定制设计结果图" @error="handleCustomDesignImageError" />
+                    </figure>
+
+                    <section v-else-if="record.status === 'failed'" class="custom-chat-state failed">
+                      <strong>生成失败</strong>
+                      <span>可以调整描述后重新生成。</span>
+                    </section>
+
+                    <section v-else class="custom-chat-state processing">
+                      <span class="custom-spinner"></span>
+                      <strong>AI 正在重新设计</strong>
+                      <span>会保留原始空间结构，调整风格、软装和细节。</span>
+                    </section>
+
+                    <footer v-if="record.status === 'completed' || record.status === 'applied'" class="custom-chat-actions">
+                      <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
+                      <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
+                      <button
+                        type="button"
+                        :disabled="record.status === 'applied' || customDesignApplyingCode === record.processRecordCode"
+                        @click="applyCustomDesignRecordResult(record)"
+                      >
+                        {{ customDesignRecordApplyButtonText(record) }}
+                      </button>
+                    </footer>
+
+                    <footer v-else-if="record.status === 'failed'" class="custom-chat-actions">
+                      <button type="button" @click="continueCustomDesignFromRecord(record)">重新生成</button>
+                    </footer>
+                  </section>
+                </article>
+              </template>
             </section>
 
-            <section v-if="customPromptExamplesVisible" class="custom-prompt-examples" aria-label="定制设计示例">
-              <button
-                v-for="example in customDesignPromptExamples"
-                :key="example"
-                type="button"
-                :disabled="customDesignBusy"
-                @click="useCustomDesignPromptExample(example)"
-              >
-                {{ example }}
-              </button>
-            </section>
+            <section class="custom-chat-composer-panel">
+              <section v-if="customPromptExamplesVisible" class="custom-prompt-examples" aria-label="定制设计示例">
+                <button
+                  v-for="example in customDesignPromptExamples"
+                  :key="example"
+                  type="button"
+                  :disabled="customDesignBusy"
+                  @click="useCustomDesignPromptExample(example)"
+                >
+                  {{ example }}
+                </button>
+              </section>
 
-            <section v-if="customStylePanelVisible" class="custom-style-strip" aria-label="风格选择">
-              <button v-for="style in customDesignStyles" :key="style.code" type="button" :disabled="customDesignBusy" @click="submitCustomDesignStyle(style)">
-                <img :src="style.image" alt="" />
-                <span>{{ style.name }}</span>
-              </button>
-            </section>
+              <section v-if="customStylePanelVisible" class="custom-style-strip" aria-label="风格选择">
+                <button v-for="style in customDesignStyles" :key="style.code" type="button" :disabled="customDesignBusy" @click="submitCustomDesignStyle(style)">
+                  <img :src="style.image" alt="" />
+                  <span>{{ style.name }}</span>
+                </button>
+              </section>
 
-            <section class="custom-composer">
-              <button
-                type="button"
-                class="custom-style-toggle"
-                :class="{ active: customStylePanelVisible }"
-                :disabled="customDesignBusy"
-                aria-label="选择风格"
-                title="选择风格"
-                @click="customStylePanelVisible = !customStylePanelVisible"
-              >
-                <WandSparkles :size="19" />
-              </button>
-              <input
-                v-model="customDesignInput"
-                type="text"
-                :disabled="customDesignBusy"
-                placeholder="描述你想调整的风格或问题"
-                @keydown.enter.prevent="submitCustomDesignText"
-              />
-              <button type="button" class="custom-send-button" :disabled="customDesignSubmitDisabled" @click="submitCustomDesignText">发送</button>
+              <section class="custom-composer">
+                <button
+                  type="button"
+                  class="custom-style-toggle"
+                  :class="{ active: customStylePanelVisible }"
+                  :disabled="customDesignBusy"
+                  aria-label="选择风格"
+                  title="选择风格"
+                  @click="customStylePanelVisible = !customStylePanelVisible"
+                >
+                  <WandSparkles :size="19" />
+                </button>
+                <input
+                  v-model="customDesignInput"
+                  type="text"
+                  :disabled="customDesignBusy"
+                  placeholder="描述你想调整的风格或问题"
+                  @keydown.enter.prevent="submitCustomDesignText"
+                />
+                <button type="button" class="custom-send-button" :disabled="customDesignSubmitDisabled" @click="submitCustomDesignText">发送</button>
+              </section>
             </section>
           </section>
         </section>
@@ -1290,55 +1326,9 @@ const assistantSendDisabled = computed(() => assistantComposerDisabled.value || 
 const assistantUserAvatar = computed(() => snapshot.value.user.avatar || homeAiAssets.appLogo);
 const advancedChatMessages = computed<AdvancedChatMessage[]>(() => assistantMessages.value.map(mapAssistantMessageToAdvancedChatMessage));
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
-const currentCustomDesignResultCode = computed(() => currentCustomDesignImage.value?.customDesignCode || '');
-const currentCustomDesignResultRecord = computed(() =>
-  customDesignProcessRecords.value.find((record) => record.processRecordCode === currentCustomDesignResultCode.value),
-);
-const currentCustomDesignApplied = computed(() => currentCustomDesignResultRecord.value?.status === 'applied');
-const currentCustomDesignApplyCode = computed(() => {
-  const customDesignCode = currentCustomDesignResultCode.value;
-  if (!customDesignCode) {
-    return '';
-  }
-  return currentCustomDesignApplied.value ? '' : customDesignCode;
-});
-const currentCustomDesignApplyButtonText = computed(() => {
-  if (currentCustomDesignApplied.value) {
-    return '已应用';
-  }
-  return customDesignApplyingCode.value === currentCustomDesignApplyCode.value ? '应用中' : '应用设计';
-});
-const currentCustomDesignApplyHint = computed(() =>
-  currentCustomDesignApplied.value ? '当前作品已应用这张设计，过程记录里仍可查看本次修改。' : '应用后会替换原作品，过程记录里仍可查看本次修改。',
-);
-const customDesignImageIndicator = computed(() => `${customDesignImageIndex.value + 1}/${customDesignImages.value.length}`);
 const customDesignBusy = computed(() => customDesignStatus.value === 'processing');
 const customDesignSubmitDisabled = computed(() => customDesignBusy.value || !customDesignInput.value.trim() || customDesignImages.value.length === 0);
 const customPromptExamplesVisible = computed(() => customDesignStatus.value !== 'processing' && customDesignImages.value.length > 0);
-const customDesignPanelTitle = computed(() => {
-  if (customDesignStatus.value === 'processing') {
-    return customDesignLastPrompt.value || '正在生成新的设计';
-  }
-  if (customDesignStatus.value === 'completed') {
-    return '设计已生成';
-  }
-  if (customDesignStatus.value === 'failed') {
-    return '生成失败';
-  }
-  return '想怎么改这张图？';
-});
-const customDesignPanelSubtitle = computed(() => {
-  if (customDesignStatus.value === 'processing') {
-    return 'AI 正在生成图片...';
-  }
-  if (customDesignStatus.value === 'completed') {
-    return '你可以继续描述想调整的风格、颜色、软装或问题';
-  }
-  if (customDesignStatus.value === 'failed') {
-    return '请换个描述重新提交';
-  }
-  return '描述你想调整的风格、颜色、软装或问题';
-});
 const visibleCustomDesignProcessRecords = computed(() => {
   const context = customDesignContext.value;
   if (!context?.recordId || !context.workId) {
@@ -1349,6 +1339,7 @@ const visibleCustomDesignProcessRecords = computed(() => {
     (record) => record.generationRecordId === context.recordId && record.sourceWorkId === context.workId,
   );
 });
+const customDesignChatRecords = computed(() => [...visibleCustomDesignProcessRecords.value].reverse());
 const completedCustomDesignRecordCount = computed(
   () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'completed' || record.status === 'applied').length,
 );
@@ -2377,6 +2368,26 @@ function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
   return '生成中';
 }
 
+function customDesignRecordChatTitle(record: CustomDesignProcessRecord) {
+  if (record.status === 'applied') {
+    return '这张设计已应用';
+  }
+  if (record.status === 'completed') {
+    return '设计已生成';
+  }
+  if (record.status === 'failed') {
+    return '这次没有生成成功';
+  }
+  return '正在生成新的设计';
+}
+
+function customDesignRecordApplyButtonText(record: CustomDesignProcessRecord) {
+  if (record.status === 'applied') {
+    return '已应用';
+  }
+  return customDesignApplyingCode.value === record.processRecordCode ? '应用中' : '应用设计';
+}
+
 function customDesignOutputPlaceholderText(record: CustomDesignProcessRecord) {
   if (record.status === 'failed') {
     return '生成失败';
@@ -2497,12 +2508,6 @@ async function applyCustomDesignResult(customDesignCode: string, outputImageUrl 
   } finally {
     customDesignApplyingCode.value = '';
   }
-}
-
-function applyCurrentCustomDesignResult() {
-  const customDesignCode = currentCustomDesignApplyCode.value;
-  const outputImageUrl = currentCustomDesignImage.value?.imageUrl || '';
-  void applyCustomDesignResult(customDesignCode, outputImageUrl);
 }
 
 function applyCustomDesignRecordResult(record: CustomDesignProcessRecord) {
@@ -4229,88 +4234,6 @@ button:focus-visible {
   gap: 7px;
 }
 
-.custom-image-stage {
-  position: relative;
-  min-height: 0;
-  overflow: hidden;
-  border-radius: 16px;
-  background: #111217;
-}
-
-.custom-image-blur {
-  position: absolute;
-  inset: -24px;
-  width: calc(100% + 48px);
-  height: calc(100% + 48px);
-  object-fit: cover;
-  opacity: 0.38;
-  filter: blur(28px);
-  transform: scale(1.04);
-}
-
-.custom-image-canvas {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 14px;
-}
-
-.custom-image-canvas img {
-  max-width: 100%;
-  max-height: 100%;
-  display: block;
-  border-radius: 10px;
-  object-fit: contain;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
-}
-
-.custom-image-canvas span {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.custom-image-index {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 3;
-  padding: 5px 10px;
-  border-radius: 999px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.38);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.custom-processing-mask {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 10px;
-  padding: 22px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.58);
-  text-align: center;
-}
-
-.custom-processing-mask strong {
-  font-size: 16px;
-}
-
-.custom-processing-mask small {
-  max-width: 260px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .custom-spinner {
   width: 30px;
   height: 30px;
@@ -4326,78 +4249,208 @@ button:focus-visible {
   }
 }
 
-.custom-control-panel {
+.custom-chat-panel {
+  min-height: 0;
   display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  background: rgba(19, 21, 28, 0.96);
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #101116;
 }
 
-.custom-status-panel {
-  min-height: 70px;
+.custom-chat-scroll {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 14px 12px 10px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-chat-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-chat-message {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-chat-message.ai {
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+}
+
+.custom-chat-message.user {
+  justify-items: end;
+}
+
+.custom-chat-avatar {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  align-content: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-  text-align: center;
+  border-radius: 12px;
+  color: #111;
+  background: #fff500;
+  font-size: 12px;
+  font-weight: 950;
 }
 
-.custom-status-panel strong {
+.custom-chat-bubble {
+  min-width: 0;
   max-width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.custom-chat-message.user .custom-chat-bubble {
+  max-width: min(82%, 280px);
+  color: #111;
+  background: #fff500;
+}
+
+.custom-chat-bubble > strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.custom-chat-bubble > span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.custom-chat-message.user .custom-chat-bubble > span {
+  color: #111;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.custom-chat-bubble header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.custom-chat-bubble header strong {
+  min-width: 0;
   overflow: hidden;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.custom-status-panel span {
-  color: rgba(255, 255, 255, 0.68);
+.custom-chat-bubble header small {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.custom-chat-image {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #181a21;
+}
+
+.custom-chat-image img {
+  width: 100%;
+  max-height: 290px;
+  display: block;
+  object-fit: contain;
+}
+
+.custom-chat-image.source img {
+  max-height: 240px;
+}
+
+.custom-chat-image figcaption {
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.custom-chat-state {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.custom-chat-state.processing {
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+}
+
+.custom-chat-state.processing .custom-spinner {
+  width: 24px;
+  height: 24px;
+}
+
+.custom-chat-state.processing span:last-child {
+  grid-column: 2;
+  color: rgba(255, 255, 255, 0.58);
   font-size: 12px;
   line-height: 1.4;
 }
 
-.custom-status-panel.completed strong {
-  color: #89ffb0;
-}
-
-.custom-status-panel.failed strong {
+.custom-chat-state.failed strong {
   color: #ff8e86;
 }
 
-.custom-result-actions {
-  display: grid;
-  justify-items: end;
-  gap: 6px;
-  justify-content: flex-end;
+.custom-chat-state.failed span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
 }
 
-.custom-result-actions button {
-  min-height: 42px;
+.custom-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.custom-chat-actions button {
+  min-height: 34px;
   border: 0;
-  border-radius: 21px;
-  padding: 0 18px;
+  border-radius: 17px;
+  padding: 0 12px;
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.13);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.custom-chat-actions button:last-child {
   color: #111;
   background: #fff500;
-  font-weight: 950;
 }
 
-.custom-result-actions button:disabled {
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.12);
+.custom-chat-actions button:disabled {
+  color: rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.1);
   cursor: not-allowed;
 }
 
-.custom-result-actions small {
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 11px;
-  line-height: 1.4;
+.custom-chat-composer-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(13, 14, 19, 0.96);
 }
 
 .custom-prompt-examples {

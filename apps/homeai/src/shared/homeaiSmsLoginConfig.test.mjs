@@ -215,12 +215,8 @@ test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () =
   assert.match(appVueSource, /customDesignApplyingCode/);
   assert.match(appVueSource, /function applyCustomDesignResult\(/);
   assert.match(appVueSource, /applyHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
-  assert.match(appVueSource, /currentCustomDesignApplyCode/);
-  assert.match(appVueSource, /currentCustomDesignApplied/);
-  assert.match(appVueSource, /currentCustomDesignApplyButtonText/);
-  assert.match(appVueSource, /:disabled="currentCustomDesignApplied \|\| customDesignApplyingCode === currentCustomDesignApplyCode"/);
-  assert.match(appVueSource, /currentCustomDesignApplied\.value \? '当前作品已应用这张设计/);
-  assert.match(appVueSource, /@click="applyCurrentCustomDesignResult"/);
+  assert.match(appVueSource, /customDesignRecordApplyButtonText/);
+  assert.match(appVueSource, /:disabled="record\.status === 'applied' \|\| customDesignApplyingCode === record\.processRecordCode"/);
   assert.match(appVueSource, /@click="applyCustomDesignRecordResult\(record\)"/);
   assert.match(appVueSource, /if \(record\.status === 'applied'\)[\s\S]*?这张设计已经应用过了/);
   assert.doesNotMatch(appConfigSource, /\/api\/open\/homeai\/design-assistant\/apply-design\.htm/);
@@ -315,11 +311,14 @@ test('HomeAI 交付页面不能直接暴露技术错误和业务字段', () => {
 });
 
 test('HomeAI 定制设计页必须给用户明确的操作引导', () => {
+  assert.match(appVueSource, /class="custom-chat-panel"/);
+  assert.match(appVueSource, /aria-label="定制设计对话"/);
+  assert.match(appVueSource, /customDesignChatRecords/);
   assert.match(appVueSource, /customDesignPromptExamples/);
   assert.match(appVueSource, /保留布局，改成奶油风/);
   assert.match(appVueSource, /让客厅更显大/);
   assert.match(appVueSource, /基于这张图定制设计/);
-  assert.match(appVueSource, /应用后会替换原作品/);
+  assert.match(appVueSource, /告诉我你想调整的风格、颜色、软装或空间问题/);
   assert.match(appVueSource, /useCustomDesignPromptExample/);
 });
 
@@ -330,10 +329,9 @@ test('HomeAI 定制设计页标题和发送按钮必须符合正式交互口径'
 });
 
 test('HomeAI 定制设计过程记录按状态展示动作', () => {
-  assert.match(appVueSource, /v-if="record\.status === 'completed'"/);
-  assert.match(appVueSource, /v-else-if="record\.status === 'applied'"/);
+  assert.match(appVueSource, /record\.status === 'completed' \|\| record\.status === 'applied'/);
   assert.match(appVueSource, /v-else-if="record\.status === 'failed'"/);
-  assert.match(appVueSource, /v-else-if="record\.status === 'submitted'"/);
+  assert.match(appVueSource, /customDesignRecordChatTitle/);
   assert.match(appVueSource, /等待结果返回后可查看输出图和应用设计/);
   assert.match(appVueSource, /重新生成/);
   assert.doesNotMatch(appVueSource, /:disabled="record\.status !== 'completed'"/);
@@ -353,7 +351,7 @@ test('HomeAI 交付页必须隐藏后台状态、长编号和开发态说明', (
 test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
   assert.doesNotMatch(appVueSource, /已匹配/);
   assert.doesNotMatch(appVueSource, /已匹配当前作品模板/);
-  assert.match(appVueSource, /描述你想调整的风格、颜色、软装或问题/);
+  assert.match(appVueSource, /告诉我你想调整的风格、颜色、软装或空间问题/);
   assert.match(appVueSource, /只看当前作品的修改记录/);
   assert.doesNotMatch(appVueSource, /模板 \$\{formatShortCode\(customDesignContext\.value\.templateCode\)\}/);
   assert.doesNotMatch(appVueSource, /只看记录 \$\{generationRecordId\} · 作品 \$\{workId\}/);

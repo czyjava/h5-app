@@ -198,7 +198,8 @@ test('HomeAI 定制设计过程记录按状态展示动作', () => {
   assert.match(appVueSource, /v-if="record\.status === 'completed'"/);
   assert.match(appVueSource, /v-else-if="record\.status === 'applied'"/);
   assert.match(appVueSource, /v-else-if="record\.status === 'failed'"/);
-  assert.match(appVueSource, /生成完成后可查看结果和应用设计/);
+  assert.match(appVueSource, /v-else-if="record\.status === 'submitted'"/);
+  assert.match(appVueSource, /等待结果返回后可查看输出图和应用设计/);
   assert.match(appVueSource, /重新生成/);
   assert.doesNotMatch(appVueSource, /:disabled="record\.status !== 'completed'"/);
 });
@@ -215,12 +216,21 @@ test('HomeAI 交付页必须隐藏后台状态、长编号和开发态说明', (
 });
 
 test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
+  assert.doesNotMatch(appVueSource, /已匹配/);
   assert.doesNotMatch(appVueSource, /已匹配当前作品模板/);
   assert.match(appVueSource, /描述你想调整的风格、颜色、软装或问题/);
   assert.match(appVueSource, /只看当前作品的修改记录/);
   assert.doesNotMatch(appVueSource, /模板 \$\{formatShortCode\(customDesignContext\.value\.templateCode\)\}/);
   assert.doesNotMatch(appVueSource, /只看记录 \$\{generationRecordId\} · 作品 \$\{workId\}/);
   assert.doesNotMatch(appVueSource, /编号：\{\{ formatShortCode\(record\.processRecordCode\) \}\}/);
+});
+
+test('HomeAI 定制设计过程记录不能把无输出图断言为生成中', () => {
+  assert.match(appVueSource, /SUBMITTED[\s\S]*?return 'submitted';/);
+  assert.match(appVueSource, /customDesignOutputPlaceholderText\(record\)/);
+  assert.match(appVueSource, /return '暂无输出';/);
+  assert.match(appVueSource, /status === 'submitted'[\s\S]*?return '已提交';/);
+  assert.doesNotMatch(appVueSource, /<span v-else>生成中<\/span>/);
 });
 
 test('HomeAI 定制设计横向选项不能露出底部滚动条', () => {

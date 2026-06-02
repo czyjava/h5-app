@@ -244,8 +244,8 @@
               <strong>{{ selectedGenerationWorkIndexText }}</strong>
             </article>
             <article>
-              <small>设计模板</small>
-              <strong>{{ selectedWork.templateId ? '已匹配' : '默认' }}</strong>
+              <small>定制设计</small>
+              <strong>{{ workDetailCustomDesignDisabled ? '不可用' : '可继续修改' }}</strong>
             </article>
           </section>
 
@@ -385,8 +385,8 @@
               <small>已完成</small>
             </article>
             <article>
-              <span>{{ customDesignContext?.templateCode ? '已匹配' : '默认' }}</span>
-              <small>当前模板</small>
+              <span>{{ pendingCustomDesignRecordCount }}</span>
+              <small>等待结果</small>
             </article>
           </section>
 
@@ -409,14 +409,13 @@
                 </figure>
                 <figure :class="{ pending: !record.outputImageUrl }">
                   <img v-if="record.outputImageUrl" :src="record.outputImageUrl" alt="" />
-                  <span v-else>生成中</span>
+                  <span v-else>{{ customDesignOutputPlaceholderText(record) }}</span>
                   <figcaption>输出图</figcaption>
                 </figure>
               </section>
               <section class="custom-record-body">
                 <strong>{{ record.prompt }}</strong>
                 <span>基于当前作品修改</span>
-                <span>模板：{{ record.templateCode ? '已匹配' : '默认' }}</span>
               </section>
               <footer v-if="record.status === 'completed'">
                 <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
@@ -437,8 +436,11 @@
               <footer v-else-if="record.status === 'failed'">
                 <button type="button" @click="continueCustomDesignFromRecord(record)">重新生成</button>
               </footer>
+              <footer v-else-if="record.status === 'submitted'">
+                <span class="custom-record-pending-text">等待结果返回后可查看输出图和应用设计</span>
+              </footer>
               <footer v-else>
-                <span class="custom-record-pending-text">生成完成后可查看结果和应用设计</span>
+                <span class="custom-record-pending-text">等待结果返回后可查看输出图和应用设计</span>
               </footer>
             </article>
           </section>
@@ -720,7 +722,7 @@ interface CustomDesignImageEntry {
 
 type CustomDesignStatus = 'idle' | 'processing' | 'completed' | 'failed';
 
-type CustomDesignProcessStatus = 'processing' | 'completed' | 'applied' | 'failed';
+type CustomDesignProcessStatus = 'submitted' | 'processing' | 'completed' | 'applied' | 'failed';
 
 interface CustomDesignProcessRecord {
   recordKey: string;
@@ -1022,6 +1024,9 @@ const visibleCustomDesignProcessRecords = computed(() => {
 });
 const completedCustomDesignRecordCount = computed(
   () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'completed' || record.status === 'applied').length,
+);
+const pendingCustomDesignRecordCount = computed(
+  () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'submitted' || record.status === 'processing').length,
 );
 const customDesignRecordsSubtitle = computed(() => {
   if (!customDesignContext.value) {
@@ -1413,7 +1418,13 @@ function normalizeCustomDesignRecordStatus(status: string): CustomDesignProcessS
   if (normalized === 'FAILED') {
     return 'failed';
   }
-  return 'processing';
+  if (normalized === 'RUNNING' || normalized === 'PROCESSING') {
+    return 'processing';
+  }
+  if (normalized === 'SUBMITTED') {
+    return 'submitted';
+  }
+  return 'submitted';
 }
 
 function mapRemoteCustomDesignRecord(record: CustomDesignRecordItemResponse): CustomDesignProcessRecord {
@@ -1450,7 +1461,7 @@ async function loadCustomDesignProcessRecords() {
       (record) =>
         record.generationRecordId === context.recordId &&
         record.sourceWorkId === context.workId &&
-        record.status === 'processing' &&
+        (record.status === 'submitted' || record.status === 'processing') &&
         !remoteRecordCodes.has(record.processRecordCode),
     );
     const otherContextRecords = customDesignProcessRecords.value.filter(
@@ -1550,7 +1561,7 @@ async function submitCustomDesignInstruction(prompt: string) {
       sourceWorkId,
       prompt: normalizedPrompt,
       templateCode,
-      status: 'processing',
+      status: 'submitted',
       inputImageUrl,
       createdAt: formatCustomDesignRecordTime(),
     },
@@ -1687,6 +1698,9 @@ function handleCustomDesignImageError() {
 }
 
 function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
+  if (status === 'submitted') {
+    return '已提交';
+  }
   if (status === 'applied') {
     return '已应用';
   }
@@ -1697,6 +1711,13 @@ function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
     return '失败';
   }
   return '生成中';
+}
+
+function customDesignOutputPlaceholderText(record: CustomDesignProcessRecord) {
+  if (record.status === 'failed') {
+    return '生成失败';
+  }
+  return '暂无输出';
 }
 
 function showCustomDesignRecordResult(record: CustomDesignProcessRecord) {
@@ -3784,6 +3805,7 @@ button:focus-visible {
   font-weight: 950;
 }
 
+.custom-record-status.submitted,
 .custom-record-status.processing {
   color: #7a5600;
   background: #fff3bf;

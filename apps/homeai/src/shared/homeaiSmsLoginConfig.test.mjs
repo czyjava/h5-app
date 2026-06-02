@@ -244,6 +244,17 @@ test('HomeAI 助手历史列表图标必须复用底部 AI 助手图标', () => 
   assert.doesNotMatch(appVueSource, /formatAssistantHistoryIcon/);
 });
 
+test('HomeAI 助手历史列表必须使用移动端会话列表样式', () => {
+  assert.match(appVueSource, /class="assistant-history-icon-wrap"/);
+  assert.match(appVueSource, /class="assistant-history-meta"/);
+  assert.match(appVueSource, /class="assistant-history-arrow"/);
+  assert.match(appVueSource, /\.assistant-history-card\s*\{[\s\S]*?grid-template-columns:\s*42px minmax\(0, 1fr\)/);
+  assert.match(appVueSource, /\.assistant-history-list\s*\{[\s\S]*?padding-bottom:\s*92px/);
+  assert.match(appVueSource, /\.page-mine\s*\{[\s\S]*?scrollbar-width:\s*none/);
+  assert.match(appVueSource, /\.mine-tabs button\.active::after/);
+  assert.doesNotMatch(appVueSource, /border-color:\s*#ff4b4b/);
+});
+
 test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {
   const workDetailActionsSource = appVueSource.match(/<section class="work-detail-actions">[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);

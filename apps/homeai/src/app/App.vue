@@ -665,12 +665,17 @@
                 class="assistant-history-card"
                 @click="openAssistantHistorySession(session)"
               >
-                <img class="assistant-history-icon" :src="homeAiAssets.magicWand" alt="" />
+                <span class="assistant-history-icon-wrap">
+                  <img class="assistant-history-icon" :src="homeAiAssets.magicWand" alt="" />
+                </span>
                 <span class="assistant-history-copy">
                   <strong>{{ formatAssistantHistoryTitle(session) }}</strong>
                   <small>{{ formatAssistantHistorySubtitle(session) }}</small>
                 </span>
-                <span class="assistant-history-time">{{ formatAssistantHistoryTime(session) }}</span>
+                <span class="assistant-history-meta">
+                  <span class="assistant-history-time">{{ formatAssistantHistoryTime(session) }}</span>
+                  <ChevronRight class="assistant-history-arrow" :size="16" aria-hidden="true" />
+                </span>
               </button>
             </section>
           </section>
@@ -5144,6 +5149,14 @@ button:focus-visible {
   background: #f6f8fb;
 }
 
+.page-mine {
+  scrollbar-width: none;
+}
+
+.page-mine::-webkit-scrollbar {
+  display: none;
+}
+
 .page-vip-purchase {
   display: grid;
   grid-template-rows: auto auto 1fr auto;
@@ -5601,25 +5614,36 @@ button:focus-visible {
 .mine-tabs {
   display: flex;
   align-items: center;
-  gap: 18px;
-  margin: 18px 0 12px;
+  gap: 20px;
+  margin: 18px 0 14px;
 }
 
 .mine-tabs button {
   min-width: 0;
-  padding: 5px 8px;
-  border: 2px solid transparent;
-  border-radius: 9px;
+  position: relative;
+  padding: 4px 0 8px;
+  border: 0;
   color: #9aa1ad;
   background: transparent;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 950;
   line-height: 1.15;
 }
 
 .mine-tabs button.active {
-  border-color: #ff4b4b;
   color: #171b24;
+}
+
+.mine-tabs button.active::after {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 22px;
+  height: 4px;
+  border-radius: 999px;
+  background: #256eff;
+  content: "";
+  transform: translateX(-50%);
 }
 
 .work-list {
@@ -5668,8 +5692,8 @@ button:focus-visible {
 
 .assistant-history-list {
   display: grid;
-  gap: 12px;
-  padding-bottom: 6px;
+  gap: 14px;
+  padding-bottom: 92px;
 }
 
 .assistant-history-list > header {
@@ -5682,17 +5706,19 @@ button:focus-visible {
 .assistant-history-list h3 {
   margin: 0;
   color: #171b24;
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 950;
 }
 
 .assistant-history-list > header button {
   border: 0;
   border-radius: 999px;
-  padding: 7px 11px;
+  padding: 7px 12px;
   color: #fff;
-  background: #3478f6;
+  background: #256eff;
   font-size: 12px;
   font-weight: 900;
+  box-shadow: 0 8px 16px rgba(37, 110, 255, 0.22);
 }
 
 .assistant-history-list > header button:disabled {
@@ -5720,44 +5746,61 @@ button:focus-visible {
 
 .assistant-history-group {
   display: grid;
-  gap: 9px;
+  gap: 8px;
 }
 
 .assistant-history-group h4 {
-  margin: 0;
+  margin: 0 0 1px;
+  padding-left: 2px;
   color: #8d96a7;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
+  letter-spacing: 0;
 }
 
 .assistant-history-card {
   min-width: 0;
-  min-height: 72px;
+  min-height: 68px;
   display: grid;
-  grid-template-columns: 48px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  padding: 12px;
-  border: 1px solid #e7ebf1;
-  border-radius: 16px;
+  padding: 10px 11px;
+  border: 1px solid rgba(141, 154, 174, 0.16);
+  border-radius: 15px;
   color: #171b24;
   background: #fff;
   text-align: left;
-  box-shadow: 0 8px 18px rgba(35, 47, 70, 0.05);
+  box-shadow: 0 8px 18px rgba(35, 47, 70, 0.04);
+}
+
+.assistant-history-card:active {
+  background: #f8fbff;
+}
+
+.assistant-history-icon-wrap {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #111317;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .assistant-history-icon {
   /* 历史会话统一复用底部 AI 助手入口图标，避免按标题误分类。 */
-  width: 46px;
-  height: 46px;
+  width: 25px;
+  height: 25px;
   display: block;
   object-fit: contain;
+  filter: brightness(0) invert(1);
 }
 
 .assistant-history-copy {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 5px;
 }
 
 .assistant-history-copy strong,
@@ -5770,20 +5813,32 @@ button:focus-visible {
 
 .assistant-history-copy strong {
   color: #171b24;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 950;
 }
 
 .assistant-history-copy small {
   color: #7a8495;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
+  line-height: 1.35;
+}
+
+.assistant-history-meta {
+  height: 42px;
+  display: grid;
+  justify-items: end;
+  align-content: space-between;
 }
 
 .assistant-history-time {
   color: #9aa1ad;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
+}
+
+.assistant-history-arrow {
+  color: #c2cad6;
 }
 
 .work-row {

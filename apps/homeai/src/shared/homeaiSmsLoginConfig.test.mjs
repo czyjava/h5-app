@@ -213,6 +213,12 @@ test('HomeAI 助手历史列表必须用真实消息生成标题描述和时间'
   assert.doesNotMatch(appVueSource, /继续上次设计建议/);
 });
 
+test('HomeAI 助手历史列表图标必须复用底部 AI 助手图标', () => {
+  assert.match(appVueSource, /key: 'assistant' as const, label: 'AI', icon: homeAiAssets\.magicWand/);
+  assert.match(appVueSource, /class="assistant-history-icon"[\s\S]*?:src="homeAiAssets\.magicWand"/);
+  assert.doesNotMatch(appVueSource, /formatAssistantHistoryIcon/);
+});
+
 test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {
   const workDetailActionsSource = appVueSource.match(/<section class="work-detail-actions">[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.match(appVueSource, /:disabled="workDetailCustomDesignDisabled"/);

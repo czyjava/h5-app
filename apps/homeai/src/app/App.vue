@@ -651,7 +651,7 @@
                 class="assistant-history-card"
                 @click="openAssistantHistorySession(session)"
               >
-                <span class="assistant-history-icon">{{ formatAssistantHistoryIcon(session) }}</span>
+                <img class="assistant-history-icon" :src="homeAiAssets.magicWand" alt="" />
                 <span class="assistant-history-copy">
                   <strong>{{ formatAssistantHistoryTitle(session) }}</strong>
                   <small>{{ formatAssistantHistorySubtitle(session) }}</small>
@@ -1324,14 +1324,6 @@ function formatAssistantHistorySubtitle(session: AssistantHistorySession) {
     return `查看助手对话 · ${session.status}`;
   }
   return session.sceneType === 'CUSTOM_DESIGN' ? '查看定制设计对话' : '查看助手对话';
-}
-
-function formatAssistantHistoryIcon(session: AssistantHistorySession) {
-  if (session.sceneType === 'CUSTOM_DESIGN') {
-    return '改';
-  }
-  const title = formatAssistantHistoryTitle(session);
-  return title.includes('图') ? '图' : 'AI';
 }
 
 function formatAssistantHistoryTime(session: AssistantHistorySession) {
@@ -5596,16 +5588,11 @@ button:focus-visible {
 }
 
 .assistant-history-icon {
+  /* 历史会话统一复用底部 AI 助手入口图标，避免按标题误分类。 */
   width: 46px;
   height: 46px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  color: #fff;
-  background: #111317;
-  font-size: 16px;
-  font-weight: 950;
-  font-style: italic;
+  display: block;
+  object-fit: contain;
 }
 
 .assistant-history-copy {

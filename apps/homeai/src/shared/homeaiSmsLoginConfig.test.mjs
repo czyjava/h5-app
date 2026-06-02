@@ -112,6 +112,14 @@ test('HomeAI 当前用户信息必须走认证域 current-user 接口', () => {
   );
 });
 
+test('HomeAI VIP 判断必须走业务服务用户权益接口', () => {
+  assert.match(appConfigSource, /userPermission:\s*'\/api\/open\/permission\/get-user-permission\.htm'/);
+  assert.match(homeAiApiSource, /requestBusiness<UserPermissionResponse>\(homeAiReplicaConfig\.endpoints\.userPermission,\s*context\)/);
+  assert.match(homeAiApiSource, /normalizeHomeAiSnapshot\(\{\s*user,\s*userPermission,/);
+  assert.match(appVueSource, /const isHomeAiVipMember = computed\(\(\) => snapshot\.value\.user\.vipActive\)/);
+  assert.doesNotMatch(homeAiApiSource, /endpoints\.currentUser[\s\S]*?vipActive/);
+});
+
 test('HomeAI HTTP 失败但响应体包含业务 message 时必须优先展示 message', () => {
   assert.match(homeAiApiSource, /throw new Error\(payload\.message \|\| formatHttpErrorMessage\(response\.status\)\)/);
 });

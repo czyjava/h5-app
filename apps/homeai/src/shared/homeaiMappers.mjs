@@ -35,10 +35,6 @@ function pickRecord(input) {
   return input && typeof input === 'object' ? input : {};
 }
 
-function pickBoolean(input, keys) {
-  return keys.some((key) => input[key] === true || input[key] === 'true' || input[key] === 'TRUE' || input[key] === 1);
-}
-
 function normalizeImageUrl(value) {
   if (!value) {
     return '';
@@ -46,15 +42,9 @@ function normalizeImageUrl(value) {
   return value.startsWith('//') ? `https:${value}` : value;
 }
 
-function resolveVipActive(record, vipLabel) {
-  if (pickBoolean(record, ['vip', 'isVip', 'member', 'memberActive', 'vipActive'])) {
-    return true;
-  }
-  const validDuration = Number(record.validDuration ?? record.vipValidDuration ?? 0);
-  if (Number.isFinite(validDuration) && validDuration > 0) {
-    return true;
-  }
-  return Boolean(vipLabel && vipLabel !== '未登录' && vipLabel !== '已登录');
+function resolvePermissionActive(permission) {
+  const hasPermission = permission?.hasPermission;
+  return hasPermission === true || hasPermission === 'true' || hasPermission === 'TRUE' || hasPermission === 1;
 }
 
 function parseMaybeJsonObject(input) {
@@ -219,31 +209,32 @@ export function mapGenerationDetail(raw, fallbackWork = null) {
   return detail;
 }
 
-function mapUser(raw) {
+function mapUser(raw, permission) {
   const record = pickRecord(raw);
   const userId = pickString(record, ['userId', 'id'], emptyUser.userId);
   const nickname = pickString(record, ['nickname', 'nickName', 'name'], emptyUser.nickname);
   const loggedIn = userId !== emptyUser.userId || nickname !== emptyUser.nickname;
-  const vipLabel = pickString(record, ['vipLabel', 'vipName'], loggedIn ? '已登录' : emptyUser.vipLabel);
+  const vipActive = resolvePermissionActive(permission);
+  const vipLabel = vipActive ? 'VIP' : loggedIn ? '已登录' : emptyUser.vipLabel;
   return {
     nickname,
     userId,
     avatar: normalizeImageUrl(pickString(record, ['largeAvatar', 'avatar', 'avatarUrl', 'headImg'], emptyUser.avatar)),
-    vipActive: resolveVipActive(record, vipLabel),
+    vipActive,
     diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? emptyUser.diamondCount),
-    // current-user 经常只返回基础用户资料，不带会员标签；只要有用户身份，就不再显示“未登录”。
+    // VIP 状态只来自业务服务权益接口；current-user 仅承载用户基础资料。
     vipLabel,
   };
 }
 
-export function normalizeHomeAiSnapshot({ user, generationList, recommendList } = {}) {
+export function normalizeHomeAiSnapshot({ user, userPermission, generationList, recommendList } = {}) {
   const works = mapGenerationList(generationList, 8);
   const configJson = recommendList && typeof recommendList === 'object' ? recommendList.configJson : '';
   const parsedRecommend = typeof configJson === 'string' && configJson.trim() ? JSON.parse(configJson) : recommendList;
   const discover = pickArray(parsedRecommend).map(mapDiscoverItem).filter((item) => item.coverUrl);
 
   return {
-    user: user ? mapUser(user) : emptyUser,
+    user: user ? mapUser(user, userPermission) : emptyUser,
     works: works.slice(0, 8),
     discover: discover.slice(0, 12),
   };

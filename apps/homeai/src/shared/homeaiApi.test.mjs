@@ -30,6 +30,7 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads', () => {
   assert.equal(snapshot.user.nickname, '设计师');
   assert.equal(snapshot.user.userId, '42');
   assert.equal(snapshot.user.diamondCount, 18);
+  assert.equal(snapshot.user.vipActive, false);
   assert.equal(snapshot.works[0].id, 'r1');
   assert.equal(snapshot.works[0].recordId, 'r1');
   assert.equal(snapshot.works[0].templateId, 'tpl-1');
@@ -56,12 +57,23 @@ test('normalizeHomeAiSnapshot shows logged-in status when current user has no vi
   assert.equal(snapshot.user.vipActive, false);
 });
 
-test('normalizeHomeAiSnapshot maps valid vip duration as active member', () => {
+test('normalizeHomeAiSnapshot ignores current-user vip-like fields for member state', () => {
   const snapshot = normalizeHomeAiSnapshot({
-    user: { nickname: '会员用户', userId: 'vip-user', validDuration: 30 },
+    user: { nickname: '会员用户', userId: 'vip-user', validDuration: 30, vipName: 'VIP 体验', vip: true },
+  });
+
+  assert.equal(snapshot.user.vipActive, false);
+  assert.equal(snapshot.user.vipLabel, '已登录');
+});
+
+test('normalizeHomeAiSnapshot maps business permission as active member', () => {
+  const snapshot = normalizeHomeAiSnapshot({
+    user: { nickname: '会员用户', userId: 'vip-user' },
+    userPermission: { hasPermission: true, permissionCodes: ['homeai_vip'], expireTime: 1780000000000 },
   });
 
   assert.equal(snapshot.user.vipActive, true);
+  assert.equal(snapshot.user.vipLabel, 'VIP');
 });
 
 test('normalizeHomeAiSnapshot does not synthesize local business data when APIs are empty', () => {

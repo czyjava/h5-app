@@ -94,6 +94,12 @@ export interface DesignAssistantSessionsResponse {
   sessions?: DesignAssistantSessionItem[];
 }
 
+export interface UserPermissionResponse {
+  hasPermission?: boolean | string | number | null;
+  permissionCodes?: string[];
+  expireTime?: number | string | null;
+}
+
 export interface DesignFeature {
   code: string;
   title: string;

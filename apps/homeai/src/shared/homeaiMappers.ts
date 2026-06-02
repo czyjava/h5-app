@@ -1,4 +1,4 @@
-import type { DesignAssistantMediaInfo, DiscoverItem, HomeAiSnapshot, UserSummary, WorkItem } from './types';
+import type { DesignAssistantMediaInfo, DiscoverItem, HomeAiSnapshot, UserPermissionResponse, UserSummary, WorkItem } from './types';
 
 export interface HomeAiGenerationDetail {
   recordId: string;
@@ -47,10 +47,6 @@ function pickRecord(input: unknown): Record<string, unknown> {
   return input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
 }
 
-function pickBoolean(input: Record<string, unknown>, keys: string[]) {
-  return keys.some((key) => input[key] === true || input[key] === 'true' || input[key] === 'TRUE' || input[key] === 1);
-}
-
 function normalizeImageUrl(value: string) {
   if (!value) {
     return '';
@@ -58,15 +54,9 @@ function normalizeImageUrl(value: string) {
   return value.startsWith('//') ? `https:${value}` : value;
 }
 
-function resolveVipActive(record: Record<string, unknown>, vipLabel: string) {
-  if (pickBoolean(record, ['vip', 'isVip', 'member', 'memberActive', 'vipActive'])) {
-    return true;
-  }
-  const validDuration = Number(record.validDuration ?? record.vipValidDuration ?? 0);
-  if (Number.isFinite(validDuration) && validDuration > 0) {
-    return true;
-  }
-  return Boolean(vipLabel && vipLabel !== '未登录' && vipLabel !== '已登录');
+function resolvePermissionActive(permission?: UserPermissionResponse | null) {
+  const hasPermission = permission?.hasPermission;
+  return hasPermission === true || hasPermission === 'true' || hasPermission === 'TRUE' || hasPermission === 1;
 }
 
 function parseMaybeJsonObject(input: unknown): unknown {
@@ -232,29 +222,32 @@ export function mapGenerationDetail(raw: unknown, fallbackWork?: WorkItem | null
   return detail;
 }
 
-function mapUser(raw: unknown): UserSummary {
+function mapUser(raw: unknown, permission?: UserPermissionResponse | null): UserSummary {
   const record = pickRecord(raw);
   const userId = pickString(record, ['userId', 'id'], emptyUser.userId);
   const nickname = pickString(record, ['nickname', 'nickName', 'name'], emptyUser.nickname);
   const loggedIn = userId !== emptyUser.userId || nickname !== emptyUser.nickname;
-  const vipLabel = pickString(record, ['vipLabel', 'vipName'], loggedIn ? '已登录' : emptyUser.vipLabel);
+  const vipActive = resolvePermissionActive(permission);
+  const vipLabel = vipActive ? 'VIP' : loggedIn ? '已登录' : emptyUser.vipLabel;
   return {
     nickname,
     userId,
     avatar: normalizeImageUrl(pickString(record, ['largeAvatar', 'avatar', 'avatarUrl', 'headImg'], emptyUser.avatar)),
-    vipActive: resolveVipActive(record, vipLabel),
+    vipActive,
     diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? emptyUser.diamondCount),
-    // current-user 经常只返回基础用户资料，不带会员标签；只要有用户身份，就不再显示“未登录”。
+    // VIP 状态只来自业务服务权益接口；current-user 仅承载用户基础资料。
     vipLabel,
   };
 }
 
 export function normalizeHomeAiSnapshot({
   user,
+  userPermission,
   generationList,
   recommendList,
 }: {
   user?: unknown;
+  userPermission?: UserPermissionResponse | null;
   generationList?: unknown;
   recommendList?: unknown;
 } = {}): Pick<HomeAiSnapshot, 'discover' | 'works' | 'user'> {
@@ -264,7 +257,7 @@ export function normalizeHomeAiSnapshot({
   const discover = pickArray(parsedRecommend).map(mapDiscoverItem).filter((item) => item.coverUrl);
 
   return {
-    user: user ? mapUser(user) : emptyUser,
+    user: user ? mapUser(user, userPermission) : emptyUser,
     works: works.slice(0, 8),
     discover: discover.slice(0, 12),
   };

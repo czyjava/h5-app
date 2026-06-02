@@ -9,7 +9,7 @@ import {
 import { homeAiReplicaConfig } from '../../app.config';
 import { appShellSnapshot } from './appShellData';
 import { mapGenerationDetail, mapGenerationList, normalizeHomeAiSnapshot, type HomeAiGenerationDetail } from './homeaiMappers';
-import type { HomeAiSnapshot, WorkItem } from './types';
+import type { HomeAiSnapshot, UserPermissionResponse, WorkItem } from './types';
 
 interface ApiEnvelope<T = unknown> {
   data?: T;
@@ -227,7 +227,7 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     }
   };
 
-  const [user, generationList, recommendList] = await Promise.all([
+  const [user, userPermission, generationList, recommendList] = await Promise.all([
     context.authToken
       ? safeLoad('currentUser', () =>
           requestBusiness(homeAiReplicaConfig.endpoints.currentUser, context, {
@@ -235,6 +235,9 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
             hostType: 'auth',
           }),
         )
+      : Promise.resolve(null),
+    context.authToken
+      ? safeLoad('userPermission', () => requestBusiness<UserPermissionResponse>(homeAiReplicaConfig.endpoints.userPermission, context))
       : Promise.resolve(null),
     context.authToken
       ? safeLoad('generationList', () =>
@@ -250,7 +253,7 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
     ),
   ]);
 
-  const mappedSnapshot = normalizeHomeAiSnapshot({ user, generationList, recommendList });
+  const mappedSnapshot = normalizeHomeAiSnapshot({ user, userPermission, generationList, recommendList });
   const snapshot: HomeAiSnapshot = {
     ...appShellSnapshot,
     ...mappedSnapshot,

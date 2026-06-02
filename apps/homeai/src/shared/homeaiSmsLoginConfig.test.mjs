@@ -185,10 +185,16 @@ test('HomeAI 作品详情必须选中真实 generationWork 后才能进入定制
   assert.match(appVueSource, /selectedWork\.value\.sourceType !== 'work'/);
 });
 
-test('HomeAI 我的页不展示 AI 设计助手历史入口', () => {
-  assert.doesNotMatch(appVueSource, /class="assistant-history-card"/);
-  assert.doesNotMatch(appVueSource, /loadAssistantHistory/);
-  assert.doesNotMatch(appVueSource, /openAssistantHistory/);
+test('HomeAI 我的页必须提供作品和助手二级 tab', () => {
+  assert.match(appVueSource, /mineTab/);
+  assert.match(appVueSource, /class="mine-tabs"/);
+  assert.match(appVueSource, />作品</);
+  assert.match(appVueSource, />助手</);
+  assert.match(appVueSource, /class="assistant-history-list"/);
+  assert.match(appVueSource, /loadAssistantHistory/);
+  assert.match(appVueSource, /openAssistantHistorySession/);
+  assert.match(appVueSource, /listDesignAssistantSessions\(getAssistantContext\(\), 'ASSISTANT_CHAT'\)/);
+  assert.match(appVueSource, /listDesignAssistantMessages\(getAssistantContext\(\), session\.sessionKey\)/);
 });
 
 test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {

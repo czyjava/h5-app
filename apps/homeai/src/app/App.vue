@@ -570,7 +570,12 @@
             </div>
           </section>
 
-          <section class="work-list">
+          <nav class="mine-tabs" aria-label="我的内容切换">
+            <button type="button" :class="{ active: mineTab === 'works' }" @click="chooseMineTab('works')">作品</button>
+            <button type="button" :class="{ active: mineTab === 'assistant' }" @click="chooseMineTab('assistant')">助手</button>
+          </nav>
+
+          <section v-if="mineTab === 'works'" class="work-list">
             <header>
               <h3>我的作品</h3>
               <button type="button" :disabled="workListLoading" @click="refreshWorkList">
@@ -588,6 +593,35 @@
               </div>
               <button type="button" class="custom" @click="openWorkDetail(work)">查看详情</button>
             </article>
+          </section>
+
+          <section v-else class="assistant-history-list">
+            <header>
+              <h3>助手</h3>
+              <button type="button" :disabled="assistantHistoryLoading" @click="loadAssistantHistory">
+                {{ assistantHistoryLoading ? '加载中' : '刷新' }}
+              </button>
+            </header>
+            <p v-if="assistantHistoryError" class="assistant-history-error">{{ assistantHistoryError }}</p>
+            <p v-if="assistantHistoryLoading && assistantHistorySessions.length === 0" class="assistant-history-empty">正在加载助手会话...</p>
+            <p v-else-if="assistantHistorySessions.length === 0" class="assistant-history-empty">暂无助手会话</p>
+            <section v-for="group in assistantHistoryGroups" :key="group.label" class="assistant-history-group">
+              <h4>{{ group.label }}</h4>
+              <button
+                v-for="session in group.sessions"
+                :key="session.sessionKey"
+                type="button"
+                class="assistant-history-card"
+                @click="openAssistantHistorySession(session)"
+              >
+                <span class="assistant-history-icon">{{ formatAssistantHistoryIcon(session) }}</span>
+                <span class="assistant-history-copy">
+                  <strong>{{ formatAssistantHistoryTitle(session) }}</strong>
+                  <small>{{ formatAssistantHistorySubtitle(session) }}</small>
+                </span>
+                <span class="assistant-history-time">{{ formatAssistantHistoryTime(session) }}</span>
+              </button>
+            </section>
           </section>
         </section>
       </section>
@@ -840,6 +874,7 @@ const smsAuthClient = createSmsAuthClient(homeAiReplicaConfig);
 const session = createReplicaSession(homeAiReplicaConfig.appId);
 const initialBusinessTargets = loadBusinessTargets();
 const activeTab = ref<MainTab>('home');
+const mineTab = ref<'works' | 'assistant'>('works');
 const environment = ref<ReplicaEnvironment>(session.environment);
 const authTokenDraft = ref(session.authToken);
 const businessTargets = ref<Record<ReplicaEnvironment, string>>({ ...initialBusinessTargets });
@@ -883,6 +918,9 @@ const workDetailPresetPrompt = ref('');
 const workList = ref<WorkItem[]>([]);
 const workListLoading = ref(false);
 const workListError = ref('');
+const assistantHistorySessions = ref<DesignAssistantSessionItem[]>([]);
+const assistantHistoryLoading = ref(false);
+const assistantHistoryError = ref('');
 const selectedGenerationDetail = ref<HomeAiGenerationDetail | null>(null);
 const workDetailLoading = ref(false);
 const workDetailError = ref('');
@@ -1012,6 +1050,14 @@ const filteredDiscover = computed(() => {
   return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
 });
 const displayWorks = computed(() => (workList.value.length > 0 ? workList.value : snapshot.value.works));
+const assistantHistoryGroups = computed(() => {
+  const groups = new Map<string, DesignAssistantSessionItem[]>();
+  for (const session of assistantHistorySessions.value) {
+    const label = formatAssistantHistoryGroupLabel(session);
+    groups.set(label, [...(groups.get(label) ?? []), session]);
+  }
+  return Array.from(groups.entries()).map(([label, sessions]) => ({ label, sessions }));
+});
 const selectedGenerationWorks = computed(() => {
   if (!selectedWork.value) {
     return [];
@@ -1173,6 +1219,76 @@ function formatDisplayTime(value?: string | null) {
 
 function formatWorkDisplayMeta(work: WorkItem) {
   return `${formatWorkStatusText(work.status)} · ${formatDisplayTime(work.createdAt)}`;
+}
+
+function resolveAssistantSessionTime(session: DesignAssistantSessionItem) {
+  return Math.max(parseAssistantSessionTime(session.updateTime), parseAssistantSessionTime(session.createTime));
+}
+
+function formatAssistantHistoryTitle(session: DesignAssistantSessionItem) {
+  const summary = String(session.summary || '').trim();
+  if (summary) {
+    return summary.split('\n')[0]?.slice(0, 28) || '设计助手会话';
+  }
+  return session.sceneType === 'CUSTOM_DESIGN' ? '定制设计会话' : '设计助手会话';
+}
+
+function formatAssistantHistorySubtitle(session: DesignAssistantSessionItem) {
+  if (session.sceneType === 'CUSTOM_DESIGN') {
+    return '基于作品的定制设计对话';
+  }
+  if (session.status) {
+    return `继续上次对话 · ${session.status}`;
+  }
+  return '继续上次设计建议';
+}
+
+function formatAssistantHistoryIcon(session: DesignAssistantSessionItem) {
+  if (session.sceneType === 'CUSTOM_DESIGN') {
+    return '改';
+  }
+  const title = formatAssistantHistoryTitle(session);
+  return title.includes('图') ? '图' : 'AI';
+}
+
+function formatAssistantHistoryTime(session: DesignAssistantSessionItem) {
+  const timestamp = resolveAssistantSessionTime(session);
+  if (!timestamp) {
+    return '最近';
+  }
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const isSameDay = (left: Date, right: Date) =>
+    left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+  if (isSameDay(date, today)) {
+    return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+  }
+  if (isSameDay(date, yesterday)) {
+    return '昨天';
+  }
+  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(date);
+}
+
+function formatAssistantHistoryGroupLabel(session: DesignAssistantSessionItem) {
+  const timestamp = resolveAssistantSessionTime(session);
+  if (!timestamp) {
+    return '历史记录';
+  }
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const isSameDay = (left: Date, right: Date) =>
+    left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+  if (isSameDay(date, today)) {
+    return '今天';
+  }
+  if (isSameDay(date, yesterday) || today.getTime() - timestamp < 7 * 24 * 60 * 60 * 1000) {
+    return '最近几天';
+  }
+  return '历史记录';
 }
 
 function persistEnvironment() {
@@ -1381,6 +1497,13 @@ function openAssistantHome() {
   activeTab.value = 'assistant';
 }
 
+function chooseMineTab(nextTab: 'works' | 'assistant') {
+  mineTab.value = nextTab;
+  if (nextTab === 'assistant') {
+    void loadAssistantHistory();
+  }
+}
+
 function selectDesignInputImage() {
   // 这里只记录用户选择的本地输入态，不生成任何业务作品；作品必须来自真实 generation 接口。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
@@ -1426,6 +1549,55 @@ async function refreshWorkList() {
     console.warn('[HomeAI Work] 作品列表刷新失败', { message });
   } finally {
     workListLoading.value = false;
+  }
+}
+
+async function loadAssistantHistory() {
+  if (!authTokenDraft.value) {
+    assistantHistorySessions.value = [];
+    assistantHistoryError.value = '登录后可查看助手会话';
+    return;
+  }
+  assistantHistoryLoading.value = true;
+  assistantHistoryError.value = '';
+  try {
+    const sessions = await listDesignAssistantSessions(getAssistantContext(), 'ASSISTANT_CHAT');
+    assistantHistorySessions.value = [...sessions]
+      .filter((session) => session.sessionKey)
+      .sort((left, right) => resolveAssistantSessionTime(right) - resolveAssistantSessionTime(left));
+    console.info('[HomeAI Assistant] 助手会话列表加载完成', { count: assistantHistorySessions.value.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '助手会话加载失败';
+    assistantHistoryError.value = message;
+    console.warn('[HomeAI Assistant] 助手会话列表加载失败', { message });
+  } finally {
+    assistantHistoryLoading.value = false;
+  }
+}
+
+async function openAssistantHistorySession(session: DesignAssistantSessionItem) {
+  if (!session.sessionKey || !requireAssistantLogin()) {
+    return;
+  }
+  assistantSending.value = true;
+  try {
+    assistantSceneType.value = 'ASSISTANT_CHAT';
+    assistantWorkContext.value = null;
+    assistantSessionKey.value = session.sessionKey;
+    const messages = await listDesignAssistantMessages(getAssistantContext(), session.sessionKey);
+    assistantMessages.value = messages;
+    assistantImageUrls.value = [];
+    assistantInput.value = '';
+    activeTab.value = 'assistant';
+    console.info('[HomeAI Assistant] 从我的页进入助手历史会话', {
+      messageCount: messages.length,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '打开助手会话失败';
+    showToast(message);
+    console.warn('[HomeAI Assistant] 打开助手历史会话失败', { message });
+  } finally {
+    assistantSending.value = false;
   }
 }
 
@@ -4946,6 +5118,30 @@ button:focus-visible {
   background: #fff;
 }
 
+.mine-tabs {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 18px 0 12px;
+}
+
+.mine-tabs button {
+  min-width: 0;
+  padding: 5px 8px;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  color: #9aa1ad;
+  background: transparent;
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.mine-tabs button.active {
+  border-color: #ff4b4b;
+  color: #171b24;
+}
+
 .work-list {
   padding-bottom: 6px;
 }
@@ -4988,6 +5184,131 @@ button:focus-visible {
 .work-list-empty {
   color: #66758c;
   background: #fff;
+}
+
+.assistant-history-list {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 6px;
+}
+
+.assistant-history-list > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.assistant-history-list h3 {
+  margin: 0;
+  color: #171b24;
+  font-size: 18px;
+}
+
+.assistant-history-list > header button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #fff;
+  background: #3478f6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assistant-history-list > header button:disabled {
+  background: #aeb8c8;
+}
+
+.assistant-history-error,
+.assistant-history-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.assistant-history-error {
+  color: #9d2b2b;
+  background: #fff0f0;
+}
+
+.assistant-history-empty {
+  color: #66758c;
+  background: #fff;
+}
+
+.assistant-history-group {
+  display: grid;
+  gap: 9px;
+}
+
+.assistant-history-group h4 {
+  margin: 0;
+  color: #8d96a7;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.assistant-history-card {
+  min-width: 0;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e7ebf1;
+  border-radius: 16px;
+  color: #171b24;
+  background: #fff;
+  text-align: left;
+  box-shadow: 0 8px 18px rgba(35, 47, 70, 0.05);
+}
+
+.assistant-history-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: #fff;
+  background: #111317;
+  font-size: 16px;
+  font-weight: 950;
+  font-style: italic;
+}
+
+.assistant-history-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.assistant-history-copy strong,
+.assistant-history-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-history-copy strong {
+  color: #171b24;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.assistant-history-copy small {
+  color: #7a8495;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.assistant-history-time {
+  color: #9aa1ad;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .work-row {

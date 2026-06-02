@@ -463,64 +463,46 @@
               <span>最近作品 {{ assistantWorkContext.workId }}</span>
               <small>模板 {{ assistantWorkContext.templateId || '-' }}</small>
             </div>
-            <section v-if="assistantMessages.length === 0" class="assistant-empty">
-              <span>AI</span>
-              <h2>{{ assistantEmptyTitle }}</h2>
-              <p>{{ assistantEmptyDescription }}</p>
-              <div class="assistant-quick-list">
-                <button
-                  v-for="question in assistantQuickQuestions"
-                  :key="question"
-                  type="button"
-                  :disabled="assistantComposerDisabled"
-                  @click="useAssistantQuickQuestion(question)"
-                >
-                  {{ question }}
-                </button>
-              </div>
+            <section v-if="assistantMessages.length === 0" class="assistant-quick-list" aria-label="常用问题">
+              <button
+                v-for="question in assistantQuickQuestions"
+                :key="question"
+                type="button"
+                :disabled="assistantComposerDisabled"
+                @click="useAssistantQuickQuestion(question)"
+              >
+                {{ question }}
+              </button>
             </section>
-            <section v-else class="assistant-message-list">
-              <article v-for="message in assistantMessages" :key="message.messageId || message.localId" class="assistant-message" :class="message.role === 'USER' ? 'user' : 'assistant'">
-                <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" @error="handleAssistantImageError" />
-                <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
-                <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
-              </article>
-            </section>
-          </section>
-
-          <section class="assistant-composer">
-            <input
-              ref="assistantImageInputRef"
-              class="assistant-file-input"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              @change="handleAssistantImageFileChange"
+            <vue-advanced-chat
+              class="assistant-advanced-chat"
+              height="100%"
+              theme="light"
+              accepted-files="image/png,image/jpeg,image/webp"
+              :current-user-id="ADVANCED_CHAT_CURRENT_USER_ID"
+              :rooms="advancedChatRooms"
+              :room-id="ADVANCED_CHAT_ROOM_ID"
+              :messages="advancedChatMessages"
+              :room-message="assistantInput"
+              :rooms-loaded="true"
+              :messages-loaded="true"
+              :single-room="true"
+              :show-search="false"
+              :show-add-room="false"
+              :show-audio="false"
+              :show-emojis="false"
+              :show-reaction-emojis="false"
+              :show-new-messages-divider="false"
+              :textarea-auto-focus="false"
+              :message-actions="[]"
+              :room-actions="[]"
+              :menu-actions="[]"
+              :text-messages="advancedChatTextMessages"
+              :text-formatting="advancedChatTextFormatting"
+              :styles="advancedChatStyles"
+              @send-message="handleAdvancedChatSendMessage"
+              @open-file="handleAdvancedChatOpenFile"
             />
-            <button
-              type="button"
-              class="assistant-upload-button"
-              :aria-label="assistantUploadingImage ? '图片上传中' : '上传图片'"
-              :disabled="assistantComposerDisabled"
-              @click="openAssistantImagePicker"
-            >
-              <img :src="homeAiAssets.upload" alt="" />
-            </button>
-            <input
-              v-model="assistantInput"
-              type="text"
-              :disabled="assistantComposerDisabled"
-              :placeholder="assistantComposerPlaceholder"
-              @keydown.enter.prevent="sendAssistantMessage()"
-            />
-            <button type="button" :disabled="assistantSendDisabled" @click="sendAssistantMessage()">
-              {{ assistantSending || assistantUploadingImage ? '等待' : '发送' }}
-            </button>
-            <div v-if="assistantImageUrls.length" class="assistant-attachment-strip">
-              <span v-for="url in assistantImageUrls" :key="url">
-                <img :src="url" alt="" />
-                <button type="button" class="assistant-attachment-remove" aria-label="移除图片" @click="removeAssistantImageAttachment(url)">×</button>
-              </span>
-            </div>
           </section>
         </section>
 
@@ -744,6 +726,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { register as registerAdvancedChat } from 'vue-advanced-chat';
 import { ChevronLeft, ChevronRight, History, MessageSquare, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
@@ -787,9 +770,65 @@ import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
+registerAdvancedChat();
+
 type AssistantUiMessage = DesignAssistantMessage & {
   localId?: string;
 };
+
+interface AdvancedChatMessageFile {
+  name: string;
+  type: string;
+  extension: string;
+  url: string;
+  preview?: string;
+  size?: number;
+  blob?: Blob;
+}
+
+interface AdvancedChatMessage {
+  _id: string;
+  senderId: string;
+  content: string;
+  username: string;
+  avatar: string;
+  date: string;
+  timestamp: string;
+  saved: boolean;
+  distributed: boolean;
+  seen: boolean;
+  failure: boolean;
+  disableActions: boolean;
+  disableReactions: boolean;
+  files?: AdvancedChatMessageFile[];
+}
+
+interface AdvancedChatRoom {
+  roomId: string;
+  roomName: string;
+  avatar: string;
+  users: Array<{
+    _id: string;
+    username: string;
+    avatar: string;
+    status: { state: 'online' | 'offline'; lastChanged: string };
+  }>;
+  typingUsers?: string[];
+  lastMessage?: {
+    content: string;
+    senderId: string;
+    timestamp: string;
+  };
+}
+
+interface AdvancedChatSendPayload {
+  content?: string;
+  files?: AdvancedChatMessageFile[];
+}
+
+interface AdvancedChatOpenFilePayload {
+  file?: AdvancedChatMessageFile;
+}
 
 interface AssistantHistorySession extends DesignAssistantSessionItem {
   firstUserText: string;
@@ -952,7 +991,6 @@ const selectedStyle = ref('现代简约');
 const activeDiscoverCategory = ref('全部');
 const assistantInput = ref('');
 const assistantImageUrls = ref<string[]>([]);
-const assistantImageInputRef = ref<HTMLInputElement | null>(null);
 const assistantUploadingImage = ref(false);
 const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
@@ -1034,6 +1072,9 @@ const customDesignStyles = [
 ];
 const customDesignPromptExamples = ['保留布局，改成奶油风', '让客厅更显大', '换成原木色软装'];
 const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约适合什么配色？', '帮我规划玄关收纳', '预算有限先改哪里？'];
+const ADVANCED_CHAT_CURRENT_USER_ID = 'homeai-user';
+const ADVANCED_CHAT_ASSISTANT_USER_ID = 'homeai-assistant';
+const ADVANCED_CHAT_ROOM_ID = 'homeai-design-assistant';
 const ASSISTANT_IMAGE_ACCEPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ASSISTANT_IMAGE_MAX_SIZE = 20 * 1024 * 1024;
 const ASSISTANT_IMAGE_MAX_COUNT = 6;
@@ -1178,6 +1219,62 @@ const assistantComposerPlaceholder = computed(() =>
   assistantUploadingImage.value ? '图片上传中，请稍候' : assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value,
 );
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
+const advancedChatMessages = computed<AdvancedChatMessage[]>(() => assistantMessages.value.map(mapAssistantMessageToAdvancedChatMessage));
+const advancedChatRooms = computed<AdvancedChatRoom[]>(() => {
+  const lastMessage = advancedChatMessages.value[advancedChatMessages.value.length - 1];
+  return [
+    {
+      roomId: ADVANCED_CHAT_ROOM_ID,
+      roomName: assistantPageTitle.value,
+      avatar: homeAiAssets.magicWand,
+      users: [
+        {
+          _id: ADVANCED_CHAT_CURRENT_USER_ID,
+          username: '我',
+          avatar: homeAiAssets.appLogo,
+          status: { state: 'online', lastChanged: new Date().toISOString() },
+        },
+        {
+          _id: ADVANCED_CHAT_ASSISTANT_USER_ID,
+          username: 'AI 装修大师',
+          avatar: homeAiAssets.magicWand,
+          status: { state: 'online', lastChanged: new Date().toISOString() },
+        },
+      ],
+      typingUsers: assistantSending.value || assistantUploadingImage.value ? [ADVANCED_CHAT_ASSISTANT_USER_ID] : [],
+      lastMessage: lastMessage
+        ? {
+            content: lastMessage.content || (lastMessage.files?.length ? '图片' : ''),
+            senderId: lastMessage.senderId,
+            timestamp: lastMessage.timestamp,
+          }
+        : undefined,
+    },
+  ];
+});
+const advancedChatTextMessages = computed(() => ({
+  ROOM_EMPTY: assistantEmptyDescription.value,
+  TYPE_MESSAGE: assistantComposerPlaceholder.value,
+  MESSAGES_EMPTY: assistantEmptyTitle.value,
+  IS_TYPING: '正在回复中...',
+}));
+const advancedChatTextFormatting = { disabled: true };
+const advancedChatStyles = {
+  container: {
+    borderRadius: '18px',
+    boxShadow: '0 18px 38px rgba(24, 45, 78, 0.08)',
+  },
+  roomHeader: {
+    display: 'none',
+  },
+  roomsList: {
+    display: 'none',
+  },
+  message: {
+    fontSize: '14px',
+    lineHeight: '1.55',
+  },
+};
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
 const currentCustomDesignApplyCode = computed(() => {
   const customDesignCode = currentCustomDesignImage.value?.customDesignCode || '';
@@ -2371,6 +2468,54 @@ function requireAssistantLogin() {
   return false;
 }
 
+function formatAdvancedChatDate(timestamp: number) {
+  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(timestamp));
+}
+
+function formatAdvancedChatTime(timestamp: number) {
+  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(timestamp));
+}
+
+function getAdvancedChatFileExtension(url: string) {
+  const path = url.split('?')[0] || '';
+  const extension = path.split('.').pop()?.toLowerCase() || 'jpg';
+  return extension.length <= 5 ? extension : 'jpg';
+}
+
+function mapAssistantMessageToAdvancedChatMessage(message: AssistantUiMessage): AdvancedChatMessage {
+  const timestamp = parseAssistantSessionTime(message.messageTime) || Date.now();
+  const imageUrl = resolveAssistantMessageImage(message);
+  const content = message.status === 'FAILED' ? message.errorMessage || '生成失败，请稍后再试' : resolveAssistantMessageText(message);
+  const isUser = message.role === 'USER';
+  const files = imageUrl
+    ? [
+        {
+          name: '设计参考图',
+          type: `image/${getAdvancedChatFileExtension(imageUrl)}`,
+          extension: getAdvancedChatFileExtension(imageUrl),
+          url: imageUrl,
+          preview: imageUrl,
+        },
+      ]
+    : undefined;
+  return {
+    _id: String(message.messageId || message.localId || `${message.role}-${timestamp}`),
+    senderId: isUser ? ADVANCED_CHAT_CURRENT_USER_ID : ADVANCED_CHAT_ASSISTANT_USER_ID,
+    content,
+    username: isUser ? '我' : 'AI 装修大师',
+    avatar: isUser ? homeAiAssets.appLogo : homeAiAssets.magicWand,
+    date: formatAdvancedChatDate(timestamp),
+    timestamp: formatAdvancedChatTime(timestamp),
+    saved: true,
+    distributed: message.status !== 'PENDING',
+    seen: message.status !== 'PENDING',
+    failure: message.status === 'FAILED',
+    disableActions: true,
+    disableReactions: true,
+    files,
+  };
+}
+
 function resolveAssistantMessageText(message: DesignAssistantMessage) {
   return resolveAssistantText(message.messageContent);
 }
@@ -2384,16 +2529,6 @@ function useAssistantQuickQuestion(question: string) {
     return;
   }
   assistantInput.value = question;
-}
-
-function openAssistantImagePicker() {
-  if (assistantComposerDisabled.value) {
-    return;
-  }
-  if (!requireAssistantLogin()) {
-    return;
-  }
-  assistantImageInputRef.value?.click();
 }
 
 function validateAssistantImageFile(file: File) {
@@ -2410,41 +2545,79 @@ function validateAssistantImageFile(file: File) {
   }
 }
 
-async function handleAssistantImageFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file || assistantComposerDisabled.value) {
+function unwrapAdvancedChatEventDetail<T>(event: Event) {
+  const detail = (event as CustomEvent<T | T[]>).detail;
+  return (Array.isArray(detail) ? detail[0] : detail) as T;
+}
+
+function createUploadFileFromAdvancedChatFile(file: AdvancedChatMessageFile) {
+  if (file.blob instanceof File) {
+    return file.blob;
+  }
+  if (file.blob instanceof Blob) {
+    return new File([file.blob], file.name || `homeai-upload.${file.extension || 'jpg'}`, {
+      type: file.blob.type || file.type || 'image/jpeg',
+    });
+  }
+  throw new Error('请选择本地图片后再发送');
+}
+
+async function uploadAdvancedChatFiles(files: AdvancedChatMessageFile[]) {
+  if (files.length > ASSISTANT_IMAGE_MAX_COUNT) {
+    throw new Error(`一次最多上传 ${ASSISTANT_IMAGE_MAX_COUNT} 张图片`);
+  }
+  const uploadedImageUrls: string[] = [];
+  assistantUploadingImage.value = true;
+  try {
+    for (const file of files) {
+      const uploadFile = createUploadFileFromAdvancedChatFile(file);
+      validateAssistantImageFile(uploadFile);
+      const imageUrl = await uploadHomeAiImage(getAssistantContext(), uploadFile);
+      uploadedImageUrls.push(imageUrl);
+    }
+    console.info('[HomeAI Assistant] vue-advanced-chat 图片批量上传成功', {
+      attachmentCount: uploadedImageUrls.length,
+    });
+    return uploadedImageUrls;
+  } finally {
+    assistantUploadingImage.value = false;
+  }
+}
+
+async function handleAdvancedChatSendMessage(event: Event) {
+  const payload = unwrapAdvancedChatEventDetail<AdvancedChatSendPayload>(event) || {};
+  const content = String(payload.content || '').trim();
+  const files = Array.isArray(payload.files) ? payload.files : [];
+  if (!content && files.length === 0) {
+    return;
+  }
+  if (assistantComposerDisabled.value) {
+    showToast('正在回复中，请稍后再提问');
     return;
   }
   if (!requireAssistantLogin()) {
     return;
   }
   try {
-    validateAssistantImageFile(file);
-    assistantUploadingImage.value = true;
-    const imageUrl = await uploadHomeAiImage(getAssistantContext(), file);
-    if (!assistantImageUrls.value.includes(imageUrl)) {
-      assistantImageUrls.value = [...assistantImageUrls.value, imageUrl];
-    }
-    console.info('[HomeAI Assistant] 图片附件上传成功', {
-      fileType: file.type,
-      fileSize: file.size,
-      attachmentCount: assistantImageUrls.value.length,
-    });
-    showToast('图片上传成功');
+    const imageUrls = files.length ? await uploadAdvancedChatFiles(files) : [];
+    await sendAssistantMessage({ prompt: content, imageUrls, suppressBusyToast: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '图片上传失败';
-    console.warn('[HomeAI Assistant] 图片附件上传失败', { message });
-    showToast(`图片上传失败：${message}`);
-  } finally {
-    assistantUploadingImage.value = false;
+    const message = error instanceof Error ? error.message : '发送失败';
+    console.warn('[HomeAI Assistant] vue-advanced-chat 发送失败', {
+      message,
+      fileCount: files.length,
+    });
+    showToast(message);
   }
 }
 
-function removeAssistantImageAttachment(url: string) {
-  assistantImageUrls.value = assistantImageUrls.value.filter((imageUrl) => imageUrl !== url);
-  showToast('已移除图片附件');
+function handleAdvancedChatOpenFile(event: Event) {
+  const payload = unwrapAdvancedChatEventDetail<AdvancedChatOpenFilePayload>(event) || {};
+  if (!payload.file?.url) {
+    showToast('图片加载失败，请稍后重试');
+    return;
+  }
+  window.open(payload.file.url, '_blank', 'noopener,noreferrer');
 }
 
 function createAssistantWaitingMessage(replyToMessageId?: string) {
@@ -4518,8 +4691,11 @@ button:focus-visible {
 
 .assistant-chat {
   min-height: 0;
-  overflow-y: auto;
-  padding: 12px 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  overflow: hidden;
+  padding: 10px 0 0;
 }
 
 .assistant-context-pill {
@@ -4544,212 +4720,36 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.assistant-empty {
-  align-self: center;
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  padding: 30px 22px;
-  text-align: center;
-}
-
-.assistant-empty > span {
-  display: grid;
-  place-items: center;
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  color: #fff;
-  background: #3478f6;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.assistant-empty h2 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.assistant-empty p {
-  margin: 0;
-  color: #647089;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
 .assistant-quick-list {
-  width: 100%;
-  display: grid;
-  gap: 9px;
-  margin-top: 12px;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.assistant-quick-list::-webkit-scrollbar {
+  display: none;
 }
 
 .assistant-quick-list button {
+  flex: 0 0 auto;
   min-height: 40px;
   border: 1px solid rgba(52, 120, 246, 0.14);
-  border-radius: 14px;
+  border-radius: 20px;
+  padding: 0 13px;
   color: #27344d;
   background: #fff;
   font-size: 13px;
   font-weight: 800;
 }
 
-.assistant-message-list {
-  display: grid;
-  gap: 12px;
-  align-content: start;
-  padding-bottom: 8px;
-}
-
-.assistant-message {
-  max-width: 84%;
-  display: grid;
-  gap: 7px;
-  padding: 11px 13px;
-  border-radius: 18px;
-  color: #20283a;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(32, 52, 82, 0.08);
-}
-
-.assistant-message.user {
-  justify-self: end;
-  color: #fff;
-  background: #3478f6;
-}
-
-.assistant-message img {
-  width: min(180px, 100%);
-  border-radius: 12px;
-  object-fit: cover;
-}
-
-.assistant-message p {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.55;
-}
-
-.assistant-message small {
-  color: #d43131;
-}
-
-.assistant-message-state,
-.assistant-message-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.assistant-message-state span {
-  border-radius: 999px;
-  padding: 5px 9px;
-  color: #225d3f;
-  background: #e8f7ee;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.assistant-message-actions button {
-  border: 0;
-  border-radius: 999px;
-  padding: 5px 9px;
-  color: #2654bd;
-  background: #eaf1ff;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.assistant-composer {
-  position: relative;
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 56px;
-  gap: 8px;
-  align-items: center;
-  padding-top: 10px;
-  border-top: 1px solid rgba(101, 126, 153, 0.12);
-}
-
-.assistant-composer > button {
-  min-height: 38px;
-  border: 0;
-  border-radius: 18px;
-  color: #fff;
-  background: #3478f6;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.assistant-composer > button:disabled {
-  color: #97a3b7;
-  background: #e1e7f0;
-}
-
-.assistant-file-input {
-  display: none;
-}
-
-.assistant-composer > .assistant-upload-button {
-  display: grid;
-  place-items: center;
-  background: #fff;
-  box-shadow: inset 0 0 0 1px rgba(52, 120, 246, 0.18);
-}
-
-.assistant-composer > button img {
-  width: 19px;
-  height: 19px;
-}
-
-.assistant-composer input {
-  min-width: 0;
-  min-height: 40px;
-  border: 0;
-  border-radius: 20px;
-  padding: 0 14px;
-  outline: 0;
-  background: #fff;
-  font-size: 14px;
-  box-shadow: inset 0 0 0 1px rgba(101, 126, 153, 0.16);
-}
-
-.assistant-attachment-strip {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-}
-
-.assistant-attachment-strip span {
-  position: relative;
-  flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.assistant-attachment-strip img {
+.assistant-advanced-chat {
+  min-height: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-}
-
-.assistant-attachment-remove {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 18px;
-  height: 18px;
-  border: 0;
-  border-radius: 50%;
-  color: #fff;
-  background: rgba(17, 24, 39, 0.72);
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 18px;
+  overflow: hidden;
 }
 
 .page-header,

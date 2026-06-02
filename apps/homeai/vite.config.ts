@@ -72,7 +72,13 @@ function createHomeAiLocalAuthPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [
-    vue(),
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tagName) => tagName === 'vue-advanced-chat' || tagName === 'emoji-picker',
+        },
+      },
+    }),
     createHomeAiLocalAuthPlugin(),
     createReplicaTransparentProxyPlugin(homeAiReplicaConfig, {
       environmentQueryKey: '__homeai_env',

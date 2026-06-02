@@ -315,15 +315,15 @@
               <strong>{{ customDesignPanelTitle }}</strong>
               <span>{{ customDesignPanelSubtitle }}</span>
             </section>
-            <section v-if="currentCustomDesignApplyCode" class="custom-result-actions">
+            <section v-if="currentCustomDesignResultCode" class="custom-result-actions">
               <button
                 type="button"
-                :disabled="customDesignApplyingCode === currentCustomDesignApplyCode"
+                :disabled="currentCustomDesignApplied || customDesignApplyingCode === currentCustomDesignApplyCode"
                 @click="applyCurrentCustomDesignResult"
               >
-                {{ customDesignApplyingCode === currentCustomDesignApplyCode ? '应用中' : '应用设计' }}
+                {{ currentCustomDesignApplyButtonText }}
               </button>
-              <small>应用后会替换原作品，过程记录里仍可查看本次修改。</small>
+              <small>{{ currentCustomDesignApplyHint }}</small>
             </section>
 
             <section v-if="customPromptExamplesVisible" class="custom-prompt-examples" aria-label="定制设计示例">
@@ -1290,14 +1290,27 @@ const assistantSendDisabled = computed(() => assistantComposerDisabled.value || 
 const assistantUserAvatar = computed(() => snapshot.value.user.avatar || homeAiAssets.appLogo);
 const advancedChatMessages = computed<AdvancedChatMessage[]>(() => assistantMessages.value.map(mapAssistantMessageToAdvancedChatMessage));
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
+const currentCustomDesignResultCode = computed(() => currentCustomDesignImage.value?.customDesignCode || '');
+const currentCustomDesignResultRecord = computed(() =>
+  customDesignProcessRecords.value.find((record) => record.processRecordCode === currentCustomDesignResultCode.value),
+);
+const currentCustomDesignApplied = computed(() => currentCustomDesignResultRecord.value?.status === 'applied');
 const currentCustomDesignApplyCode = computed(() => {
-  const customDesignCode = currentCustomDesignImage.value?.customDesignCode || '';
+  const customDesignCode = currentCustomDesignResultCode.value;
   if (!customDesignCode) {
     return '';
   }
-  const processRecord = customDesignProcessRecords.value.find((record) => record.processRecordCode === customDesignCode);
-  return processRecord?.status === 'applied' ? '' : customDesignCode;
+  return currentCustomDesignApplied.value ? '' : customDesignCode;
 });
+const currentCustomDesignApplyButtonText = computed(() => {
+  if (currentCustomDesignApplied.value) {
+    return '已应用';
+  }
+  return customDesignApplyingCode.value === currentCustomDesignApplyCode.value ? '应用中' : '应用设计';
+});
+const currentCustomDesignApplyHint = computed(() =>
+  currentCustomDesignApplied.value ? '当前作品已应用这张设计，过程记录里仍可查看本次修改。' : '应用后会替换原作品，过程记录里仍可查看本次修改。',
+);
 const customDesignImageIndicator = computed(() => `${customDesignImageIndex.value + 1}/${customDesignImages.value.length}`);
 const customDesignBusy = computed(() => customDesignStatus.value === 'processing');
 const customDesignSubmitDisabled = computed(() => customDesignBusy.value || !customDesignInput.value.trim() || customDesignImages.value.length === 0);
@@ -2493,6 +2506,10 @@ function applyCurrentCustomDesignResult() {
 }
 
 function applyCustomDesignRecordResult(record: CustomDesignProcessRecord) {
+  if (record.status === 'applied') {
+    showToast('这张设计已经应用过了');
+    return;
+  }
   void applyCustomDesignResult(record.processRecordCode, record.outputImageUrl || '');
 }
 

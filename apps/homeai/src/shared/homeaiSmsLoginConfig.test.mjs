@@ -216,8 +216,13 @@ test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () =
   assert.match(appVueSource, /function applyCustomDesignResult\(/);
   assert.match(appVueSource, /applyHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
   assert.match(appVueSource, /currentCustomDesignApplyCode/);
+  assert.match(appVueSource, /currentCustomDesignApplied/);
+  assert.match(appVueSource, /currentCustomDesignApplyButtonText/);
+  assert.match(appVueSource, /:disabled="currentCustomDesignApplied \|\| customDesignApplyingCode === currentCustomDesignApplyCode"/);
+  assert.match(appVueSource, /currentCustomDesignApplied\.value \? '当前作品已应用这张设计/);
   assert.match(appVueSource, /@click="applyCurrentCustomDesignResult"/);
   assert.match(appVueSource, /@click="applyCustomDesignRecordResult\(record\)"/);
+  assert.match(appVueSource, /if \(record\.status === 'applied'\)[\s\S]*?这张设计已经应用过了/);
   assert.doesNotMatch(appConfigSource, /\/api\/open\/homeai\/design-assistant\/apply-design\.htm/);
   assert.doesNotMatch(appVueSource, /applyDesignAssistantImage/);
 });

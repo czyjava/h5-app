@@ -19,6 +19,7 @@ interface ApiEnvelope<T = unknown> {
 }
 
 interface UploadImageData {
+  previewUrl?: string | null;
   encodedData?: string | null;
   url?: string | null;
   imageUrl?: string | null;
@@ -33,6 +34,11 @@ interface UploadImageData {
   itemList?: UploadImageData[];
 }
 
+interface UploadTokenData {
+  upAppKey?: string | null;
+  upToken?: string | null;
+}
+
 export interface HomeAiRequestContext {
   authToken?: string;
   environment: ReplicaEnvironment;
@@ -40,12 +46,14 @@ export interface HomeAiRequestContext {
 
 interface RequestOptions {
   method?: 'GET' | 'POST';
-  hostType?: 'business' | 'auth';
+  hostType?: HomeAiHostType;
   params?: Record<string, ReplicaRequestParamValue>;
   form?: Record<string, ReplicaRequestParamValue>;
 }
 
-function buildBusinessUrl(path: string, context: HomeAiRequestContext, hostType: 'business' | 'auth' = 'business') {
+type HomeAiHostType = keyof typeof homeAiReplicaConfig.hosts;
+
+function buildBusinessUrl(path: string, context: HomeAiRequestContext, hostType: HomeAiHostType = 'business') {
   const host = homeAiReplicaConfig.hosts[hostType];
   const url = new URL(`${host.proxyPrefix}${path}`, window.location.origin);
   const commonQuery = buildReplicaCommonQuery(homeAiReplicaConfig, {
@@ -99,13 +107,17 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
   return (payload.data ?? payload) as T;
 }
 
-function resolveUploadImageData(payload: UploadImageData) {
+function resolveUploadImageData(payload: UploadImageData | UploadImageData[]) {
+  if (Array.isArray(payload)) {
+    return payload[0] ?? {};
+  }
   return Array.isArray(payload.itemList) && payload.itemList.length > 0 ? payload.itemList[0] : payload;
 }
 
-function resolveUploadImageUrl(payload: UploadImageData) {
+function resolveUploadImageUrl(payload: UploadImageData | UploadImageData[]) {
   const item = resolveUploadImageData(payload);
   return (
+    item.previewUrl ||
     item.url ||
     item.imageUrl ||
     item.displayImageUrl ||
@@ -118,12 +130,25 @@ function resolveUploadImageUrl(payload: UploadImageData) {
   );
 }
 
+async function acquirePixelStudioUploadToken(context: HomeAiRequestContext) {
+  const tokenData = await requestBusiness<UploadTokenData>(homeAiReplicaConfig.endpoints.uploadToken, context);
+  const upAppKey = tokenData.upAppKey?.trim();
+  const upToken = tokenData.upToken?.trim();
+  if (!upAppKey || !upToken) {
+    throw new Error('获取上传凭据失败');
+  }
+  return { upAppKey, upToken };
+}
+
 export async function uploadHomeAiImage(context: HomeAiRequestContext, file: File): Promise<string> {
-  const url = buildBusinessUrl(homeAiReplicaConfig.endpoints.upload, context);
+  const { upAppKey, upToken } = await acquirePixelStudioUploadToken(context);
+  const url = buildBusinessUrl(homeAiReplicaConfig.endpoints.upload, context, 'upload');
+  appendReplicaRequestParams(url, { upAppKey, upToken });
   const formData = new FormData();
-  // 业务服务 H5 上传接口约定字段名为 image，返回可直接给 Agent 读取的图片 URL。
-  formData.append('image', file, file.name || 'homeai-upload.jpg');
-  console.info('[HomeAI API] 上传图片', { path: homeAiReplicaConfig.endpoints.upload, fileType: file.type, fileSize: file.size });
+  // 客户端 FileUploaderSubDomain.pixelStudio 也是先拿 upToken，再把文件字段 file
+  // 提交到独立的 Cyclops 上传服务；这里保持同一协议，避免误打业务服务上传接口。
+  formData.append('file', file, file.name || 'homeai-upload.jpg');
+  console.info('[HomeAI API] 上传图片', { hostType: 'upload', path: homeAiReplicaConfig.endpoints.upload, fileType: file.type, fileSize: file.size });
   const response = await fetch(url.toString(), {
     method: 'POST',
     body: formData,
@@ -139,7 +164,7 @@ export async function uploadHomeAiImage(context: HomeAiRequestContext, file: Fil
   if (payload.success === false || errorCode !== 0) {
     throw new Error(payload.message || `业务错误：${errorCode}`);
   }
-  const imageUrl = resolveUploadImageUrl((payload.data ?? payload) as UploadImageData);
+  const imageUrl = resolveUploadImageUrl((payload.data ?? payload) as UploadImageData | UploadImageData[]);
   if (!imageUrl) {
     throw new Error('图片上传成功但未返回可访问地址');
   }

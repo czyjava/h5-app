@@ -32,6 +32,11 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
       testTarget: 'https://feedback.ttt.wanmeixiangsu.cn',
       signKey: '*#06#fHhwnIs8b0h2eJycPI6mh4pu',
     },
+    upload: {
+      proxyPrefix: '/homeai-upload',
+      productionTarget: 'https://cyclops.wanmeixiangsu.cn',
+      signKey: '*#06#gn2cpqeDcaI8cYWmSId5l6mS',
+    },
   },
   endpoints: {
     currentUser: '/api/open/v2/user/current-user.htm',
@@ -54,7 +59,8 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     userPermission: '/api/open/permission/get-user-permission.htm',
     goodsChannelCode: '/api/open/goods/get-channel-code.htm',
     feedbackCreate: '/api/open/feedback/create.htm',
-    upload: '/api/h5/file/upload.htm',
+    uploadToken: '/api/open/tool/acquire-token.htm',
+    upload: '/api/open/upload/upload.htm',
     customDesignSubmit: '/api/open/homeai/custom-design/submit.htm',
     customDesignFetch: '/api/open/homeai/custom-design/fetch.htm',
     customDesignRecords: '/api/open/homeai/custom-design/records.htm',

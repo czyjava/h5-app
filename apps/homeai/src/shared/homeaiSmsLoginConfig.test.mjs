@@ -64,7 +64,7 @@ test('HomeAI AI 设计助手接口走 open API 路径', () => {
 });
 
 test('HomeAI 当前用户信息必须走认证域 current-user 接口', () => {
-  assert.match(homeAiApiSource, /hostType\?: 'business' \| 'auth'/);
+  assert.match(homeAiApiSource, /type HomeAiHostType = keyof typeof homeAiReplicaConfig\.hosts/);
   assert.match(
     homeAiApiSource,
     /requestBusiness\(homeAiReplicaConfig\.endpoints\.currentUser,\s*context,\s*\{[\s\S]*?hostType:\s*'auth'/,
@@ -90,11 +90,16 @@ test('HomeAI AI 设计助手支持同批次图片和文本一起发送', () => {
 });
 
 test('HomeAI AI 设计助手上传图片必须走真实业务上传接口', () => {
-  assert.match(appConfigSource, /upload:\s*'\/api\/h5\/file\/upload\.htm'/);
+  assert.match(appConfigSource, /upload:\s*\{[\s\S]*?proxyPrefix:\s*'\/homeai-upload'/);
+  assert.match(appConfigSource, /productionTarget:\s*'https:\/\/cyclops\.wanmeixiangsu\.cn'/);
+  assert.match(appConfigSource, /uploadToken:\s*'\/api\/open\/tool\/acquire-token\.htm'/);
+  assert.match(appConfigSource, /upload:\s*'\/api\/open\/upload\/upload\.htm'/);
   assert.match(homeAiApiSource, /export async function uploadHomeAiImage/);
+  assert.match(homeAiApiSource, /acquirePixelStudioUploadToken/);
   assert.match(homeAiApiSource, /new FormData\(\)/);
-  assert.match(homeAiApiSource, /formData\.append\('image', file/);
+  assert.match(homeAiApiSource, /formData\.append\('file', file/);
   assert.match(homeAiApiSource, /homeAiReplicaConfig\.endpoints\.upload/);
+  assert.match(homeAiApiSource, /hostType:\s*'upload'/);
   assert.match(appVueSource, /ref="assistantImageInputRef"/);
   assert.match(appVueSource, /@change="handleAssistantImageFileChange"/);
   assert.match(appVueSource, /function openAssistantImagePicker\(\)[\s\S]*?requireAssistantLogin\(\)/);

@@ -2093,6 +2093,42 @@ function mapRemoteCustomDesignRecord(record: CustomDesignRecordItemResponse): Cu
   };
 }
 
+function isPendingCustomDesignRecord(record: CustomDesignProcessRecord) {
+  return record.status === 'submitted' || record.status === 'processing';
+}
+
+function findLatestPendingCustomDesignRecordForCurrentContext() {
+  const context = customDesignContext.value;
+  if (!context?.recordId || !context.workId) {
+    return null;
+  }
+  return customDesignProcessRecords.value.find(
+    (record) =>
+      record.generationRecordId === context.recordId &&
+      record.sourceWorkId === context.workId &&
+      isPendingCustomDesignRecord(record) &&
+      record.processRecordCode &&
+      record.processRecordCode !== '提交中',
+  ) ?? null;
+}
+
+function resumeCustomDesignPollingFromLatestRunningRecord() {
+  if (activeTab.value !== 'customDesign' || customDesignPollingTimer) {
+    return;
+  }
+  const pendingRecord = findLatestPendingCustomDesignRecordForCurrentContext();
+  if (!pendingRecord) {
+    return;
+  }
+  // 页面重新进入时，如果最后一条记录仍在服务端运行中，需要恢复 fetch 轮询。
+  customDesignStatus.value = 'processing';
+  scheduleCustomDesignFetch(pendingRecord.recordKey, pendingRecord.processRecordCode, 0);
+  console.info('[HomeAI CustomDesign] 恢复定制设计轮询', {
+    customDesignCode: pendingRecord.processRecordCode,
+    status: pendingRecord.status,
+  });
+}
+
 async function loadCustomDesignProcessRecords() {
   const context = customDesignContext.value;
   if (!context?.recordId || !context.workId || !authTokenDraft.value.trim()) {
@@ -2119,6 +2155,7 @@ async function loadCustomDesignProcessRecords() {
     );
     // 过程记录以业务服务落库结果为准，仅保留本轮刚提交且服务端列表还没刷出的本地占位。
     customDesignProcessRecords.value = [...localPendingRecords, ...remoteRecords, ...otherContextRecords];
+    resumeCustomDesignPollingFromLatestRunningRecord();
   } catch (error) {
     const message = error instanceof Error ? error.message : '过程记录加载失败';
     showToast(message);

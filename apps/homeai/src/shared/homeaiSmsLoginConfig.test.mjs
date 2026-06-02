@@ -169,3 +169,32 @@ test('HomeAI 定制设计过程记录只能从定制设计页查看', () => {
   assert.doesNotMatch(workDetailActionsSource, /查看过程记录/);
   assert.doesNotMatch(appVueSource, /@click="openCustomDesignRecords"/);
 });
+
+test('HomeAI 交付页面不能直接暴露技术错误和业务字段', () => {
+  assert.match(homeAiApiSource, /formatHttpErrorMessage/);
+  assert.doesNotMatch(homeAiApiSource, /throw new Error\(`HTTP \$\{response\.status\}`\)/);
+  assert.doesNotMatch(appVueSource, />记录 ID</);
+  assert.doesNotMatch(appVueSource, />作品 ID</);
+  assert.doesNotMatch(appVueSource, />模板 ID</);
+  assert.doesNotMatch(appVueSource, /缺少 generationRecord/);
+  assert.doesNotMatch(appVueSource, /请选择一个 generationWork/);
+  assert.doesNotMatch(appVueSource, /真实的 generationWork/);
+});
+
+test('HomeAI 定制设计页必须给用户明确的操作引导', () => {
+  assert.match(appVueSource, /customDesignPromptExamples/);
+  assert.match(appVueSource, /保留布局，改成奶油风/);
+  assert.match(appVueSource, /让客厅更显大/);
+  assert.match(appVueSource, /基于这张图定制设计/);
+  assert.match(appVueSource, /应用后会替换原作品/);
+  assert.match(appVueSource, /useCustomDesignPromptExample/);
+});
+
+test('HomeAI 定制设计过程记录按状态展示动作', () => {
+  assert.match(appVueSource, /v-if="record\.status === 'completed'"/);
+  assert.match(appVueSource, /v-else-if="record\.status === 'applied'"/);
+  assert.match(appVueSource, /v-else-if="record\.status === 'failed'"/);
+  assert.match(appVueSource, /生成完成后可查看结果和应用设计/);
+  assert.match(appVueSource, /重新生成/);
+  assert.doesNotMatch(appVueSource, /:disabled="record\.status !== 'completed'"/);
+});

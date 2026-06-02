@@ -75,6 +75,19 @@ function apiErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '接口请求失败';
 }
 
+function formatHttpErrorMessage(status: number) {
+  if (status === 401 || status === 403) {
+    return '登录状态已失效，请重新登录';
+  }
+  if (status === 404) {
+    return '接口暂未开通，请确认当前环境';
+  }
+  if (status >= 500) {
+    return '服务暂时不可用，请稍后重试';
+  }
+  return '请求失败，请检查参数后重试';
+}
+
 export async function requestBusiness<T>(path: string, context: HomeAiRequestContext, options: RequestOptions = {}): Promise<T> {
   const hostType = options.hostType ?? 'business';
   const url = buildBusinessUrl(path, context, hostType);
@@ -98,7 +111,9 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
   console.info('[HomeAI API] 接口响应', { hostType, path, status: response.status, ok: response.ok });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    // 真实状态码保留在脱敏日志里，页面只展示用户能理解的处理建议。
+    console.warn('[HomeAI API] HTTP 请求失败', redactObject({ hostType, path, status: response.status }));
+    throw new Error(formatHttpErrorMessage(response.status));
   }
   const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
   if (payload.success === false || errorCode !== 0) {
@@ -158,7 +173,9 @@ export async function uploadHomeAiImage(context: HomeAiRequestContext, file: Fil
   console.info('[HomeAI API] 图片上传响应', { status: response.status, ok: response.ok });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    // 上传域异常同样不把 HTTP 状态码直接抛给页面，避免用户看到技术错误。
+    console.warn('[HomeAI API] 图片上传 HTTP 请求失败', { hostType: 'upload', path: homeAiReplicaConfig.endpoints.upload, status: response.status });
+    throw new Error(formatHttpErrorMessage(response.status));
   }
   const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
   if (payload.success === false || errorCode !== 0) {

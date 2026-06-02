@@ -236,16 +236,16 @@
 
           <section class="work-detail-meta">
             <article>
-              <small>记录 ID</small>
-              <strong>{{ formatShortCode(selectedWork.recordId || selectedWork.id) }}</strong>
+              <small>生成批次</small>
+              <strong>{{ selectedGenerationWorks.length }} 张</strong>
             </article>
             <article>
-              <small>作品 ID</small>
-              <strong>{{ formatShortCode(selectedWork.id) }}</strong>
+              <small>当前方案</small>
+              <strong>{{ selectedGenerationWorkIndexText }}</strong>
             </article>
             <article>
-              <small>模板 ID</small>
-              <strong>{{ formatShortCode(selectedWork.templateId || '-') }}</strong>
+              <small>设计模板</small>
+              <strong>{{ selectedWork.templateId ? '已匹配' : '默认' }}</strong>
             </article>
           </section>
 
@@ -270,7 +270,7 @@
 
           <section class="work-detail-actions">
             <button type="button" class="primary" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignFromSelectedWork">
-              {{ workDetailLoading ? '加载作品中' : '定制设计' }}
+              {{ workDetailLoading ? '加载作品中' : '基于这张图定制设计' }}
             </button>
           </section>
         </section>
@@ -318,6 +318,19 @@
               >
                 {{ customDesignApplyingCode === currentCustomDesignApplyCode ? '应用中' : '应用设计' }}
               </button>
+              <small>应用后会替换原作品，过程记录里仍可查看本次修改。</small>
+            </section>
+
+            <section v-if="customPromptExamplesVisible" class="custom-prompt-examples" aria-label="定制设计示例">
+              <button
+                v-for="example in customDesignPromptExamples"
+                :key="example"
+                type="button"
+                :disabled="customDesignBusy"
+                @click="useCustomDesignPromptExample(example)"
+              >
+                {{ example }}
+              </button>
             </section>
 
             <section v-if="customStylePanelVisible" class="custom-style-strip" aria-label="风格选择">
@@ -363,15 +376,15 @@
           <section class="custom-record-summary">
             <article>
               <span>{{ visibleCustomDesignProcessRecords.length }}</span>
-              <small>当前作品</small>
+              <small>修改次数</small>
             </article>
             <article>
               <span>{{ completedCustomDesignRecordCount }}</span>
               <small>已完成</small>
             </article>
             <article>
-              <span>{{ formatShortCode(customDesignContext?.templateCode || '-') }}</span>
-              <small>模板</small>
+              <span>{{ customDesignContext?.templateCode ? '已匹配' : '默认' }}</span>
+              <small>当前模板</small>
             </article>
           </section>
 
@@ -400,21 +413,31 @@
               </section>
               <section class="custom-record-body">
                 <strong>{{ record.prompt }}</strong>
-                <span>记录 ID: {{ formatShortCode(record.generationRecordId || '-') }}</span>
-                <span>作品 ID: {{ formatShortCode(record.sourceWorkId || '-') }}</span>
-                <span>过程 ID: {{ formatShortCode(record.processRecordCode) }}</span>
-                <span>模板 ID: {{ formatShortCode(record.templateCode) }}</span>
+                <span>基于当前作品修改</span>
+                <span>模板：{{ record.templateCode ? '已匹配' : '默认' }}</span>
+                <span>编号：{{ formatShortCode(record.processRecordCode) }}</span>
               </section>
-              <footer>
-                <button type="button" :disabled="record.status !== 'completed'" @click="showCustomDesignRecordResult(record)">查看结果</button>
+              <footer v-if="record.status === 'completed'">
+                <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
                 <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
                 <button
                   type="button"
-                  :disabled="record.status !== 'completed' || customDesignApplyingCode === record.processRecordCode"
+                  :disabled="customDesignApplyingCode === record.processRecordCode"
                   @click="applyCustomDesignRecordResult(record)"
                 >
-                  {{ record.status === 'applied' ? '已应用' : customDesignApplyingCode === record.processRecordCode ? '应用中' : '应用设计' }}
+                  {{ customDesignApplyingCode === record.processRecordCode ? '应用中' : '应用设计' }}
                 </button>
+              </footer>
+              <footer v-else-if="record.status === 'applied'">
+                <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
+                <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
+                <button type="button" disabled>已应用</button>
+              </footer>
+              <footer v-else-if="record.status === 'failed'">
+                <button type="button" @click="continueCustomDesignFromRecord(record)">重新生成</button>
+              </footer>
+              <footer v-else>
+                <span class="custom-record-pending-text">生成完成后可查看结果和应用设计</span>
               </footer>
             </article>
           </section>
@@ -839,6 +862,7 @@ const customDesignStyles = [
   { code: 'wood', name: '原木风', image: homeAiAssets.guide.gardenGood },
   { code: 'luxury', name: '轻奢', image: homeAiAssets.guide.exteriorGood },
 ];
+const customDesignPromptExamples = ['保留布局，改成奶油风', '让客厅更显大', '换成原木色软装'];
 const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约适合什么配色？', '帮我规划玄关收纳', '预算有限先改哪里？'];
 const ASSISTANT_IMAGE_ACCEPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ASSISTANT_IMAGE_MAX_SIZE = 20 * 1024 * 1024;
@@ -914,6 +938,13 @@ const workDetailCustomDesignDisabled = computed(() => {
     !selectedGenerationDetail.value.works.some((work) => work.id === selectedWork.value?.id && work.sourceType === 'work')
   );
 });
+const selectedGenerationWorkIndexText = computed(() => {
+  if (!selectedWork.value) {
+    return '-';
+  }
+  const index = selectedGenerationWorks.value.findIndex((work) => work.id === selectedWork.value?.id);
+  return index >= 0 ? `第 ${index + 1} 张` : '当前图';
+});
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计助手'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
 const assistantEmptyDescription = computed(() =>
@@ -947,6 +978,7 @@ const currentCustomDesignApplyCode = computed(() => {
 const customDesignImageIndicator = computed(() => `${customDesignImageIndex.value + 1}/${customDesignImages.value.length}`);
 const customDesignBusy = computed(() => customDesignStatus.value === 'processing');
 const customDesignSubmitDisabled = computed(() => customDesignBusy.value || !customDesignInput.value.trim() || customDesignImages.value.length === 0);
+const customPromptExamplesVisible = computed(() => customDesignStatus.value !== 'processing' && customDesignImages.value.length > 0);
 const customDesignPanelTitle = computed(() => {
   if (customDesignStatus.value === 'processing') {
     return customDesignLastPrompt.value || '正在生成新的设计';
@@ -1235,7 +1267,7 @@ async function loadSelectedWorkDetail(work: WorkItem) {
   }
   const recordCode = work.recordId || work.id;
   if (!recordCode) {
-    workDetailError.value = '缺少 generationRecord，无法查询详情';
+    workDetailError.value = '当前作品信息不完整，无法查询详情';
     return;
   }
   workDetailLoading.value = true;
@@ -1269,11 +1301,11 @@ function refreshSelectedWorkDetail() {
 
 function openCustomDesignFromSelectedWork() {
   if (!selectedWork.value) {
-    showToast('请先选择一个 generationWork');
+    showToast('请先选择一个真实作品');
     return;
   }
   if (workDetailCustomDesignDisabled.value) {
-    showToast(workDetailLoading.value ? '作品详情加载中，请稍后再试' : '请先选择真实的 generationWork');
+    showToast(workDetailLoading.value ? '作品详情加载中，请稍后再试' : '请先选择真实作品');
     return;
   }
   const work = selectedWork.value;
@@ -1455,7 +1487,7 @@ async function submitCustomDesignInstruction(prompt: string) {
   }
   const context = customDesignContext.value;
   if (!context?.recordId || !context.workId) {
-    showToast('当前作品缺少 generationRecord 或 generationWork');
+    showToast('当前作品信息不完整，暂时不能定制设计');
     return;
   }
   const recordKey = generateCustomDesignId('custom-design-process');
@@ -1577,6 +1609,11 @@ async function fetchCustomDesignResult(recordKey: string, customDesignCode: stri
 
 function submitCustomDesignText() {
   void submitCustomDesignInstruction(customDesignInput.value);
+}
+
+function useCustomDesignPromptExample(prompt: string) {
+  // 示例只帮用户快速填入意图，真正提交仍由用户点击发送，避免误触发生成任务。
+  customDesignInput.value = prompt;
 }
 
 function submitCustomDesignStyle(style: { code: string; name: string }) {
@@ -3377,7 +3414,9 @@ button:focus-visible {
 }
 
 .custom-result-actions {
-  display: flex;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
   justify-content: flex-end;
 }
 
@@ -3395,6 +3434,36 @@ button:focus-visible {
   color: rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.12);
   cursor: not-allowed;
+}
+
+.custom-result-actions small {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.custom-prompt-examples {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.custom-prompt-examples button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: 0;
+  border-radius: 17px;
+  padding: 0 12px;
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.13);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.custom-prompt-examples button:disabled {
+  opacity: 0.5;
 }
 
 .custom-style-strip {
@@ -3738,6 +3807,17 @@ button:focus-visible {
 
 .custom-record-card footer {
   justify-content: flex-end;
+}
+
+.custom-record-pending-text {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #6b7588;
+  background: #f3f6fa;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .custom-record-card footer button {

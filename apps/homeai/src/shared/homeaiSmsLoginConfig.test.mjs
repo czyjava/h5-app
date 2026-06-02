@@ -141,7 +141,8 @@ test('HomeAI AI 设计助手上传图片必须走真实业务上传接口', () =
   assert.match(homeAiApiSource, /formData\.append\('file', file/);
   assert.match(homeAiApiSource, /homeAiReplicaConfig\.endpoints\.upload/);
   assert.match(homeAiApiSource, /hostType:\s*'upload'/);
-  assert.match(appVueSource, /accepted-files="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(appVueSource, /:accepted-files="advancedChatAcceptedFiles"/);
+  assert.match(appVueSource, /advancedChatAcceptedFiles = computed\(\(\) => \(assistantSceneType\.value === 'ASSISTANT_CHAT' \? 'image\/png,image\/jpeg,image\/webp' : ''\)\)/);
   assert.match(appVueSource, /function createUploadFileFromAdvancedChatFile/);
   assert.match(appVueSource, /function uploadAdvancedChatFiles/);
   assert.match(appVueSource, /function handleAdvancedChatSendMessage/);
@@ -150,6 +151,27 @@ test('HomeAI AI 设计助手上传图片必须走真实业务上传接口', () =
   assert.doesNotMatch(appVueSource, /assistantImageInputRef/);
   assert.doesNotMatch(appVueSource, /function addAssistantImageAttachment/);
   assert.doesNotMatch(appVueSource, /selectedFeature\.value\?\.guideImage \|\| homeAiAssets\.guide\.interiorGood/);
+});
+
+test('HomeAI AI 设计助手文案和附件规则必须符合需求口径', () => {
+  assert.match(appVueSource, /label:\s*'设计助手'/);
+  assert.match(appVueSource, /roomName:\s*assistantPageTitle\.value/);
+  assert.match(appVueSource, /assistantSceneType\.value === 'CUSTOM_DESIGN' \? '定制设计' : 'AI 设计师'/);
+  assert.match(appVueSource, /const ASSISTANT_IMAGE_MAX_COUNT = 1/);
+  assert.match(appVueSource, /function ensureAssistantAttachmentEnabled/);
+  assert.match(appVueSource, /assistantSceneType\.value !== 'ASSISTANT_CHAT'[\s\S]*?定制设计会话不支持上传附件/);
+  assert.match(appVueSource, /uploadAdvancedChatFiles\(files: AdvancedChatMessageFile\[\]\)[\s\S]*?ensureAssistantAttachmentEnabled/);
+  assert.match(appVueSource, /validateAssistantImageFile\(file: File\)[\s\S]*?ensureAssistantAttachmentEnabled/);
+  assert.match(appVueSource, /一次最多上传 1 张图片/);
+  assert.match(appVueSource, /const imageUrl = isUser \? resolveAssistantMessageImage\(message\) : ''/);
+  assert.doesNotMatch(appVueSource, /const imageUrl = resolveAssistantMessageImage\(message\)/);
+});
+
+test('HomeAI 助手历史分组必须按今天近7天历史记录展示', () => {
+  assert.match(appVueSource, /return '今天'/);
+  assert.match(appVueSource, /return '近7天'/);
+  assert.match(appVueSource, /return '历史记录'/);
+  assert.doesNotMatch(appVueSource, /最近几天/);
 });
 
 test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
@@ -217,7 +239,7 @@ test('HomeAI 助手历史列表必须用真实消息生成标题描述和时间'
 });
 
 test('HomeAI 助手历史列表图标必须复用底部 AI 助手图标', () => {
-  assert.match(appVueSource, /key: 'assistant' as const, label: 'AI', icon: homeAiAssets\.magicWand/);
+  assert.match(appVueSource, /key: 'assistant' as const, label: '设计助手', icon: homeAiAssets\.magicWand/);
   assert.match(appVueSource, /class="assistant-history-icon"[\s\S]*?:src="homeAiAssets\.magicWand"/);
   assert.doesNotMatch(appVueSource, /formatAssistantHistoryIcon/);
 });

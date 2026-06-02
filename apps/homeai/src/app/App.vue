@@ -478,7 +478,7 @@
               class="assistant-advanced-chat"
               height="100%"
               theme="light"
-              accepted-files="image/png,image/jpeg,image/webp"
+              :accepted-files="advancedChatAcceptedFiles"
               :current-user-id="ADVANCED_CHAT_CURRENT_USER_ID"
               :rooms="advancedChatRooms"
               :room-id="ADVANCED_CHAT_ROOM_ID"
@@ -1109,7 +1109,8 @@ const ADVANCED_CHAT_ASSISTANT_USER_ID = 'homeai-assistant';
 const ADVANCED_CHAT_ROOM_ID = 'homeai-design-assistant';
 const ASSISTANT_IMAGE_ACCEPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ASSISTANT_IMAGE_MAX_SIZE = 20 * 1024 * 1024;
-const ASSISTANT_IMAGE_MAX_COUNT = 6;
+const ASSISTANT_IMAGE_MAX_COUNT = 1;
+const ASSISTANT_IMAGE_LIMIT_TEXT = '一次最多上传 1 张图片';
 const settingRows: ReplicaSettingsRow[] = [
   { key: 'profile', label: '编辑资料', icon: 'profile' },
   { key: 'feedback', label: '意见反馈', icon: 'feedback' },
@@ -1140,7 +1141,7 @@ const normalizedBusinessTarget = computed(
 const tabs = computed(() => [
   { key: 'home' as const, label: '首页', icon: activeTab.value === 'home' ? homeAiAssets.tabs.home[1] : homeAiAssets.tabs.home[0] },
   { key: 'design' as const, label: '设计', icon: activeTab.value === 'design' ? homeAiAssets.tabs.design[1] : homeAiAssets.tabs.design[0] },
-  { key: 'assistant' as const, label: 'AI', icon: homeAiAssets.magicWand },
+  { key: 'assistant' as const, label: '设计助手', icon: homeAiAssets.magicWand },
   {
     key: 'discover' as const,
     label: '发现',
@@ -1251,6 +1252,7 @@ const assistantComposerPlaceholder = computed(() =>
   assistantUploadingImage.value ? '图片上传中，请稍候' : assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value,
 );
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
+const advancedChatAcceptedFiles = computed(() => (assistantSceneType.value === 'ASSISTANT_CHAT' ? 'image/png,image/jpeg,image/webp' : ''));
 const advancedChatMessages = computed<AdvancedChatMessage[]>(() => assistantMessages.value.map(mapAssistantMessageToAdvancedChatMessage));
 const advancedChatRooms = computed<AdvancedChatRoom[]>(() => {
   const lastMessage = advancedChatMessages.value[advancedChatMessages.value.length - 1];
@@ -1524,7 +1526,7 @@ function formatAssistantHistoryGroupLabel(session: AssistantHistorySession) {
     return '今天';
   }
   if (isSameDay(date, yesterday) || today.getTime() - timestamp < 7 * 24 * 60 * 60 * 1000) {
-    return '最近几天';
+    return '近7天';
   }
   return '历史记录';
 }
@@ -2550,9 +2552,9 @@ function getAdvancedChatFileExtension(url: string) {
 
 function mapAssistantMessageToAdvancedChatMessage(message: AssistantUiMessage): AdvancedChatMessage {
   const timestamp = parseAssistantSessionTime(message.messageTime) || Date.now();
-  const imageUrl = resolveAssistantMessageImage(message);
-  const content = message.status === 'FAILED' ? message.errorMessage || '生成失败，请稍后再试' : resolveAssistantMessageText(message);
   const isUser = message.role === 'USER';
+  const imageUrl = isUser ? resolveAssistantMessageImage(message) : '';
+  const content = message.status === 'FAILED' ? message.errorMessage || '生成失败，请稍后再试' : resolveAssistantMessageText(message);
   const files = imageUrl
     ? [
         {
@@ -2597,7 +2599,15 @@ function useAssistantQuickQuestion(question: string) {
   assistantInput.value = question;
 }
 
+function ensureAssistantAttachmentEnabled() {
+  // 定制设计图片来自作品上下文，普通助手附件能力不能混入定制设计会话。
+  if (assistantSceneType.value !== 'ASSISTANT_CHAT') {
+    throw new Error('定制设计会话不支持上传附件');
+  }
+}
+
 function validateAssistantImageFile(file: File) {
+  ensureAssistantAttachmentEnabled();
   const fileName = file.name.toLowerCase();
   const hasAllowedExtension = /\.(jpe?g|png|webp)$/.test(fileName);
   if ((file.type && !ASSISTANT_IMAGE_ACCEPT_TYPES.has(file.type)) || (!file.type && !hasAllowedExtension)) {
@@ -2607,7 +2617,7 @@ function validateAssistantImageFile(file: File) {
     throw new Error('图片不能超过 20MB');
   }
   if (assistantImageUrls.value.length >= ASSISTANT_IMAGE_MAX_COUNT) {
-    throw new Error(`一次最多上传 ${ASSISTANT_IMAGE_MAX_COUNT} 张图片`);
+    throw new Error(ASSISTANT_IMAGE_LIMIT_TEXT);
   }
 }
 
@@ -2629,8 +2639,9 @@ function createUploadFileFromAdvancedChatFile(file: AdvancedChatMessageFile) {
 }
 
 async function uploadAdvancedChatFiles(files: AdvancedChatMessageFile[]) {
+  ensureAssistantAttachmentEnabled();
   if (files.length > ASSISTANT_IMAGE_MAX_COUNT) {
-    throw new Error(`一次最多上传 ${ASSISTANT_IMAGE_MAX_COUNT} 张图片`);
+    throw new Error(ASSISTANT_IMAGE_LIMIT_TEXT);
   }
   const uploadedImageUrls: string[] = [];
   assistantUploadingImage.value = true;

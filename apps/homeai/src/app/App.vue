@@ -1000,7 +1000,7 @@ const customDesignPanelTitle = computed(() => {
 });
 const customDesignPanelSubtitle = computed(() => {
   if (customDesignStatus.value === 'processing') {
-    return 'AI生成图片中...';
+    return 'AI 正在生成图片...';
   }
   if (customDesignStatus.value === 'completed') {
     return '你可以继续描述想调整的风格、颜色、软装或问题';
@@ -1008,9 +1008,7 @@ const customDesignPanelSubtitle = computed(() => {
   if (customDesignStatus.value === 'failed') {
     return '请换个描述重新提交';
   }
-  return customDesignContext.value?.templateCode
-    ? '已匹配当前作品模板'
-    : '描述你想调整的风格、颜色、软装或问题';
+  return '描述你想调整的风格、颜色、软装或问题';
 });
 const visibleCustomDesignProcessRecords = computed(() => {
   const context = customDesignContext.value;
@@ -3281,6 +3279,7 @@ button:focus-visible {
   gap: 14px;
   min-height: 0;
   overflow: hidden;
+  overflow-x: hidden;
   padding: 12px 10px 10px;
   background: #08090d;
 }
@@ -3420,20 +3419,21 @@ button:focus-visible {
   display: grid;
   gap: 12px;
   padding: 14px;
-  border-radius: 18px;
-  background: #454545;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(19, 21, 28, 0.96);
 }
 
 .custom-status-panel {
-  min-height: 78px;
+  min-height: 70px;
   display: grid;
   place-items: center;
   align-content: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
   color: #fff;
-  background: #5f5f5f;
+  background: rgba(255, 255, 255, 0.06);
   text-align: center;
 }
 
@@ -3496,6 +3496,16 @@ button:focus-visible {
   padding-bottom: 2px;
 }
 
+.custom-prompt-examples,
+.custom-style-strip {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-prompt-examples::-webkit-scrollbar {
+  display: none;
+}
+
 .custom-prompt-examples button {
   flex: 0 0 auto;
   min-height: 34px;
@@ -3520,6 +3530,10 @@ button:focus-visible {
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
+}
+
+.custom-style-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .custom-style-strip button {

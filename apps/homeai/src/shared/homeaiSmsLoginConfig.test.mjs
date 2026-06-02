@@ -215,11 +215,19 @@ test('HomeAI 交付页必须隐藏后台状态、长编号和开发态说明', (
 });
 
 test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
-  assert.match(appVueSource, /已匹配当前作品模板/);
+  assert.doesNotMatch(appVueSource, /已匹配当前作品模板/);
+  assert.match(appVueSource, /描述你想调整的风格、颜色、软装或问题/);
   assert.match(appVueSource, /只看当前作品的修改记录/);
   assert.doesNotMatch(appVueSource, /模板 \$\{formatShortCode\(customDesignContext\.value\.templateCode\)\}/);
   assert.doesNotMatch(appVueSource, /只看记录 \$\{generationRecordId\} · 作品 \$\{workId\}/);
   assert.doesNotMatch(appVueSource, /编号：\{\{ formatShortCode\(record\.processRecordCode\) \}\}/);
+});
+
+test('HomeAI 定制设计横向选项不能露出底部滚动条', () => {
+  assert.match(appVueSource, /\.page-custom-design[\s\S]*?overflow-x: hidden;/);
+  assert.match(appVueSource, /\.custom-prompt-examples::-\webkit-scrollbar[\s\S]*?display: none;/);
+  assert.match(appVueSource, /\.custom-style-strip::-\webkit-scrollbar[\s\S]*?display: none;/);
+  assert.match(appVueSource, /\.custom-prompt-examples,[\s\S]*?\.custom-style-strip[\s\S]*?scrollbar-width: none;/);
 });
 
 test('HomeAI AI 设计助手初始化失败应展示接口错误提示', () => {

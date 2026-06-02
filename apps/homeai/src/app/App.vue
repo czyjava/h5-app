@@ -273,8 +273,9 @@
           </section>
 
           <section class="work-detail-actions">
-            <button type="button" class="primary" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignFromSelectedWork">
-              {{ workDetailLoading ? '加载作品中' : '基于这张图定制设计' }}
+            <button type="button" class="work-detail-design-button" :disabled="workDetailCustomDesignDisabled" @click="openCustomDesignFromSelectedWork">
+              <span>{{ workDetailLoading ? '加载作品中' : '基于这张图定制设计' }}</span>
+              <ChevronRight :size="18" />
             </button>
           </section>
         </section>
@@ -4127,21 +4128,38 @@ button:focus-visible {
 
 .work-detail-actions button {
   min-height: 48px;
-  border: 0;
-  border-radius: 24px;
+  border: 1px solid #d8e1ef;
+  border-radius: 16px;
   color: #2654bd;
-  background: #eaf1ff;
-  font-weight: 950;
+  background: #fff;
+  font-weight: 900;
 }
 
-.work-detail-actions button.primary {
-  color: #111;
-  background: #fff500;
+.work-detail-design-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 8px 18px rgba(38, 61, 92, 0.08);
+}
+
+.work-detail-design-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-detail-design-button svg {
+  flex: 0 0 auto;
+  color: #7d8da8;
 }
 
 .work-detail-actions button:disabled {
   color: #7c8796;
   background: #eef2f7;
+  border-color: #e6ebf2;
+  box-shadow: none;
   cursor: not-allowed;
 }
 

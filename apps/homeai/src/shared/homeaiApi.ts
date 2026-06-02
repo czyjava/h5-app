@@ -42,6 +42,7 @@ interface UploadTokenData {
 export interface HomeAiRequestContext {
   authToken?: string;
   environment: ReplicaEnvironment;
+  businessTarget?: string;
 }
 
 interface RequestOptions {
@@ -65,8 +66,12 @@ function buildBusinessUrl(path: string, context: HomeAiRequestContext, hostType:
     },
   });
   appendReplicaRequestParams(url, commonQuery as unknown as Record<string, ReplicaRequestParamValue>);
-  if (hostType === 'business' && context.environment === 'test') {
-    url.searchParams.set('__homeai_env', 'test');
+  if (hostType === 'business') {
+    // 业务服务支持在本地代理里按环境和用户配置地址转发；认证、上传等独立域名不参与切换。
+    url.searchParams.set('__homeai_env', context.environment);
+    if (context.businessTarget?.trim()) {
+      url.searchParams.set('__homeai_target', context.businessTarget.trim());
+    }
   }
   return url;
 }

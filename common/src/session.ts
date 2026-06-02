@@ -34,7 +34,8 @@ export function createReplicaSession(appId: string): ReplicaSessionState {
   const environment = safeGet(storageKey(appId, 'ENVIRONMENT'));
   return {
     authToken: safeGet(storageKey(appId, 'AUTH_TOKEN')),
-    environment: environment === 'test' ? 'test' : 'production',
+    // 兼容旧会话：只接受明确的三态环境值，其余历史值都回落线上环境。
+    environment: environment === 'local' || environment === 'test' || environment === 'production' ? environment : 'production',
     demoMode: safeGet(storageKey(appId, 'DEMO_MODE')) === '1',
   };
 }

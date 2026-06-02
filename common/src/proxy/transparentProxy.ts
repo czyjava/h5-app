@@ -19,6 +19,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 
 export interface ReplicaProxyOptions {
   environmentQueryKey?: string;
+  targetQueryKey?: string;
   maxEventCount?: number;
   maxBodyPreview?: number;
 }
@@ -147,13 +148,33 @@ function findProxyTarget(url: string, hosts: ReplicaHostConfig[]) {
   });
 }
 
-function resolveUpstreamUrl(localUrl: string, host: ReplicaHostConfig, environmentQueryKey: string) {
+function resolveDefaultTarget(host: ReplicaHostConfig, environment: string | null) {
+  if (environment === 'local') {
+    return host.localTarget ?? host.testTarget ?? host.productionTarget;
+  }
+  if (environment === 'test') {
+    return host.testTarget ?? host.productionTarget;
+  }
+  return host.productionTarget;
+}
+
+function normalizeCustomTarget(rawTarget: string) {
+  const targetUrl = new URL(rawTarget.trim());
+  if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
+    throw new Error('自定义代理访问地址只支持 http/https 协议');
+  }
+  return targetUrl.toString();
+}
+
+function resolveUpstreamUrl(localUrl: string, host: ReplicaHostConfig, environmentQueryKey: string, targetQueryKey: string) {
   const upstreamPath = localUrl.replace(host.proxyPrefix, '') || '/';
   const url = new URL(upstreamPath, host.productionTarget);
-  const useTestTarget = url.searchParams.get(environmentQueryKey) === 'test';
-  // 环境参数只给本地代理消费，签名和上游请求不能带内部标记。
+  const environment = url.searchParams.get(environmentQueryKey);
+  const customTarget = url.searchParams.get(targetQueryKey)?.trim() ?? '';
+  // 环境和自定义目标参数只给本地代理消费，签名和上游请求不能带内部标记。
   url.searchParams.delete(environmentQueryKey);
-  const target = useTestTarget && host.testTarget ? host.testTarget : host.productionTarget;
+  url.searchParams.delete(targetQueryKey);
+  const target = customTarget ? normalizeCustomTarget(customTarget) : resolveDefaultTarget(host, environment);
   return new URL(`${url.pathname}${url.search}${url.hash}`, target).toString();
 }
 
@@ -194,6 +215,7 @@ export function createReplicaTransparentProxyPlugin(
   options: ReplicaProxyOptions = {},
 ): Plugin {
   const environmentQueryKey = options.environmentQueryKey ?? '__replica_env';
+  const targetQueryKey = options.targetQueryKey ?? '__replica_target';
   const maxEventCount = options.maxEventCount ?? 360;
   const maxBodyPreview = options.maxBodyPreview ?? 1024 * 1024;
   const lifecycleEvents: ProxyLifecycleEvent[] = [];
@@ -237,19 +259,20 @@ export function createReplicaTransparentProxyPlugin(
         const id = `${Date.now().toString(36)}-${(++requestSequence).toString(36)}`;
         const startedAt = Date.now();
         const method = req.method ?? 'GET';
-        const upstreamUrl = resolveUpstreamUrl(localUrl, host, environmentQueryKey);
-
-        emitLifecycleEvent({
-          id,
-          phase: 'accepted',
-          method,
-          prefix: host.proxyPrefix,
-          localUrl: redactUrl(localUrl),
-          upstreamUrl: redactUrl(upstreamUrl),
-          requestHeaders: redactHeaders(req.headers as IncomingHttpHeaders),
-        });
+        let upstreamUrl = '';
 
         try {
+          upstreamUrl = resolveUpstreamUrl(localUrl, host, environmentQueryKey, targetQueryKey);
+          emitLifecycleEvent({
+            id,
+            phase: 'accepted',
+            method,
+            prefix: host.proxyPrefix,
+            localUrl: redactUrl(localUrl),
+            upstreamUrl: redactUrl(upstreamUrl),
+            requestHeaders: redactHeaders(req.headers as IncomingHttpHeaders),
+          });
+
           const requestBody = method === 'GET' || method === 'HEAD' ? Buffer.alloc(0) : await readRequestBody(req);
           const signedUrlResult = buildSignedReplicaUrl(upstreamUrl, host.signKey, host.extraQuery);
           const upstreamHeaders = headersForUpstream(req, requestBody.length);

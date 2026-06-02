@@ -76,6 +76,7 @@ export default defineConfig({
     createHomeAiLocalAuthPlugin(),
     createReplicaTransparentProxyPlugin(homeAiReplicaConfig, {
       environmentQueryKey: '__homeai_env',
+      targetQueryKey: '__homeai_target',
       maxBodyPreview: 1024 * 1024,
     }),
   ],

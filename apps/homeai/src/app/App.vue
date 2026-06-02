@@ -621,6 +621,28 @@
             <X :size="18" />
           </button>
         </header>
+        <ReplicaSettingsPanel
+          :environments="environmentOptions"
+          :active-environment="environment"
+          :switching-environment="switchingEnvironment"
+          :rows="[]"
+          @choose-environment="chooseEnvironment"
+          @row-click="handleSettingRow"
+        />
+        <form class="settings-address-panel" @submit.prevent="persistBusinessTargets">
+          <header>
+            <strong>业务访问地址</strong>
+            <small>当前请求：{{ normalizedBusinessTarget }}</small>
+          </header>
+          <label v-for="target in businessTargetRows" :key="target.key">
+            <span>{{ target.inputLabel }}</span>
+            <input v-model.trim="businessTargetDrafts[target.key]" type="url" inputmode="url" autocomplete="off" />
+          </label>
+          <div class="settings-address-actions">
+            <button type="button" @click="restoreDefaultBusinessTargets">恢复默认</button>
+            <button type="submit">保存访问地址</button>
+          </div>
+        </form>
         <ReplicaApiModePanel
           :auth-token="authTokenDraft"
           empty-token-label="未配置"
@@ -632,14 +654,14 @@
           @notice="showToast"
           @error="showToast"
         />
-        <ReplicaSettingsPanel
-          :environments="environmentOptions"
-          :active-environment="environment"
-          :switching-environment="switchingEnvironment"
-          :rows="settingRows"
-          @choose-environment="chooseEnvironment"
-          @row-click="handleSettingRow"
-        />
+        <div class="settings-row-list">
+          <button v-for="row in settingRows" :key="row.key" type="button" @click="handleSettingRow(row)">
+            <UserRound v-if="row.key === 'profile'" :size="20" />
+            <MessageSquare v-else :size="20" />
+            <span>{{ row.label }}</span>
+            <ChevronRight :size="18" />
+          </button>
+        </div>
         <p v-if="apiState.lastError" class="settings-error">{{ apiState.lastError }}</p>
       </section>
     </section>
@@ -650,7 +672,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ChevronLeft, ChevronRight, History, Settings, WandSparkles, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, History, MessageSquare, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -747,6 +769,62 @@ const CUSTOM_DESIGN_MAX_FETCH_COUNT = 120;
 const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
 const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
 const GUIDE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:guide-complete`;
+const BUSINESS_TARGET_STORAGE_KEY = `${homeAiReplicaConfig.appId}:business-targets`;
+const REPLICA_ENVIRONMENTS = ['local', 'test', 'production'] as const satisfies readonly ReplicaEnvironment[];
+const BUSINESS_TARGET_LABELS: Record<ReplicaEnvironment, string> = {
+  local: '本地环境',
+  test: '测试环境',
+  production: '线上环境',
+};
+const BUSINESS_TARGET_INPUT_LABELS: Record<ReplicaEnvironment, string> = {
+  local: '本地环境访问地址',
+  test: '测试环境访问地址',
+  production: '线上环境访问地址',
+};
+const DEFAULT_BUSINESS_TARGETS: Record<ReplicaEnvironment, string> = {
+  local: 'http://127.0.0.1:8090',
+  test: 'https://pixel-studio.ttt.wanmeixiangsu.cn',
+  production: 'https://pixel-studio.wanmeixiangsu.cn',
+};
+
+function normalizeBusinessTargetValue(value: string) {
+  const text = value.trim();
+  if (!text) {
+    return '';
+  }
+  try {
+    const url = new URL(text);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return '';
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+function loadBusinessTargets() {
+  const nextTargets: Record<ReplicaEnvironment, string> = { ...DEFAULT_BUSINESS_TARGETS };
+  try {
+    const payload = JSON.parse(localStorage.getItem(BUSINESS_TARGET_STORAGE_KEY) ?? '{}') as Partial<Record<ReplicaEnvironment, unknown>>;
+    for (const key of REPLICA_ENVIRONMENTS) {
+      const normalized = typeof payload[key] === 'string' ? normalizeBusinessTargetValue(payload[key] ?? '') : '';
+      nextTargets[key] = normalized || DEFAULT_BUSINESS_TARGETS[key];
+    }
+  } catch {
+    // 本地存储损坏时继续使用默认地址，避免设置弹窗无法打开。
+  }
+  return nextTargets;
+}
+
+function formatBusinessTargetHost(value: string) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
+}
+
 const resetParams = new URLSearchParams(window.location.search);
 if (resetParams.get('__homeai_reset') === '1') {
   // 本地复刻对比时需要反复回到首启态；该参数只清理本应用的本地演示状态。
@@ -759,9 +837,12 @@ if (resetParams.get('__homeai_reset') === '1') {
 }
 const smsAuthClient = createSmsAuthClient(homeAiReplicaConfig);
 const session = createReplicaSession(homeAiReplicaConfig.appId);
+const initialBusinessTargets = loadBusinessTargets();
 const activeTab = ref<MainTab>('home');
 const environment = ref<ReplicaEnvironment>(session.environment);
 const authTokenDraft = ref(session.authToken);
+const businessTargets = ref<Record<ReplicaEnvironment, string>>({ ...initialBusinessTargets });
+const businessTargetDrafts = ref<Record<ReplicaEnvironment, string>>({ ...initialBusinessTargets });
 const snapshot = ref<HomeAiSnapshot>(structuredClone(appShellSnapshot));
 const apiState = ref<HomeAiApiState>({
   mode: 'live',
@@ -870,22 +951,32 @@ const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约
 const ASSISTANT_IMAGE_ACCEPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ASSISTANT_IMAGE_MAX_SIZE = 20 * 1024 * 1024;
 const ASSISTANT_IMAGE_MAX_COUNT = 6;
-const environmentOptions = [
-  {
-    key: 'production' as const,
-    label: '生产环境',
-    host: new URL(homeAiReplicaConfig.hosts.business.productionTarget).host,
-  },
-  {
-    key: 'test' as const,
-    label: '测试环境',
-    host: new URL(homeAiReplicaConfig.hosts.business.testTarget ?? homeAiReplicaConfig.hosts.business.productionTarget).host,
-  },
-];
 const settingRows: ReplicaSettingsRow[] = [
   { key: 'profile', label: '编辑资料', icon: 'profile' },
   { key: 'feedback', label: '意见反馈', icon: 'feedback' },
 ];
+
+const environmentOptions = computed(() => [
+  {
+    key: 'local' as const,
+    label: BUSINESS_TARGET_LABELS.local,
+    host: formatBusinessTargetHost(businessTargets.value.local),
+  },
+  {
+    key: 'test' as const,
+    label: BUSINESS_TARGET_LABELS.test,
+    host: formatBusinessTargetHost(businessTargets.value.test),
+  },
+  {
+    key: 'production' as const,
+    label: BUSINESS_TARGET_LABELS.production,
+    host: formatBusinessTargetHost(businessTargets.value.production),
+  },
+]);
+const businessTargetRows = computed(() => environmentOptions.value.map((option) => ({ key: option.key, inputLabel: BUSINESS_TARGET_INPUT_LABELS[option.key] })));
+const normalizedBusinessTarget = computed(
+  () => normalizeBusinessTargetValue(businessTargets.value[environment.value]) || DEFAULT_BUSINESS_TARGETS[environment.value],
+);
 
 const tabs = computed(() => [
   { key: 'home' as const, label: '首页', icon: activeTab.value === 'home' ? homeAiAssets.tabs.home[1] : homeAiAssets.tabs.home[0] },
@@ -1087,6 +1178,36 @@ function persistEnvironment() {
   persistReplicaEnvironment(homeAiReplicaConfig.appId, environment.value);
 }
 
+function persistBusinessTargets() {
+  const nextTargets: Record<ReplicaEnvironment, string> = { ...DEFAULT_BUSINESS_TARGETS };
+  for (const key of REPLICA_ENVIRONMENTS) {
+    const normalized = normalizeBusinessTargetValue(businessTargetDrafts.value[key]);
+    if (!normalized) {
+      showToast(`${BUSINESS_TARGET_LABELS[key]}访问地址格式不正确`);
+      return;
+    }
+    nextTargets[key] = normalized;
+  }
+  businessTargets.value = nextTargets;
+  localStorage.setItem(BUSINESS_TARGET_STORAGE_KEY, JSON.stringify(nextTargets));
+  // 只记录 host 维度，避免把用户可能误填的路径参数写入日志。
+  console.info(
+    '[HomeAI 设置] 更新业务访问地址',
+    Object.fromEntries(REPLICA_ENVIRONMENTS.map((key) => [key, formatBusinessTargetHost(nextTargets[key])])),
+  );
+  showToast('访问地址已保存');
+  void reload();
+}
+
+function restoreDefaultBusinessTargets() {
+  businessTargets.value = { ...DEFAULT_BUSINESS_TARGETS };
+  businessTargetDrafts.value = { ...DEFAULT_BUSINESS_TARGETS };
+  localStorage.removeItem(BUSINESS_TARGET_STORAGE_KEY);
+  console.info('[HomeAI 设置] 恢复默认业务访问地址');
+  showToast('已恢复默认访问地址');
+  void reload();
+}
+
 function saveToken() {
   persistReplicaAuthToken(homeAiReplicaConfig.appId, authTokenDraft.value);
 }
@@ -1156,7 +1277,7 @@ async function chooseEnvironment(nextEnvironment: ReplicaEnvironment) {
   switchingEnvironment.value = true;
   try {
     await reload();
-    showToast(`已切换到${environmentOptions.find((option) => option.key === nextEnvironment)?.label ?? nextEnvironment}`);
+    showToast(`已切换到${environmentOptions.value.find((option) => option.key === nextEnvironment)?.label ?? nextEnvironment}`);
   } finally {
     switchingEnvironment.value = false;
   }
@@ -1863,6 +1984,7 @@ function getAssistantContext() {
   return {
     authToken: authTokenDraft.value,
     environment: environment.value,
+    businessTarget: normalizedBusinessTarget.value,
   };
 }
 
@@ -2183,6 +2305,7 @@ async function reload() {
     snapshot.value = await loadHomeAiSnapshot({
       authToken: authTokenDraft.value,
       environment: environment.value,
+      businessTarget: normalizedBusinessTarget.value,
     });
     workList.value = snapshot.value.works;
     workListError.value = '';
@@ -4588,6 +4711,108 @@ button:focus-visible {
   background: #fff0f0;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.settings-address-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  color: #fff;
+  background: #24272f;
+}
+
+.settings-address-panel header {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-address-panel header strong {
+  font-size: 15px;
+}
+
+.settings-address-panel header small {
+  overflow: hidden;
+  color: #aeb6c5;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-address-panel label {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-address-panel label span {
+  color: #d8deea;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.settings-address-panel input {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #f7f9ff;
+  background: #171a21;
+  font-size: 13px;
+  outline: none;
+}
+
+.settings-address-panel input:focus {
+  border-color: #36c7f7;
+  box-shadow: 0 0 0 3px rgba(54, 199, 247, 0.14);
+}
+
+.settings-address-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.settings-address-actions button {
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  color: #ecf3ff;
+  background: #343844;
+  font-size: 13px;
+  font-weight: 860;
+}
+
+.settings-address-actions button[type='submit'] {
+  color: #102237;
+  background: #36d6f4;
+}
+
+.settings-row-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-row-list button {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  background: #24272f;
+  text-align: left;
+}
+
+.settings-row-list button span {
+  font-weight: 820;
 }
 
 .settings-modal {

@@ -10,6 +10,9 @@ const homeAiApiSource = await readFile(new URL('./homeaiApi.ts', import.meta.url
 const localAuthTokenApiSource = await readFile(new URL('./localAuthTokenApi.ts', import.meta.url), 'utf8');
 const viteConfigSource = await readFile(new URL('../../vite.config.ts', import.meta.url), 'utf8');
 const gitIgnoreSource = await readFile(new URL('../../../../.gitignore', import.meta.url), 'utf8');
+const commonTypesSource = await readFile(new URL('../../../../common/src/types.ts', import.meta.url), 'utf8');
+const commonSessionSource = await readFile(new URL('../../../../common/src/session.ts', import.meta.url), 'utf8');
+const transparentProxySource = await readFile(new URL('../../../../common/src/proxy/transparentProxy.ts', import.meta.url), 'utf8');
 
 function extractInterfaceBlock(source, name) {
   const match = source.match(new RegExp(`interface ${name} \\{[\\s\\S]*?\\n\\}`));
@@ -37,6 +40,25 @@ test('HomeAI 登录和接口环境配置必须独立弹窗展示', () => {
   assert.match(appVueSource, /class="settings-modal"/);
   assert.match(appVueSource, /class="profile-settings-button"/);
   assert.doesNotMatch(appVueSource, /<section class="settings-shell" aria-label="设置">/);
+});
+
+test('HomeAI 设置必须支持本地测试线上三套业务访问地址', () => {
+  assert.match(commonTypesSource, /export type ReplicaEnvironment = 'local' \| 'test' \| 'production'/);
+  assert.match(commonSessionSource, /environment === 'local' \|\| environment === 'test' \|\| environment === 'production'/);
+  assert.match(appVueSource, /BUSINESS_TARGET_STORAGE_KEY/);
+  assert.match(appVueSource, /本地环境访问地址/);
+  assert.match(appVueSource, /测试环境访问地址/);
+  assert.match(appVueSource, /线上环境访问地址/);
+  assert.match(appVueSource, /key: 'local' as const/);
+  assert.match(appVueSource, /businessTarget:\s*normalizedBusinessTarget\.value/);
+  assert.match(appVueSource, /persistBusinessTargets/);
+  assert.match(homeAiApiSource, /businessTarget\?: string/);
+  assert.match(homeAiApiSource, /url\.searchParams\.set\('__homeai_env', context\.environment\)/);
+  assert.match(homeAiApiSource, /url\.searchParams\.set\('__homeai_target', context\.businessTarget/);
+  assert.match(viteConfigSource, /targetQueryKey:\s*'__homeai_target'/);
+  assert.match(transparentProxySource, /targetQueryKey\?: string/);
+  assert.match(transparentProxySource, /url\.searchParams\.delete\(targetQueryKey\)/);
+  assert.match(transparentProxySource, /targetUrl\.protocol !== 'http:' && targetUrl\.protocol !== 'https:'/);
 });
 
 test('HomeAI 本地开发 token 必须落到 gitignore 的本地文件', () => {

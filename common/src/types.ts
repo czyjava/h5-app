@@ -1,8 +1,9 @@
-export type ReplicaEnvironment = 'production' | 'test';
+export type ReplicaEnvironment = 'local' | 'test' | 'production';
 
 export interface ReplicaHostConfig {
   proxyPrefix: string;
   productionTarget: string;
+  localTarget?: string;
   testTarget?: string;
   signKey?: string;
   extraQuery?: Record<string, string>;

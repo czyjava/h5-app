@@ -215,6 +215,13 @@ test('HomeAI 作品详情必须选中真实 generationWork 后才能进入定制
   assert.match(appVueSource, /selectedWork\.value\.sourceType !== 'work'/);
 });
 
+test('HomeAI 作品详情定制设计入口非会员必须先跳转会员购买页', () => {
+  assert.match(appVueSource, /const isHomeAiVipMember/);
+  assert.match(appVueSource, /vipPurchaseSource\.value === 'customDesign'/);
+  assert.match(appVueSource, /function openCustomDesignFromSelectedWork\(\)[\s\S]*?!isHomeAiVipMember\.value[\s\S]*?openVipPurchasePage\('customDesign'\)/);
+  assert.match(appVueSource, /function openCustomDesignFromSelectedWork\(\)[\s\S]*?!isHomeAiVipMember\.value[\s\S]*?return;/);
+});
+
 test('HomeAI 我的页必须提供作品和助手二级 tab', () => {
   assert.match(appVueSource, /mineTab/);
   assert.match(appVueSource, /class="mine-tabs"/);

@@ -14,6 +14,7 @@ const emptyUser: UserSummary = {
   nickname: '未登录',
   userId: '-',
   avatar: '',
+  vipActive: false,
   diamondCount: 0,
   vipLabel: '未登录',
 };
@@ -46,11 +47,26 @@ function pickRecord(input: unknown): Record<string, unknown> {
   return input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
 }
 
+function pickBoolean(input: Record<string, unknown>, keys: string[]) {
+  return keys.some((key) => input[key] === true || input[key] === 'true' || input[key] === 'TRUE' || input[key] === 1);
+}
+
 function normalizeImageUrl(value: string) {
   if (!value) {
     return '';
   }
   return value.startsWith('//') ? `https:${value}` : value;
+}
+
+function resolveVipActive(record: Record<string, unknown>, vipLabel: string) {
+  if (pickBoolean(record, ['vip', 'isVip', 'member', 'memberActive', 'vipActive'])) {
+    return true;
+  }
+  const validDuration = Number(record.validDuration ?? record.vipValidDuration ?? 0);
+  if (Number.isFinite(validDuration) && validDuration > 0) {
+    return true;
+  }
+  return Boolean(vipLabel && vipLabel !== '未登录' && vipLabel !== '已登录');
 }
 
 function parseMaybeJsonObject(input: unknown): unknown {
@@ -221,13 +237,15 @@ function mapUser(raw: unknown): UserSummary {
   const userId = pickString(record, ['userId', 'id'], emptyUser.userId);
   const nickname = pickString(record, ['nickname', 'nickName', 'name'], emptyUser.nickname);
   const loggedIn = userId !== emptyUser.userId || nickname !== emptyUser.nickname;
+  const vipLabel = pickString(record, ['vipLabel', 'vipName'], loggedIn ? '已登录' : emptyUser.vipLabel);
   return {
     nickname,
     userId,
     avatar: normalizeImageUrl(pickString(record, ['largeAvatar', 'avatar', 'avatarUrl', 'headImg'], emptyUser.avatar)),
+    vipActive: resolveVipActive(record, vipLabel),
     diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? emptyUser.diamondCount),
     // current-user 经常只返回基础用户资料，不带会员标签；只要有用户身份，就不再显示“未登录”。
-    vipLabel: pickString(record, ['vipLabel', 'vipName'], loggedIn ? '已登录' : emptyUser.vipLabel),
+    vipLabel,
   };
 }
 

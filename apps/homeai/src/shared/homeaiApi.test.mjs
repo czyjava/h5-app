@@ -45,6 +45,7 @@ test('normalizeHomeAiSnapshot shows logged-in status when current user has no vi
       userId: 'user-1',
       avatar: '//cdn.example.com/avatar-small.jpg',
       largeAvatar: 'https://cdn.example.com/avatar-large.jpg',
+      validDuration: 0,
     },
   });
 
@@ -52,6 +53,15 @@ test('normalizeHomeAiSnapshot shows logged-in status when current user has no vi
   assert.equal(snapshot.user.userId, 'user-1');
   assert.equal(snapshot.user.vipLabel, '已登录');
   assert.equal(snapshot.user.avatar, 'https://cdn.example.com/avatar-large.jpg');
+  assert.equal(snapshot.user.vipActive, false);
+});
+
+test('normalizeHomeAiSnapshot maps valid vip duration as active member', () => {
+  const snapshot = normalizeHomeAiSnapshot({
+    user: { nickname: '会员用户', userId: 'vip-user', validDuration: 30 },
+  });
+
+  assert.equal(snapshot.user.vipActive, true);
 });
 
 test('normalizeHomeAiSnapshot does not synthesize local business data when APIs are empty', () => {

@@ -600,7 +600,7 @@
 
         <section v-else-if="activeTab === 'vipPurchase'" class="page page-vip-purchase">
           <header class="vip-purchase-head">
-            <button class="icon-button" type="button" aria-label="返回 AI 助手" @click="returnFromVipPurchase">
+            <button class="icon-button" type="button" :aria-label="vipPurchaseBackLabel" @click="returnFromVipPurchase">
               <ChevronLeft :size="20" />
             </button>
             <strong>AI装修大师 VIP</strong>
@@ -1011,7 +1011,7 @@ const switchingEnvironment = ref(false);
 const settingsDialogVisible = ref(false);
 const toastMessage = ref('');
 const toastKind = ref<'notice' | 'error'>('notice');
-const vipPurchaseSource = ref<'manual' | 'assistantQuota' | 'assistantRoundLimit'>('manual');
+const vipPurchaseSource = ref<'manual' | 'assistantQuota' | 'assistantRoundLimit' | 'customDesign'>('manual');
 const vipPurchaseLoading = ref(false);
 const vipPurchaseStatusText = ref('');
 const isScrolled = ref(false);
@@ -1216,6 +1216,7 @@ const selectedGenerationWorkIndexText = computed(() => {
   const index = selectedGenerationWorks.value.findIndex((work) => work.id === selectedWork.value?.id);
   return index >= 0 ? `第 ${index + 1} 张` : '当前图';
 });
+const isHomeAiVipMember = computed(() => snapshot.value.user.vipActive);
 const profileUserHint = computed(() => {
   if (!authTokenDraft.value.trim()) {
     return '登录后可查看真实作品';
@@ -1229,6 +1230,9 @@ const vipPurchaseTitle = computed(() => {
   if (vipPurchaseSource.value === 'assistantQuota') {
     return '会员权益已达免费上限';
   }
+  if (vipPurchaseSource.value === 'customDesign') {
+    return '开通会员使用定制设计';
+  }
   return '开通会员解锁更多权益';
 });
 const vipPurchaseDescription = computed(() => {
@@ -1238,8 +1242,12 @@ const vipPurchaseDescription = computed(() => {
   if (vipPurchaseSource.value === 'assistantQuota') {
     return '免费权益已用完，开通会员后可继续创建和使用 AI 设计助手。';
   }
+  if (vipPurchaseSource.value === 'customDesign') {
+    return '作品定制设计属于会员能力，开通后可基于当前作品继续修改和生成方案。';
+  }
   return '解锁更多 AI 装修设计能力，持续优化你的家装方案。';
 });
+const vipPurchaseBackLabel = computed(() => (vipPurchaseSource.value === 'customDesign' ? '返回作品详情' : '返回 AI 助手'));
 const assistantPageTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : 'AI 设计师'));
 const assistantEmptyTitle = computed(() => (assistantSceneType.value === 'CUSTOM_DESIGN' ? '定制设计' : '设计助手'));
 const assistantEmptyDescription = computed(() =>
@@ -1524,7 +1532,7 @@ function showToast(message: string) {
   }, 2600);
 }
 
-function openVipPurchasePage(source: 'manual' | 'assistantQuota' | 'assistantRoundLimit' = 'manual') {
+function openVipPurchasePage(source: 'manual' | 'assistantQuota' | 'assistantRoundLimit' | 'customDesign' = 'manual') {
   vipPurchaseSource.value = source;
   vipPurchaseStatusText.value = '';
   toastMessage.value = '';
@@ -1532,6 +1540,10 @@ function openVipPurchasePage(source: 'manual' | 'assistantQuota' | 'assistantRou
 }
 
 function returnFromVipPurchase() {
+  if (vipPurchaseSource.value === 'customDesign') {
+    activeTab.value = selectedWork.value ? 'workDetail' : 'mine';
+    return;
+  }
   activeTab.value = vipPurchaseSource.value === 'manual' ? 'mine' : 'assistant';
 }
 
@@ -1925,6 +1937,11 @@ function openCustomDesignFromSelectedWork() {
   }
   if (workDetailCustomDesignDisabled.value) {
     showToast(workDetailLoading.value ? '作品详情加载中，请稍后再试' : '请先选择真实作品');
+    return;
+  }
+  if (!isHomeAiVipMember.value) {
+    openVipPurchasePage('customDesign');
+    console.info('[HomeAI CustomDesign] 非会员从作品详情进入定制设计，跳转会员购买页');
     return;
   }
   const work = selectedWork.value;

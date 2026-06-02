@@ -51,6 +51,7 @@ export const appShellSnapshot: HomeAiSnapshot = {
     nickname: '未登录',
     userId: '-',
     avatar: '',
+    vipActive: false,
     diamondCount: 0,
     vipLabel: '未登录',
   },

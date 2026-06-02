@@ -129,6 +129,7 @@ export interface UserSummary {
   nickname: string;
   userId: string;
   avatar: string;
+  vipActive: boolean;
   diamondCount: number;
   vipLabel: string;
 }

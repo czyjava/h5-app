@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const appConfigSource = await readFile(new URL('../../app.config.ts', import.meta.url), 'utf8');
-const appPackageSource = await readFile(new URL('../../package.json', import.meta.url), 'utf8');
 const appVueSource = await readFile(new URL('../app/App.vue', import.meta.url), 'utf8');
 const customDesignApiSource = await readFile(new URL('./customDesignApi.ts', import.meta.url), 'utf8');
 const designAssistantApiSource = await readFile(new URL('./designAssistantApi.ts', import.meta.url), 'utf8');
@@ -141,13 +140,16 @@ test('HomeAI AI 设计助手上传图片必须走真实业务上传接口', () =
   assert.match(homeAiApiSource, /formData\.append\('file', file/);
   assert.match(homeAiApiSource, /homeAiReplicaConfig\.endpoints\.upload/);
   assert.match(homeAiApiSource, /hostType:\s*'upload'/);
-  assert.match(appVueSource, /:accepted-files="advancedChatAcceptedFiles"/);
-  assert.match(appVueSource, /advancedChatAcceptedFiles = computed\(\(\) => \(assistantSceneType\.value === 'ASSISTANT_CHAT' \? 'image\/png,image\/jpeg,image\/webp' : ''\)\)/);
-  assert.match(appVueSource, /function createUploadFileFromAdvancedChatFile/);
-  assert.match(appVueSource, /function uploadAdvancedChatFiles/);
-  assert.match(appVueSource, /function handleAdvancedChatSendMessage/);
-  assert.match(appVueSource, /uploadHomeAiImage\(getAssistantContext\(\), uploadFile\)/);
-  assert.match(appVueSource, /sendAssistantMessage\(\{ prompt: content, imageUrls, suppressBusyToast: true \}\)/);
+  assert.match(appVueSource, /ref="assistantFileInputElement"/);
+  assert.match(appVueSource, /accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(appVueSource, /function uploadAssistantNativeFile/);
+  assert.match(appVueSource, /function handleAssistantNativeFileChange/);
+  assert.match(appVueSource, /function submitAssistantComposer/);
+  assert.match(appVueSource, /validateAssistantImageFile\(file\)/);
+  assert.match(appVueSource, /uploadHomeAiImage\(getAssistantContext\(\), file\)/);
+  assert.match(appVueSource, /sendAssistantMessage\(\{ suppressBusyToast: true \}\)/);
+  assert.doesNotMatch(appVueSource, /function uploadAdvancedChatFiles/);
+  assert.doesNotMatch(appVueSource, /function handleAdvancedChatSendMessage/);
   assert.doesNotMatch(appVueSource, /assistantImageInputRef/);
   assert.doesNotMatch(appVueSource, /function addAssistantImageAttachment/);
   assert.doesNotMatch(appVueSource, /selectedFeature\.value\?\.guideImage \|\| homeAiAssets\.guide\.interiorGood/);
@@ -155,12 +157,12 @@ test('HomeAI AI 设计助手上传图片必须走真实业务上传接口', () =
 
 test('HomeAI AI 设计助手文案和附件规则必须符合需求口径', () => {
   assert.match(appVueSource, /label:\s*'设计助手'/);
-  assert.match(appVueSource, /roomName:\s*assistantPageTitle\.value/);
+  assert.match(appVueSource, /<strong>\{\{ assistantPageTitle \}\}<\/strong>/);
   assert.match(appVueSource, /assistantSceneType\.value === 'CUSTOM_DESIGN' \? '定制设计' : 'AI 设计师'/);
   assert.match(appVueSource, /const ASSISTANT_IMAGE_MAX_COUNT = 1/);
   assert.match(appVueSource, /function ensureAssistantAttachmentEnabled/);
   assert.match(appVueSource, /assistantSceneType\.value !== 'ASSISTANT_CHAT'[\s\S]*?定制设计会话不支持上传附件/);
-  assert.match(appVueSource, /uploadAdvancedChatFiles\(files: AdvancedChatMessageFile\[\]\)[\s\S]*?ensureAssistantAttachmentEnabled/);
+  assert.match(appVueSource, /function toggleAssistantAttachmentMenu\(\)[\s\S]*?ensureAssistantAttachmentEnabled/);
   assert.match(appVueSource, /validateAssistantImageFile\(file: File\)[\s\S]*?ensureAssistantAttachmentEnabled/);
   assert.match(appVueSource, /一次最多上传 1 张图片/);
   assert.match(appVueSource, /const imageUrl = isUser \? resolveAssistantMessageImage\(message\) : ''/);
@@ -361,49 +363,29 @@ test('HomeAI AI 设计助手轮次超限必须跳转会员购买页', () => {
   assert.match(autoInitSource, /handleAssistantQuotaLimitError\(error\)/);
 });
 
-test('HomeAI AI 设计助手 IM 页面必须接入 vue-advanced-chat', () => {
-  const packageJson = JSON.parse(appPackageSource);
-  assert.match(viteConfigSource, /isCustomElement:\s*\(tagName\) => tagName === 'vue-advanced-chat' \|\| tagName === 'emoji-picker'/);
-  assert.equal(typeof packageJson.dependencies['vue-advanced-chat'], 'string');
-  assert.match(appVueSource, /import \{ register as registerAdvancedChat \} from 'vue-advanced-chat'/);
-  assert.match(appVueSource, /registerAdvancedChat\(\)/);
-  assert.match(appVueSource, /<vue-advanced-chat/);
-  assert.match(appVueSource, /:current-user-id="ADVANCED_CHAT_CURRENT_USER_ID"/);
-  assert.match(appVueSource, /:rooms="advancedChatRoomsJson"/);
-  assert.match(appVueSource, /:messages="advancedChatMessagesJson"/);
-  assert.match(appVueSource, /:text-messages="advancedChatTextMessagesJson"/);
-  assert.match(appVueSource, /:styles="advancedChatStylesJson"/);
-  assert.match(appVueSource, /@send-message="handleAdvancedChatSendMessage"/);
+test('HomeAI AI 设计助手 IM 页面必须使用受控移动端聊天布局', () => {
   assert.match(appVueSource, /function mapAssistantMessageToAdvancedChatMessage/);
-  assert.match(appVueSource, /function handleAdvancedChatSendMessage/);
-  assert.match(appVueSource, /function stringifyAdvancedChatPayload/);
-  assert.match(appVueSource, /ref="assistantAdvancedChatElement"/);
-  assert.match(appVueSource, /function syncAdvancedChatLoadedState/);
-  assert.match(appVueSource, /function scheduleAdvancedChatLoadedStateSync/);
-  assert.match(appVueSource, /vac-messages-hidden/);
-  assert.match(appVueSource, /const advancedChatMessagesJson = computed/);
-  assert.match(appVueSource, /const advancedChatRoomsJson = computed/);
-  assert.match(appVueSource, /slot="room-header"/);
-  assert.match(appVueSource, /:slot="`message_\$\{message\._id\}`"/);
-  assert.match(appVueSource, /:slot="`message-avatar_\$\{message\._id\}`"/);
-  assert.match(appVueSource, /class="assistant-vac-message"/);
-  assert.match(appVueSource, /class="assistant-vac-bubble"/);
-  assert.match(appVueSource, /class="assistant-vac-meta"/);
-  assert.match(appVueSource, /class="assistant-vac-avatar"/);
+  assert.match(appVueSource, /class="assistant-message-panel"/);
+  assert.match(appVueSource, /ref="assistantMessageScroller"/);
+  assert.match(appVueSource, /class="assistant-message-list"/);
+  assert.match(appVueSource, /class="assistant-message-row"/);
+  assert.match(appVueSource, /class="assistant-message-bubble"/);
+  assert.match(appVueSource, /class="assistant-composer"/);
+  assert.match(appVueSource, /class="assistant-attachment-menu"/);
+  assert.match(appVueSource, /class="assistant-attachment-preview"/);
+  assert.match(appVueSource, /@keydown\.enter\.exact\.prevent="submitAssistantComposer"/);
+  assert.match(appVueSource, /function scrollAssistantMessagesToBottom/);
+  assert.match(appVueSource, /function toggleAssistantAttachmentMenu/);
   assert.match(appVueSource, /\.page-assistant\s*\{[\s\S]*?grid-template-rows:\s*auto minmax\(0, 1fr\)/);
   assert.match(appVueSource, /\.page-assistant\s*\{[\s\S]*?overflow:\s*hidden/);
-  assert.match(appVueSource, /\.assistant-vac-message\s*\{[\s\S]*?width:\s*min\(76vw, 310px\)/);
-  assert.match(appVueSource, /\.assistant-vac-message\.user\s*\{[\s\S]*?margin-left:\s*auto/);
-  assert.match(appVueSource, /\.assistant-vac-bubble\s*\{[\s\S]*?border-radius:\s*16px/);
-  assert.match(appVueSource, /\.assistant-vac-message\.user \.assistant-vac-bubble/);
-  assert.match(appVueSource, /general:\s*\{/);
-  assert.match(appVueSource, /header:\s*\{/);
-  assert.match(appVueSource, /footer:\s*\{/);
-  assert.match(appVueSource, /content:\s*\{/);
-  assert.match(appVueSource, /icons:\s*\{/);
-  assert.doesNotMatch(appVueSource, /roomHeader:/);
-  assert.doesNotMatch(appVueSource, /roomsList:/);
-  assert.doesNotMatch(appVueSource, /class="assistant-composer"/);
+  assert.match(appVueSource, /\.assistant-message-panel\s*\{[\s\S]*?grid-template-rows:\s*minmax\(0, 1fr\) auto/);
+  assert.match(appVueSource, /\.assistant-message-list\s*\{[\s\S]*?overflow-y:\s*auto/);
+  assert.match(appVueSource, /\.assistant-message-content\s*\{[\s\S]*?max-width:\s*min\(282px, 78vw\)/);
+  assert.match(appVueSource, /\.assistant-composer-row\s*\{[\s\S]*?grid-template-columns:\s*34px minmax\(0, 1fr\) 38px/);
+  assert.doesNotMatch(appVueSource, /<vue-advanced-chat/);
+  assert.doesNotMatch(appVueSource, /registerAdvancedChat/);
+  assert.doesNotMatch(appVueSource, /assistant-vac-/);
+  assert.doesNotMatch(appVueSource, /shadowRoot/);
 });
 
 test('HomeAI 定制设计图标按钮必须有可访问语义', () => {

@@ -463,82 +463,107 @@
               <span>最近作品 {{ assistantWorkContext.workId }}</span>
               <small>模板 {{ assistantWorkContext.templateId || '-' }}</small>
             </div>
-            <section v-if="assistantMessages.length === 0" class="assistant-quick-list" aria-label="常用问题">
-              <button
-                v-for="question in assistantQuickQuestions"
-                :key="question"
-                type="button"
-                :disabled="assistantComposerDisabled"
-                @click="useAssistantQuickQuestion(question)"
-              >
-                {{ question }}
-              </button>
-            </section>
-            <vue-advanced-chat
-              ref="assistantAdvancedChatElement"
-              class="assistant-advanced-chat"
-              height="100%"
-              theme="light"
-              :accepted-files="advancedChatAcceptedFiles"
-              :current-user-id="ADVANCED_CHAT_CURRENT_USER_ID"
-              :rooms="advancedChatRoomsJson"
-              :room-id="ADVANCED_CHAT_ROOM_ID"
-              :messages="advancedChatMessagesJson"
-              :room-message="assistantInput"
-              :rooms-loaded="true"
-              :messages-loaded="true"
-              :single-room="true"
-              :show-search="false"
-              :show-add-room="false"
-              :show-audio="false"
-              :show-emojis="false"
-              :show-reaction-emojis="false"
-              :show-new-messages-divider="false"
-              :textarea-auto-focus="false"
-              :message-actions="[]"
-              :room-actions="[]"
-              :menu-actions="[]"
-              :text-messages="advancedChatTextMessagesJson"
-              :text-formatting="advancedChatTextFormattingJson"
-              :styles="advancedChatStylesJson"
-              @send-message="handleAdvancedChatSendMessage"
-              @open-file="handleAdvancedChatOpenFile"
-            >
-              <div slot="room-header" class="assistant-vac-room-header" aria-hidden="true"></div>
-              <div
-                v-for="message in advancedChatMessages"
-                :key="`message-${message._id}`"
-                :slot="`message_${message._id}`"
-                class="assistant-vac-message"
-                :class="{
-                  user: message.senderId === ADVANCED_CHAT_CURRENT_USER_ID,
-                  failed: message.failure,
-                  'image-only': message.files?.length && !message.content,
-                }"
-              >
-                <div class="assistant-vac-bubble">
-                  <img
-                    v-if="message.senderId === ADVANCED_CHAT_CURRENT_USER_ID && message.files?.[0]?.url"
-                    class="assistant-vac-message-image"
-                    :src="message.files[0].url"
-                    alt="用户上传的设计参考图"
-                    @click="openAssistantSlotFile(message.files[0].url)"
-                  />
-                  <p v-if="message.content">{{ message.content }}</p>
-                </div>
-                <time class="assistant-vac-meta">{{ message.timestamp }}</time>
+            <section class="assistant-message-panel">
+              <div ref="assistantMessageScroller" class="assistant-message-list" :class="{ empty: assistantMessages.length === 0 }">
+                <section v-if="assistantMessages.length === 0" class="assistant-empty-state">
+                  <span class="assistant-empty-avatar" aria-hidden="true">
+                    <img :src="homeAiAssets.magicWand" alt="" />
+                  </span>
+                  <strong>{{ assistantEmptyTitle }}</strong>
+                  <p>{{ assistantEmptyDescription }}</p>
+                  <div class="assistant-quick-list" aria-label="常用问题">
+                    <button
+                      v-for="question in assistantQuickQuestions"
+                      :key="question"
+                      type="button"
+                      :disabled="assistantComposerDisabled"
+                      @click="useAssistantQuickQuestion(question)"
+                    >
+                      {{ question }}
+                    </button>
+                  </div>
+                </section>
+                <article
+                  v-for="message in advancedChatMessages"
+                  v-else
+                  :key="message._id"
+                  class="assistant-message-row"
+                  :class="{
+                    user: message.senderId === ADVANCED_CHAT_CURRENT_USER_ID,
+                    failed: message.failure,
+                    'image-only': message.files?.length && !message.content,
+                  }"
+                >
+                  <span v-if="message.senderId !== ADVANCED_CHAT_CURRENT_USER_ID" class="assistant-message-avatar" aria-hidden="true">
+                    <img :src="homeAiAssets.magicWand" alt="" />
+                  </span>
+                  <div class="assistant-message-content">
+                    <div class="assistant-message-bubble">
+                      <img
+                        v-if="message.senderId === ADVANCED_CHAT_CURRENT_USER_ID && message.files?.[0]?.url"
+                        class="assistant-message-image"
+                        :src="message.files[0].url"
+                        alt="用户上传的设计参考图"
+                        @click="openAssistantMessageImage(message.files[0].url)"
+                      />
+                      <p v-if="message.content">{{ message.content }}</p>
+                    </div>
+                    <time>{{ message.timestamp }}</time>
+                  </div>
+                </article>
               </div>
-              <span
-                v-for="message in advancedChatMessages"
-                :key="`avatar-${message._id}`"
-                :slot="`message-avatar_${message._id}`"
-                class="assistant-vac-avatar"
-                :class="{ user: message.senderId === ADVANCED_CHAT_CURRENT_USER_ID }"
-                aria-hidden="true"
-              >
-                <img v-if="message.senderId !== ADVANCED_CHAT_CURRENT_USER_ID" :src="homeAiAssets.magicWand" alt="" />
-              </span>
-            </vue-advanced-chat>
+
+              <footer class="assistant-composer">
+                <div v-if="assistantImageUrls.length" class="assistant-attachment-preview">
+                  <button type="button" aria-label="预览已添加图片" @click="openAssistantMessageImage(assistantImageUrls[0])">
+                    <img :src="assistantImageUrls[0]" alt="已添加的设计参考图" />
+                    <span>1/1</span>
+                  </button>
+                  <button type="button" aria-label="移除已添加图片" @click="removeAssistantAttachment">
+                    <X :size="14" />
+                  </button>
+                </div>
+                <div v-if="assistantAttachmentMenuVisible" class="assistant-attachment-menu" role="menu" aria-label="选择图片来源">
+                  <button type="button" role="menuitem" @click="openAssistantFilePicker(true)">
+                    <Camera :size="18" />
+                    拍照
+                  </button>
+                  <button type="button" role="menuitem" @click="openAssistantFilePicker(false)">
+                    <ImageIcon :size="18" />
+                    相册
+                  </button>
+                </div>
+                <input
+                  ref="assistantFileInputElement"
+                  class="assistant-file-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  :capture="assistantFileCapture ? 'environment' : undefined"
+                  @change="handleAssistantNativeFileChange"
+                />
+                <div class="assistant-composer-row">
+                  <button
+                    class="assistant-icon-action"
+                    type="button"
+                    aria-label="添加图片附件"
+                    :disabled="assistantComposerDisabled || assistantSceneType !== 'ASSISTANT_CHAT'"
+                    @click="toggleAssistantAttachmentMenu"
+                  >
+                    <Plus :size="20" />
+                  </button>
+                  <textarea
+                    v-model="assistantInput"
+                    rows="1"
+                    :placeholder="assistantComposerPlaceholder"
+                    :disabled="assistantComposerDisabled"
+                    @keydown.enter.exact.prevent="submitAssistantComposer"
+                  ></textarea>
+                  <button class="assistant-send-action" type="button" :disabled="assistantSendDisabled" aria-label="发送消息" @click="submitAssistantComposer">
+                    <SendHorizontal :size="18" />
+                  </button>
+                </div>
+              </footer>
+            </section>
           </section>
         </section>
 
@@ -767,8 +792,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { register as registerAdvancedChat } from 'vue-advanced-chat';
-import { ChevronLeft, ChevronRight, History, MessageSquare, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
+import { Camera, ChevronLeft, ChevronRight, History, Image as ImageIcon, MessageSquare, Plus, SendHorizontal, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -811,8 +835,6 @@ import { loadHomeAiLocalAuthToken, persistHomeAiLocalAuthToken } from '../shared
 import type { HomeAiGenerationDetail } from '../shared/homeaiMappers';
 import type { DesignAssistantMessage, DesignAssistantSessionItem, DesignFeature, HomeAiApiState, HomeAiSnapshot, MainTab, WorkItem } from '../shared/types';
 
-registerAdvancedChat();
-
 type AssistantUiMessage = DesignAssistantMessage & {
   localId?: string;
 };
@@ -824,7 +846,6 @@ interface AdvancedChatMessageFile {
   url: string;
   preview?: string;
   size?: number;
-  blob?: Blob;
 }
 
 interface AdvancedChatMessage {
@@ -842,33 +863,6 @@ interface AdvancedChatMessage {
   disableActions: boolean;
   disableReactions: boolean;
   files?: AdvancedChatMessageFile[];
-}
-
-interface AdvancedChatRoom {
-  roomId: string;
-  roomName: string;
-  avatar: string;
-  users: Array<{
-    _id: string;
-    username: string;
-    avatar: string;
-    status: { state: 'online' | 'offline'; lastChanged: string };
-  }>;
-  typingUsers?: string[];
-  lastMessage?: {
-    content: string;
-    senderId: string;
-    timestamp: string;
-  };
-}
-
-interface AdvancedChatSendPayload {
-  content?: string;
-  files?: AdvancedChatMessageFile[];
-}
-
-interface AdvancedChatOpenFilePayload {
-  file?: AdvancedChatMessageFile;
 }
 
 interface AssistantHistorySession extends DesignAssistantSessionItem {
@@ -1036,8 +1030,10 @@ const assistantUploadingImage = ref(false);
 const assistantMessages = ref<AssistantUiMessage[]>([]);
 const assistantSessionKey = ref('');
 const assistantSending = ref(false);
-const assistantAdvancedChatElement = ref<HTMLElement | null>(null);
-const advancedChatLastUnlockedKey = ref('');
+const assistantMessageScroller = ref<HTMLElement | null>(null);
+const assistantFileInputElement = ref<HTMLInputElement | null>(null);
+const assistantAttachmentMenuVisible = ref(false);
+const assistantFileCapture = ref(false);
 const assistantEntryAutoSending = ref(false);
 const assistantWorkContext = ref<CustomDesignPageContext | null>(null);
 const assistantSceneType = ref<'ASSISTANT_CHAT' | 'CUSTOM_DESIGN'>('ASSISTANT_CHAT');
@@ -1117,7 +1113,6 @@ const customDesignPromptExamples = ['保留布局，改成奶油风', '让客厅
 const assistantQuickQuestions = ['小户型客厅怎么显大？', '现代简约适合什么配色？', '帮我规划玄关收纳', '预算有限先改哪里？'];
 const ADVANCED_CHAT_CURRENT_USER_ID = 'homeai-user';
 const ADVANCED_CHAT_ASSISTANT_USER_ID = 'homeai-assistant';
-const ADVANCED_CHAT_ROOM_ID = 'homeai-design-assistant';
 const ASSISTANT_IMAGE_ACCEPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ASSISTANT_IMAGE_MAX_SIZE = 20 * 1024 * 1024;
 const ASSISTANT_IMAGE_MAX_COUNT = 1;
@@ -1263,144 +1258,7 @@ const assistantComposerPlaceholder = computed(() =>
   assistantUploadingImage.value ? '图片上传中，请稍候' : assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value,
 );
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
-const advancedChatAcceptedFiles = computed(() => (assistantSceneType.value === 'ASSISTANT_CHAT' ? 'image/png,image/jpeg,image/webp' : ''));
 const advancedChatMessages = computed<AdvancedChatMessage[]>(() => assistantMessages.value.map(mapAssistantMessageToAdvancedChatMessage));
-const advancedChatRooms = computed<AdvancedChatRoom[]>(() => {
-  const lastMessage = advancedChatMessages.value[advancedChatMessages.value.length - 1];
-  return [
-    {
-      roomId: ADVANCED_CHAT_ROOM_ID,
-      roomName: assistantPageTitle.value,
-      avatar: homeAiAssets.magicWand,
-      users: [
-        {
-          _id: ADVANCED_CHAT_CURRENT_USER_ID,
-          username: '我',
-          avatar: homeAiAssets.appLogo,
-          status: { state: 'online', lastChanged: new Date().toISOString() },
-        },
-        {
-          _id: ADVANCED_CHAT_ASSISTANT_USER_ID,
-          username: 'AI 装修大师',
-          avatar: homeAiAssets.magicWand,
-          status: { state: 'online', lastChanged: new Date().toISOString() },
-        },
-      ],
-      typingUsers: assistantSending.value || assistantUploadingImage.value ? [ADVANCED_CHAT_ASSISTANT_USER_ID] : [],
-      lastMessage: lastMessage
-        ? {
-            content: lastMessage.content || (lastMessage.files?.length ? '图片' : ''),
-            senderId: lastMessage.senderId,
-            timestamp: lastMessage.timestamp,
-          }
-        : undefined,
-    },
-  ];
-});
-const advancedChatTextMessages = computed(() => ({
-  ROOM_EMPTY: assistantEmptyDescription.value,
-  TYPE_MESSAGE: assistantComposerPlaceholder.value,
-  MESSAGES_EMPTY: assistantEmptyTitle.value,
-  CONVERSATION_STARTED: '',
-  IS_TYPING: '正在回复中...',
-}));
-const advancedChatTextFormatting = { disabled: true };
-const advancedChatStyles = {
-  general: {
-    color: '#172033',
-    colorPlaceholder: '#8f9bad',
-    colorCaret: '#3478f6',
-    colorSpinner: '#3478f6',
-    borderStyle: '0',
-    backgroundInput: '#ffffff',
-    backgroundScrollIcon: '#ffffff',
-  },
-  container: {
-    border: '0',
-    borderRadius: '0',
-    boxShadow: 'none',
-  },
-  header: {
-    background: '#f4f7fb',
-    colorRoomName: 'transparent',
-    colorRoomInfo: 'transparent',
-    position: 'absolute',
-    width: '100%',
-  },
-  footer: {
-    background: '#f4f7fb',
-    backgroundReply: '#edf2f8',
-    backgroundTag: '#f4f7fb',
-    backgroundTagActive: '#eaf1ff',
-    borderStyleInput: '1px solid rgba(116, 135, 158, 0.2)',
-    borderInputSelected: '#3478f6',
-  },
-  content: {
-    background: '#f4f7fb',
-  },
-  message: {
-    background: '#ffffff',
-    backgroundMe: '#3478f6',
-    backgroundImage: '#ffffff',
-    backgroundMedia: 'transparent',
-    color: '#172033',
-    colorTimestamp: '#7c8798',
-    colorStarted: 'transparent',
-    colorNewMessages: '#3478f6',
-  },
-  icons: {
-    file: '#3478f6',
-    paperclip: '#3478f6',
-    send: '#3478f6',
-    sendDisabled: '#a5afbf',
-    microphone: '#3478f6',
-  },
-};
-function stringifyAdvancedChatPayload(payload: unknown) {
-  // vue-advanced-chat 作为 Web Component 使用时，复杂 props 需要传 JSON 字符串，否则浏览器会退化成 [object Object]。
-  return JSON.stringify(payload);
-}
-const advancedChatMessagesJson = computed(() => stringifyAdvancedChatPayload(advancedChatMessages.value));
-const advancedChatRoomsJson = computed(() => stringifyAdvancedChatPayload(advancedChatRooms.value));
-const advancedChatTextMessagesJson = computed(() => stringifyAdvancedChatPayload(advancedChatTextMessages.value));
-const advancedChatTextFormattingJson = stringifyAdvancedChatPayload(advancedChatTextFormatting);
-const advancedChatStylesJson = stringifyAdvancedChatPayload(advancedChatStyles);
-function syncAdvancedChatLoadedState() {
-  if (activeTab.value !== 'assistant' || assistantMessages.value.length === 0) {
-    return;
-  }
-  const shadowRoot = assistantAdvancedChatElement.value?.shadowRoot;
-  if (!shadowRoot) {
-    return;
-  }
-  const hiddenMessages = shadowRoot.querySelector<HTMLElement>('.vac-messages-hidden');
-  const loader = shadowRoot.querySelector<HTMLElement>('.vac-loader-wrapper');
-  if (!hiddenMessages && !loader) {
-    return;
-  }
-  if (hiddenMessages) {
-    hiddenMessages.style.opacity = '1';
-  }
-  if (loader) {
-    loader.style.display = 'none';
-  }
-  const unlockKey = `${assistantSessionKey.value || 'empty'}:${assistantMessages.value.length}`;
-  if (advancedChatLastUnlockedKey.value !== unlockKey) {
-    advancedChatLastUnlockedKey.value = unlockKey;
-    // 第三方组件切历史会话时偶发停留在内部 loading 态，这里只在已有消息时恢复可见性。
-    console.info('[HomeAI Assistant] 已恢复 vue-advanced-chat 历史消息可见状态', {
-      sessionKey: assistantSessionKey.value || 'empty',
-      messageCount: assistantMessages.value.length,
-    });
-  }
-}
-
-function scheduleAdvancedChatLoadedStateSync() {
-  void nextTick(() => {
-    window.setTimeout(syncAdvancedChatLoadedState, 0);
-    window.setTimeout(syncAdvancedChatLoadedState, 120);
-  });
-}
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
 const currentCustomDesignApplyCode = computed(() => {
   const customDesignCode = currentCustomDesignImage.value?.customDesignCode || '';
@@ -2679,84 +2537,84 @@ function validateAssistantImageFile(file: File) {
   }
 }
 
-function unwrapAdvancedChatEventDetail<T>(event: Event) {
-  const detail = (event as CustomEvent<T | T[]>).detail;
-  return (Array.isArray(detail) ? detail[0] : detail) as T;
+function scrollAssistantMessagesToBottom() {
+  void nextTick(() => {
+    const scroller = assistantMessageScroller.value;
+    if (!scroller) {
+      return;
+    }
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+  });
 }
 
-function createUploadFileFromAdvancedChatFile(file: AdvancedChatMessageFile) {
-  if (file.blob instanceof File) {
-    return file.blob;
+function toggleAssistantAttachmentMenu() {
+  if (assistantComposerDisabled.value) {
+    return;
   }
-  if (file.blob instanceof Blob) {
-    return new File([file.blob], file.name || `homeai-upload.${file.extension || 'jpg'}`, {
-      type: file.blob.type || file.type || 'image/jpeg',
-    });
+  try {
+    ensureAssistantAttachmentEnabled();
+    if (assistantImageUrls.value.length >= ASSISTANT_IMAGE_MAX_COUNT) {
+      showToast(ASSISTANT_IMAGE_LIMIT_TEXT);
+      return;
+    }
+    assistantAttachmentMenuVisible.value = !assistantAttachmentMenuVisible.value;
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '当前会话不支持上传附件');
   }
-  throw new Error('请选择本地图片后再发送');
 }
 
-async function uploadAdvancedChatFiles(files: AdvancedChatMessageFile[]) {
-  ensureAssistantAttachmentEnabled();
-  if (files.length > ASSISTANT_IMAGE_MAX_COUNT) {
-    throw new Error(ASSISTANT_IMAGE_LIMIT_TEXT);
-  }
-  const uploadedImageUrls: string[] = [];
+function openAssistantFilePicker(capture: boolean) {
+  assistantFileCapture.value = capture;
+  assistantAttachmentMenuVisible.value = false;
+  void nextTick(() => {
+    assistantFileInputElement.value?.click();
+  });
+}
+
+function removeAssistantAttachment() {
+  assistantImageUrls.value = [];
+  assistantAttachmentMenuVisible.value = false;
+}
+
+async function uploadAssistantNativeFile(file: File) {
+  validateAssistantImageFile(file);
   assistantUploadingImage.value = true;
   try {
-    for (const file of files) {
-      const uploadFile = createUploadFileFromAdvancedChatFile(file);
-      validateAssistantImageFile(uploadFile);
-      const imageUrl = await uploadHomeAiImage(getAssistantContext(), uploadFile);
-      uploadedImageUrls.push(imageUrl);
-    }
-    console.info('[HomeAI Assistant] vue-advanced-chat 图片批量上传成功', {
-      attachmentCount: uploadedImageUrls.length,
-    });
-    return uploadedImageUrls;
+    const imageUrl = await uploadHomeAiImage(getAssistantContext(), file);
+    assistantImageUrls.value = [imageUrl];
+    console.info('[HomeAI Assistant] 原生 IM 输入栏图片上传成功', { attachmentCount: 1 });
   } finally {
     assistantUploadingImage.value = false;
   }
 }
 
-async function handleAdvancedChatSendMessage(event: Event) {
-  const payload = unwrapAdvancedChatEventDetail<AdvancedChatSendPayload>(event) || {};
-  const content = String(payload.content || '').trim();
-  const files = Array.isArray(payload.files) ? payload.files : [];
-  if (!content && files.length === 0) {
+function handleAssistantNativeFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) {
     return;
   }
-  if (assistantComposerDisabled.value) {
-    showToast('正在回复中，请稍后再提问');
-    return;
-  }
-  if (!requireAssistantLogin()) {
-    return;
-  }
-  try {
-    const imageUrls = files.length ? await uploadAdvancedChatFiles(files) : [];
-    await sendAssistantMessage({ prompt: content, imageUrls, suppressBusyToast: true });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '发送失败';
-    console.warn('[HomeAI Assistant] vue-advanced-chat 发送失败', {
-      message,
-      fileCount: files.length,
-    });
-    showToast(message);
-  }
+  void (async () => {
+    try {
+      await uploadAssistantNativeFile(file);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '图片上传失败';
+      console.warn('[HomeAI Assistant] 原生 IM 输入栏图片上传失败', { message });
+      showToast(message);
+    }
+  })();
 }
 
-function handleAdvancedChatOpenFile(event: Event) {
-  const payload = unwrapAdvancedChatEventDetail<AdvancedChatOpenFilePayload>(event) || {};
-  if (!payload.file?.url) {
-    showToast('图片加载失败，请稍后重试');
+function submitAssistantComposer() {
+  if (assistantSendDisabled.value) {
     return;
   }
-  window.open(payload.file.url, '_blank', 'noopener,noreferrer');
+  assistantAttachmentMenuVisible.value = false;
+  void sendAssistantMessage({ suppressBusyToast: true });
 }
 
-function openAssistantSlotFile(fileUrl: string) {
-  // 自定义消息 slot 会绕开组件内置 open-file 事件，这里补齐图片预览入口。
+function openAssistantMessageImage(fileUrl: string) {
   if (!fileUrl) {
     showToast('图片加载失败，请稍后重试');
     return;
@@ -3113,7 +2971,7 @@ watch(activeTab, (tab) => {
   })();
 });
 
-watch([activeTab, assistantSessionKey, () => assistantMessages.value.length, advancedChatMessagesJson], scheduleAdvancedChatLoadedStateSync);
+watch([activeTab, assistantSessionKey, () => assistantMessages.value.length], scrollAssistantMessagesToBottom);
 
 onUnmounted(() => {
   window.removeEventListener('hashchange', syncApiDebugPage);
@@ -4894,34 +4752,109 @@ button:focus-visible {
   font-weight: 800;
 }
 
-.assistant-advanced-chat {
+.assistant-message-panel {
   flex: 1 1 auto;
   min-height: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  border-top: 1px solid rgba(130, 146, 170, 0.12);
 }
 
-.assistant-vac-room-header {
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
+.assistant-message-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 16px 0 14px;
+  scrollbar-width: none;
 }
 
-.assistant-vac-message {
-  width: min(76vw, 310px);
-  max-width: 100%;
+.assistant-message-list::-webkit-scrollbar {
+  display: none;
+}
+
+.assistant-message-list.empty {
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.assistant-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.assistant-empty-avatar {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #111317;
+  box-shadow: 0 14px 28px rgba(17, 19, 23, 0.12);
+}
+
+.assistant-empty-avatar img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.assistant-empty-state strong {
+  font-size: 18px;
+  font-weight: 900;
+  color: #172033;
+}
+
+.assistant-empty-state p {
+  max-width: 270px;
+  margin: 0;
+  color: #6f7c90;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.assistant-message-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.assistant-message-row.user {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: end;
+}
+
+.assistant-message-avatar {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #111317;
+}
+
+.assistant-message-avatar img {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+}
+
+.assistant-message-content {
+  max-width: min(282px, 78vw);
   display: grid;
   gap: 5px;
   justify-items: start;
 }
 
-.assistant-vac-message.user {
-  margin-left: auto;
+.assistant-message-row.user .assistant-message-content {
   justify-items: end;
 }
 
-.assistant-vac-bubble {
+.assistant-message-bubble {
   display: grid;
   gap: 8px;
   padding: 10px 12px;
@@ -4931,21 +4864,20 @@ button:focus-visible {
   box-shadow: 0 8px 20px rgba(35, 47, 70, 0.07);
 }
 
-.assistant-vac-message.user .assistant-vac-bubble {
+.assistant-message-row.user .assistant-message-bubble {
   border-radius: 16px 16px 6px;
   color: #fff;
   background: #256eff;
   box-shadow: 0 10px 20px rgba(37, 110, 255, 0.2);
 }
 
-.assistant-vac-message.user.image-only .assistant-vac-bubble {
+.assistant-message-row.image-only .assistant-message-bubble {
   padding: 0;
-  border-radius: 12px;
   background: transparent;
   box-shadow: none;
 }
 
-.assistant-vac-bubble p {
+.assistant-message-bubble p {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
@@ -4954,48 +4886,169 @@ button:focus-visible {
   line-height: 1.58;
 }
 
-.assistant-vac-meta {
+.assistant-message-row.failed .assistant-message-bubble p {
+  color: #d43131;
+}
+
+.assistant-message-image {
+  width: min(210px, 100%);
+  max-height: 210px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(35, 47, 70, 0.1);
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.assistant-message-content time {
   padding: 0 4px;
-  color: #7c8798;
+  color: #8e9aad;
   font-size: 10px;
   line-height: 1;
 }
 
-.assistant-vac-message.user .assistant-vac-meta {
-  color: #8e9aad;
+.assistant-composer {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 9px 0 0;
+  border-top: 1px solid rgba(130, 146, 170, 0.18);
+  background: #f5f8fd;
 }
 
-.assistant-vac-message.failed .assistant-vac-bubble p {
-  color: #d43131;
+.assistant-composer-row {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 38px;
+  gap: 8px;
+  align-items: end;
 }
 
-.assistant-vac-message-image {
-  width: min(210px, 100%);
-  max-height: 210px;
-  border-radius: 12px;
-  object-fit: contain;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(35, 47, 70, 0.1);
-  cursor: pointer;
-}
-
-.assistant-vac-avatar {
-  width: 28px;
-  height: 28px;
+.assistant-icon-action,
+.assistant-send-action {
+  width: 34px;
+  height: 34px;
+  border: 0;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #111317;
+  color: #3478f6;
+  background: #fff;
+  box-shadow: 0 5px 12px rgba(35, 47, 70, 0.08);
 }
 
-.assistant-vac-avatar.user {
+.assistant-send-action {
+  width: 38px;
+  color: #fff;
+  background: #3478f6;
+}
+
+.assistant-icon-action:disabled,
+.assistant-send-action:disabled {
+  color: #a8b2c2;
+  background: #edf2f8;
+  box-shadow: none;
+}
+
+.assistant-composer textarea {
+  min-height: 36px;
+  max-height: 108px;
+  border: 1px solid rgba(120, 136, 160, 0.18);
+  border-radius: 18px;
+  resize: none;
+  padding: 9px 12px;
+  color: #172033;
+  background: #fff;
+  font-size: 14px;
+  line-height: 18px;
+  outline: none;
+}
+
+.assistant-composer textarea:focus {
+  border-color: rgba(52, 120, 246, 0.45);
+  box-shadow: 0 0 0 2px rgba(52, 120, 246, 0.08);
+}
+
+.assistant-file-input {
   display: none;
 }
 
-.assistant-vac-avatar img {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
+.assistant-attachment-menu {
+  position: absolute;
+  left: 0;
+  bottom: 56px;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(35, 47, 70, 0.14);
+}
+
+.assistant-attachment-menu button {
+  min-width: 72px;
+  border: 0;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: #26344d;
+  background: #f4f7fb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.assistant-attachment-preview {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.assistant-attachment-preview button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.assistant-attachment-preview button:first-child {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(35, 47, 70, 0.12);
+}
+
+.assistant-attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.assistant-attachment-preview span {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  border-radius: 999px;
+  padding: 2px 5px;
+  color: #fff;
+  background: rgba(17, 19, 23, 0.68);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.assistant-attachment-preview button:last-child {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #172033;
 }
 
 .page-header,

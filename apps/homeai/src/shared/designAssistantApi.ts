@@ -1,7 +1,6 @@
 import { homeAiReplicaConfig } from '../../app.config';
 import { requestBusiness, type HomeAiRequestContext } from './homeaiApi';
 import type {
-  DesignAssistantApplyDesignResponse,
   DesignAssistantMediaInfo,
   DesignAssistantMessage,
   DesignAssistantMessageInput,
@@ -34,12 +33,6 @@ interface SendParams {
   templateId?: string;
   sourceImageUrl?: string;
   priceChecked?: boolean;
-}
-
-interface ApplyDesignParams {
-  sessionKey: string;
-  messageId: string;
-  targetWorkId: string;
 }
 
 function compactForm(input: Record<string, unknown>) {
@@ -119,12 +112,4 @@ export async function listDesignAssistantSessions(
     { method: 'POST', form: compactForm({ sceneType, pageNo: 1, pageSize: 50 }) },
   );
   return response.items ?? response.sessions ?? [];
-}
-
-export async function applyDesignAssistantImage(context: HomeAiRequestContext, params: ApplyDesignParams) {
-  return requestBusiness<DesignAssistantApplyDesignResponse>(
-    homeAiReplicaConfig.endpoints.designAssistantApplyDesign,
-    context,
-    { method: 'POST', form: compactForm({ ...params }) },
-  );
 }

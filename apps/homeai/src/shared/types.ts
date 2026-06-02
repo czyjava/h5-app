@@ -5,7 +5,6 @@ export type DesignAssistantStartReason = 'APP_LAUNCH_FIRST_ENTER' | 'MANUAL_NEW'
 export type DesignAssistantRole = 'USER' | 'ASSISTANT';
 export type DesignAssistantContentType = 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO';
 export type DesignAssistantMessageStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED';
-export type DesignAssistantApplyStatus = 'NONE' | 'APPLIED' | 'APPLY_FAILED';
 
 export interface DesignAssistantMediaInfo {
   type?: DesignAssistantContentType | string;
@@ -40,9 +39,6 @@ export interface DesignAssistantMessage {
   status?: DesignAssistantMessageStatus | string | null;
   contentType?: DesignAssistantContentType | string | null;
   messageContent?: DesignAssistantMediaInfo | null;
-  applyStatus?: DesignAssistantApplyStatus | string | null;
-  applyTime?: string | number | null;
-  applyErrorCode?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   messageTime?: string | number | null;
@@ -87,12 +83,6 @@ export interface DesignAssistantMessagesResponse {
 export interface DesignAssistantSessionsResponse {
   items?: DesignAssistantSessionItem[];
   sessions?: DesignAssistantSessionItem[];
-}
-
-export interface DesignAssistantApplyDesignResponse {
-  messageId?: string | null;
-  applyStatus?: DesignAssistantApplyStatus | string | null;
-  applyTime?: string | number | null;
 }
 
 export interface DesignFeature {

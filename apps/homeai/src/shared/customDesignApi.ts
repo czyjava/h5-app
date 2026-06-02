@@ -53,6 +53,12 @@ export interface CustomDesignRecordsResponse {
   records?: CustomDesignRecordItemResponse[];
 }
 
+export interface CustomDesignApplyResponse {
+  customDesignCode: string;
+  status: CustomDesignRemoteStatus;
+  sourceWorkId?: string;
+}
+
 export async function submitHomeAiCustomDesign(context: HomeAiRequestContext, params: CustomDesignSubmitParams) {
   return requestBusiness<CustomDesignSubmitResponse>(
     homeAiReplicaConfig.endpoints.customDesignSubmit,
@@ -85,6 +91,17 @@ export async function listHomeAiCustomDesignRecords(
     {
       method: 'POST',
       form: { ...params },
+    },
+  );
+}
+
+export async function applyHomeAiCustomDesign(context: HomeAiRequestContext, customDesignCode: string) {
+  return requestBusiness<CustomDesignApplyResponse>(
+    homeAiReplicaConfig.endpoints.customDesignApply,
+    context,
+    {
+      method: 'POST',
+      form: { customDesignCode },
     },
   );
 }

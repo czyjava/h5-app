@@ -10,16 +10,6 @@ export interface AssistantComposerState {
   messages?: AssistantMessageUiState[];
 }
 
-export function shouldShowAssistantMessageActions(message: AssistantMessageUiState) {
-  // 仅保留图片定制设计的“应用设计”类动作；普通 AI 问答不再展示消息级操作。
-  return (
-    message.role === 'ASSISTANT' &&
-    Boolean(message.messageId) &&
-    message.status !== 'PENDING' &&
-    message.status !== 'FAILED'
-  );
-}
-
 export function isAssistantReplyInProgress(messages: AssistantMessageUiState[] = []) {
   return messages.some((message) => message.role === 'ASSISTANT' && message.status === 'PENDING');
 }

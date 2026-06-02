@@ -69,6 +69,5 @@ export const homeAiReplicaConfig: ReplicaAppConfig = {
     designAssistantSend: '/api/open/homeai/design-assistant/send.htm',
     designAssistantSessions: '/api/open/homeai/design-assistant/sessions.htm',
     designAssistantMessages: '/api/open/homeai/design-assistant/messages/list.htm',
-    designAssistantApplyDesign: '/api/open/homeai/design-assistant/apply-design.htm',
   },
 };

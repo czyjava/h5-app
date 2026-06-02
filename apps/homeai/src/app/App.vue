@@ -310,6 +310,15 @@
               <strong>{{ customDesignPanelTitle }}</strong>
               <span>{{ customDesignPanelSubtitle }}</span>
             </section>
+            <section v-if="currentCustomDesignApplyCode" class="custom-result-actions">
+              <button
+                type="button"
+                :disabled="customDesignApplyingCode === currentCustomDesignApplyCode"
+                @click="applyCurrentCustomDesignResult"
+              >
+                {{ customDesignApplyingCode === currentCustomDesignApplyCode ? '应用中' : '应用设计' }}
+              </button>
+            </section>
 
             <section v-if="customStylePanelVisible" class="custom-style-strip" aria-label="风格选择">
               <button v-for="style in customDesignStyles" :key="style.code" type="button" :disabled="customDesignBusy" @click="submitCustomDesignStyle(style)">
@@ -399,6 +408,13 @@
               <footer>
                 <button type="button" :disabled="record.status !== 'completed'" @click="showCustomDesignRecordResult(record)">查看结果</button>
                 <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
+                <button
+                  type="button"
+                  :disabled="record.status !== 'completed' || customDesignApplyingCode === record.processRecordCode"
+                  @click="applyCustomDesignRecordResult(record)"
+                >
+                  {{ record.status === 'applied' ? '已应用' : customDesignApplyingCode === record.processRecordCode ? '应用中' : '应用设计' }}
+                </button>
               </footer>
             </article>
           </section>
@@ -438,9 +454,6 @@
                 <img v-if="resolveAssistantMessageImage(message)" :src="resolveAssistantMessageImage(message)" alt="" @error="handleAssistantImageError" />
                 <p v-if="resolveAssistantMessageText(message)">{{ resolveAssistantMessageText(message) }}</p>
                 <small v-if="message.status === 'FAILED'">{{ message.errorMessage || '生成失败，请稍后再试' }}</small>
-                <footer v-if="shouldRenderApplyDesignAction(message)" class="assistant-message-actions">
-                  <button type="button" @click="applyCustomDesign(message)">应用设计</button>
-                </footer>
               </article>
             </section>
           </section>
@@ -632,9 +645,8 @@ import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { appShellSnapshot } from '../shared/appShellData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
-import { shouldDisableAssistantComposer, shouldShowAssistantMessageActions } from '../shared/designAssistantMessageUi';
+import { shouldDisableAssistantComposer } from '../shared/designAssistantMessageUi';
 import {
-  applyDesignAssistantImage,
   listDesignAssistantMessages,
   resolveAssistantImageUrl,
   resolveAssistantText,
@@ -642,6 +654,7 @@ import {
   startDesignAssistantSession,
 } from '../shared/designAssistantApi';
 import {
+  applyHomeAiCustomDesign,
   fetchHomeAiCustomDesign,
   listHomeAiCustomDesignRecords,
   resolveCustomDesignRecordInputImageUrl,
@@ -679,12 +692,13 @@ interface CustomDesignImageEntry {
   localId: string;
   imageUrl: string;
   encodedData?: string;
+  customDesignCode?: string;
   isOriginal: boolean;
 }
 
 type CustomDesignStatus = 'idle' | 'processing' | 'completed' | 'failed';
 
-type CustomDesignProcessStatus = 'processing' | 'completed' | 'failed';
+type CustomDesignProcessStatus = 'processing' | 'completed' | 'applied' | 'failed';
 
 interface CustomDesignProcessRecord {
   recordKey: string;
@@ -697,6 +711,7 @@ interface CustomDesignProcessRecord {
   inputImageUrl: string;
   outputImageUrl?: string;
   outputImageLocalId?: string;
+  appliedAt?: string;
   createdAt: string;
 }
 
@@ -774,6 +789,7 @@ const customDesignLastPrompt = ref('');
 const customStylePanelVisible = ref(false);
 const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
 const customDesignRecordsLoading = ref(false);
+const customDesignApplyingCode = ref('');
 let customDesignPollingTimer: number | null = null;
 
 const designSteps = ['upload', 'style', 'result'] as const;
@@ -922,6 +938,14 @@ const assistantComposerPlaceholder = computed(() =>
 );
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
+const currentCustomDesignApplyCode = computed(() => {
+  const customDesignCode = currentCustomDesignImage.value?.customDesignCode || '';
+  if (!customDesignCode) {
+    return '';
+  }
+  const processRecord = customDesignProcessRecords.value.find((record) => record.processRecordCode === customDesignCode);
+  return processRecord?.status === 'applied' ? '' : customDesignCode;
+});
 const customDesignImageIndicator = computed(() => `${customDesignImageIndex.value + 1}/${customDesignImages.value.length}`);
 const customDesignBusy = computed(() => customDesignStatus.value === 'processing');
 const customDesignSubmitDisabled = computed(() => customDesignBusy.value || !customDesignInput.value.trim() || customDesignImages.value.length === 0);
@@ -962,7 +986,7 @@ const visibleCustomDesignProcessRecords = computed(() => {
   );
 });
 const completedCustomDesignRecordCount = computed(
-  () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'completed').length,
+  () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'completed' || record.status === 'applied').length,
 );
 const customDesignRecordsSubtitle = computed(() => {
   if (!customDesignContext.value) {
@@ -1299,7 +1323,10 @@ function formatCustomDesignRemoteRecordTime(value: CustomDesignRecordItemRespons
 
 function normalizeCustomDesignRecordStatus(status: string): CustomDesignProcessStatus {
   const normalized = String(status || '').toUpperCase();
-  if (normalized === 'SUCCEEDED' || normalized === 'APPLIED') {
+  if (normalized === 'APPLIED') {
+    return 'applied';
+  }
+  if (normalized === 'SUCCEEDED') {
     return 'completed';
   }
   if (normalized === 'FAILED') {
@@ -1520,6 +1547,7 @@ async function fetchCustomDesignResult(recordKey: string, customDesignCode: stri
       {
         localId: outputImageLocalId,
         imageUrl: outputImageUrl,
+        customDesignCode,
         isOriginal: false,
       },
     ];
@@ -1573,6 +1601,9 @@ function handleCustomDesignImageError() {
 }
 
 function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
+  if (status === 'applied') {
+    return '已应用';
+  }
   if (status === 'completed') {
     return '已完成';
   }
@@ -1599,6 +1630,7 @@ function showCustomDesignRecordResult(record: CustomDesignProcessRecord) {
       {
         localId: outputImageLocalId,
         imageUrl: record.outputImageUrl,
+        customDesignCode: record.processRecordCode,
         isOriginal: false,
       },
     ];
@@ -1626,6 +1658,84 @@ function continueCustomDesignFromRecord(record: CustomDesignProcessRecord) {
     customDesignImageIndex.value = targetIndex;
   }
   activeTab.value = 'customDesign';
+}
+
+function patchAppliedWorkCover(sourceWorkId: string, outputImageUrl: string) {
+  if (!sourceWorkId || !outputImageUrl) {
+    return;
+  }
+  const replaceCover = (work: WorkItem) => (work.id === sourceWorkId ? { ...work, coverUrl: outputImageUrl } : work);
+  if (selectedWork.value?.id === sourceWorkId) {
+    selectedWork.value = replaceCover(selectedWork.value);
+  }
+  workList.value = workList.value.map(replaceCover);
+  snapshot.value = {
+    ...snapshot.value,
+    works: snapshot.value.works.map(replaceCover),
+  };
+  if (selectedGenerationDetail.value) {
+    selectedGenerationDetail.value = {
+      ...selectedGenerationDetail.value,
+      works: selectedGenerationDetail.value.works.map(replaceCover),
+    };
+  }
+}
+
+async function applyCustomDesignResult(customDesignCode: string, outputImageUrl = '') {
+  if (!customDesignCode || customDesignApplyingCode.value) {
+    return;
+  }
+  if (!requireAssistantLogin()) {
+    return;
+  }
+  const processRecord = customDesignProcessRecords.value.find((record) => record.processRecordCode === customDesignCode);
+  if (processRecord && processRecord.status !== 'completed') {
+    showToast(processRecord.status === 'applied' ? '这张设计已经应用过了' : '只能应用已完成的定制设计');
+    return;
+  }
+  customDesignApplyingCode.value = customDesignCode;
+  try {
+    const response = await applyHomeAiCustomDesign(getAssistantContext(), customDesignCode);
+    const sourceWorkId = response.sourceWorkId || processRecord?.sourceWorkId || customDesignContext.value?.workId || '';
+    const appliedImageUrl =
+      outputImageUrl ||
+      processRecord?.outputImageUrl ||
+      customDesignImages.value.find((image) => image.customDesignCode === customDesignCode)?.imageUrl ||
+      '';
+    // 服务端应用策略是替换入口 generationWork；前端先同步当前内存态，再刷新真实作品详情。
+    patchAppliedWorkCover(sourceWorkId, appliedImageUrl);
+    updateCustomDesignProcessRecord(processRecord?.recordKey || customDesignCode, {
+      status: 'applied',
+      appliedAt: formatCustomDesignRecordTime(),
+    });
+    if (selectedWork.value) {
+      void loadSelectedWorkDetail(selectedWork.value);
+    }
+    void refreshWorkList();
+    void loadCustomDesignProcessRecords();
+    showToast('应用设计成功');
+    console.info('[HomeAI CustomDesign] 定制设计已应用', {
+      customDesignCode,
+      sourceWorkId,
+      status: response.status,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '应用设计失败';
+    showToast(message);
+    console.warn('[HomeAI CustomDesign] 定制设计应用失败', { customDesignCode, message });
+  } finally {
+    customDesignApplyingCode.value = '';
+  }
+}
+
+function applyCurrentCustomDesignResult() {
+  const customDesignCode = currentCustomDesignApplyCode.value;
+  const outputImageUrl = currentCustomDesignImage.value?.imageUrl || '';
+  void applyCustomDesignResult(customDesignCode, outputImageUrl);
+}
+
+function applyCustomDesignRecordResult(record: CustomDesignProcessRecord) {
+  void applyCustomDesignResult(record.processRecordCode, record.outputImageUrl || '');
 }
 
 function createLocalAssistantMessage(role: 'USER' | 'ASSISTANT', text: string, imageUrl = '') {
@@ -1672,10 +1782,6 @@ function resolveAssistantMessageText(message: DesignAssistantMessage) {
 
 function resolveAssistantMessageImage(message: DesignAssistantMessage) {
   return resolveAssistantImageUrl(message.messageContent);
-}
-
-function shouldRenderApplyDesignAction(message: AssistantUiMessage) {
-  return shouldShowAssistantMessageActions(message) && assistantSceneType.value === 'CUSTOM_DESIGN' && Boolean(resolveAssistantMessageImage(message));
 }
 
 function useAssistantQuickQuestion(question: string) {
@@ -1951,23 +2057,6 @@ function resolveCustomDesignWorkContext() {
 
 function openCustomDesignFromFeedback() {
   openCustomDesignFromResult('我不满意当前效果，请帮我换一种更自然、更高级的设计');
-}
-
-async function applyCustomDesign(message: AssistantUiMessage) {
-  if (!message.messageId || !assistantWorkContext.value?.workId) {
-    showToast('缺少可应用的作品信息');
-    return;
-  }
-  if (isLocalAssistantExperience() || !requireAssistantLogin()) {
-    return;
-  }
-  await applyDesignAssistantImage(getAssistantContext(), {
-    sessionKey: assistantSessionKey.value,
-    messageId: message.messageId,
-    targetWorkId: assistantWorkContext.value.workId,
-  });
-  await restoreAssistantMessages();
-  showToast('应用设计成功');
 }
 
 function nextDesignStep() {
@@ -3269,6 +3358,27 @@ button {
   color: #ff8e86;
 }
 
+.custom-result-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.custom-result-actions button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 21px;
+  padding: 0 18px;
+  color: #111;
+  background: #fff500;
+  font-weight: 950;
+}
+
+.custom-result-actions button:disabled {
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.12);
+  cursor: not-allowed;
+}
+
 .custom-style-strip {
   display: grid;
   grid-auto-flow: column;
@@ -3536,6 +3646,11 @@ button {
   background: #dff8ea;
 }
 
+.custom-record-status.applied {
+  color: #3f3200;
+  background: #fff3a6;
+}
+
 .custom-record-status.failed {
   color: #9d2b2b;
   background: #ffe8e8;
@@ -3619,6 +3734,11 @@ button {
 }
 
 .custom-record-card footer button:first-child {
+  color: #111;
+  background: #fff500;
+}
+
+.custom-record-card footer button:last-child {
   color: #111;
   background: #fff500;
 }

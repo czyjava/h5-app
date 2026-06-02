@@ -60,7 +60,9 @@ test('HomeAI AI 设计助手接口走 open API 路径', () => {
   assert.doesNotMatch(designAssistantApiSource, /feedbackDesignAssistantMessage/);
   assert.doesNotMatch(appConfigSource, /designAssistantRegenerate/);
   assert.doesNotMatch(designAssistantApiSource, /regenerateDesignAssistantMessage/);
-  assert.match(appConfigSource, /designAssistantApplyDesign:\s*'\/api\/open\/homeai\/design-assistant\/apply-design\.htm'/);
+  assert.doesNotMatch(appConfigSource, /designAssistantApplyDesign/);
+  assert.doesNotMatch(designAssistantApiSource, /applyDesignAssistantImage/);
+  assert.doesNotMatch(appVueSource, /shouldRenderApplyDesignAction/);
 });
 
 test('HomeAI 当前用户信息必须走认证域 current-user 接口', () => {
@@ -123,6 +125,21 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
   assert.match(appVueSource, /window\.setTimeout\([\s\S]*?CUSTOM_DESIGN_FETCH_INTERVAL_MS/);
   assert.doesNotMatch(appVueSource, /createMockCustomDesignResultImage/);
   assert.doesNotMatch(appVueSource, /静态复刻阶段用本地装修素材模拟结果图/);
+});
+
+test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () => {
+  assert.match(appConfigSource, /customDesignApply:\s*'\/api\/open\/homeai\/custom-design\/apply\.htm'/);
+  assert.match(customDesignApiSource, /export async function applyHomeAiCustomDesign/);
+  assert.match(customDesignApiSource, /homeAiReplicaConfig\.endpoints\.customDesignApply/);
+  assert.match(customDesignApiSource, /form:\s*\{\s*customDesignCode\s*\}/);
+  assert.match(appVueSource, /customDesignApplyingCode/);
+  assert.match(appVueSource, /function applyCustomDesignResult\(/);
+  assert.match(appVueSource, /applyHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
+  assert.match(appVueSource, /currentCustomDesignApplyCode/);
+  assert.match(appVueSource, /@click="applyCurrentCustomDesignResult"/);
+  assert.match(appVueSource, /@click="applyCustomDesignRecordResult\(record\)"/);
+  assert.doesNotMatch(appConfigSource, /\/api\/open\/homeai\/design-assistant\/apply-design\.htm/);
+  assert.doesNotMatch(appVueSource, /applyDesignAssistantImage/);
 });
 
 test('HomeAI 作品详情必须选中真实 generationWork 后才能进入定制设计', () => {

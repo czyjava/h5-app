@@ -111,9 +111,9 @@ export async function requestBusiness<T>(path: string, context: HomeAiRequestCon
   console.info('[HomeAI API] 接口响应', { hostType, path, status: response.status, ok: response.ok });
 
   if (!response.ok) {
-    // 真实状态码保留在脱敏日志里，页面只展示用户能理解的处理建议。
+    // HTTP 非 2xx 仍可能携带业务 message，例如会话额度限制；页面应优先展示业务文案。
     console.warn('[HomeAI API] HTTP 请求失败', redactObject({ hostType, path, status: response.status }));
-    throw new Error(formatHttpErrorMessage(response.status));
+    throw new Error(payload.message || formatHttpErrorMessage(response.status));
   }
   const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
   if (payload.success === false || errorCode !== 0) {

@@ -73,6 +73,10 @@ test('HomeAI 当前用户信息必须走认证域 current-user 接口', () => {
   );
 });
 
+test('HomeAI HTTP 失败但响应体包含业务 message 时必须优先展示 message', () => {
+  assert.match(homeAiApiSource, /throw new Error\(payload\.message \|\| formatHttpErrorMessage\(response\.status\)\)/);
+});
+
 test('HomeAI 定制设计会话使用最后作品ID语义', () => {
   const startParamsSource = extractInterfaceBlock(designAssistantApiSource, 'StartParams');
   assert.match(startParamsSource, /lastWorkId\?: string/);

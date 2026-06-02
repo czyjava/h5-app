@@ -40,12 +40,18 @@ test('normalizeHomeAiSnapshot maps user, work, and discover payloads', () => {
 
 test('normalizeHomeAiSnapshot shows logged-in status when current user has no vip label', () => {
   const snapshot = normalizeHomeAiSnapshot({
-    user: { nickname: '洋娃娃的暖心', userId: 'user-1' },
+    user: {
+      nickname: '洋娃娃的暖心',
+      userId: 'user-1',
+      avatar: '//cdn.example.com/avatar-small.jpg',
+      largeAvatar: 'https://cdn.example.com/avatar-large.jpg',
+    },
   });
 
   assert.equal(snapshot.user.nickname, '洋娃娃的暖心');
   assert.equal(snapshot.user.userId, 'user-1');
   assert.equal(snapshot.user.vipLabel, '已登录');
+  assert.equal(snapshot.user.avatar, 'https://cdn.example.com/avatar-large.jpg');
 });
 
 test('normalizeHomeAiSnapshot does not synthesize local business data when APIs are empty', () => {

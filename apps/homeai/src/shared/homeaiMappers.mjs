@@ -1,6 +1,7 @@
 const emptyUser = {
   nickname: '未登录',
   userId: '-',
+  avatar: '',
   diamondCount: 0,
   vipLabel: '未登录',
 };
@@ -210,6 +211,7 @@ function mapUser(raw) {
   return {
     nickname,
     userId,
+    avatar: normalizeImageUrl(pickString(record, ['largeAvatar', 'avatar', 'avatarUrl', 'headImg'], emptyUser.avatar)),
     diamondCount: Number(record.diamondCount ?? record.credit ?? record.balance ?? emptyUser.diamondCount),
     // current-user 经常只返回基础用户资料，不带会员标签；只要有用户身份，就不再显示“未登录”。
     vipLabel: pickString(record, ['vipLabel', 'vipName'], loggedIn ? '已登录' : emptyUser.vipLabel),

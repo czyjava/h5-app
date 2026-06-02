@@ -495,7 +495,7 @@
                   }"
                 >
                   <span v-if="message.senderId !== ADVANCED_CHAT_CURRENT_USER_ID" class="assistant-message-avatar" aria-hidden="true">
-                    <img :src="homeAiAssets.magicWand" alt="" />
+                    <img :src="message.avatar" alt="" />
                   </span>
                   <div class="assistant-message-content">
                     <div class="assistant-message-bubble">
@@ -510,6 +510,9 @@
                     </div>
                     <time>{{ message.timestamp }}</time>
                   </div>
+                  <span v-if="message.senderId === ADVANCED_CHAT_CURRENT_USER_ID" class="assistant-message-avatar user-avatar" aria-hidden="true">
+                    <img :src="message.avatar" alt="" />
+                  </span>
                 </article>
               </div>
 
@@ -1258,6 +1261,7 @@ const assistantComposerPlaceholder = computed(() =>
   assistantUploadingImage.value ? '图片上传中，请稍候' : assistantComposerDisabled.value ? '正在回复中，请稍候' : assistantInputPlaceholder.value,
 );
 const assistantSendDisabled = computed(() => assistantComposerDisabled.value || (!assistantInput.value.trim() && assistantImageUrls.value.length === 0));
+const assistantUserAvatar = computed(() => snapshot.value.user.avatar || homeAiAssets.appLogo);
 const advancedChatMessages = computed<AdvancedChatMessage[]>(() => assistantMessages.value.map(mapAssistantMessageToAdvancedChatMessage));
 const currentCustomDesignImage = computed(() => customDesignImages.value[customDesignImageIndex.value] ?? customDesignImages.value[0] ?? null);
 const currentCustomDesignApplyCode = computed(() => {
@@ -2487,7 +2491,7 @@ function mapAssistantMessageToAdvancedChatMessage(message: AssistantUiMessage): 
     senderId: isUser ? ADVANCED_CHAT_CURRENT_USER_ID : ADVANCED_CHAT_ASSISTANT_USER_ID,
     content,
     username: isUser ? '我' : 'AI 装修大师',
-    avatar: isUser ? homeAiAssets.appLogo : homeAiAssets.magicWand,
+    avatar: isUser ? assistantUserAvatar.value : homeAiAssets.magicWand,
     date: formatAdvancedChatDate(timestamp),
     timestamp: formatAdvancedChatTime(timestamp),
     saved: true,
@@ -4849,7 +4853,7 @@ button:focus-visible {
 }
 
 .assistant-message-row.user {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 32px;
   justify-items: end;
 }
 
@@ -4866,6 +4870,17 @@ button:focus-visible {
   width: 19px;
   height: 19px;
   object-fit: contain;
+}
+
+.assistant-message-avatar.user-avatar {
+  overflow: hidden;
+  background: #e8edf7;
+}
+
+.assistant-message-avatar.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .assistant-message-content {

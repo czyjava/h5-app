@@ -128,6 +128,7 @@ export interface WorkItem {
 export interface UserSummary {
   nickname: string;
   userId: string;
+  avatar: string;
   diamondCount: number;
   vipLabel: string;
 }

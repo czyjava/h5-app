@@ -50,6 +50,7 @@ export const appShellSnapshot: HomeAiSnapshot = {
   user: {
     nickname: '未登录',
     userId: '-',
+    avatar: '',
     diamondCount: 0,
     vipLabel: '未登录',
   },

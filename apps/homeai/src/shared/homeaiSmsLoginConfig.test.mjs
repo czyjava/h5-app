@@ -367,6 +367,9 @@ test('HomeAI AI 设计助手轮次超限必须跳转会员购买页', () => {
 
 test('HomeAI AI 设计助手 IM 页面必须使用受控移动端聊天布局', () => {
   assert.match(appVueSource, /function mapAssistantMessageToAdvancedChatMessage/);
+  assert.match(appVueSource, /const assistantUserAvatar/);
+  assert.match(appVueSource, /avatar:\s*isUser \? assistantUserAvatar\.value : homeAiAssets\.magicWand/);
+  assert.match(appVueSource, /v-if="message\.senderId === ADVANCED_CHAT_CURRENT_USER_ID"/);
   assert.match(appVueSource, /class="assistant-message-panel"/);
   assert.match(appVueSource, /ref="assistantMessageScroller"/);
   assert.match(appVueSource, /class="assistant-message-list"/);

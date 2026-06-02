@@ -811,7 +811,7 @@ import { homeAiReplicaConfig } from '../../app.config';
 import { homeAiAssets } from '../shared/assets';
 import { appShellSnapshot } from '../shared/appShellData';
 import { shouldRequireAssistantLogin, shouldUseLocalAssistantExperience } from '../shared/designAssistantMode';
-import { shouldDisableAssistantComposer } from '../shared/designAssistantMessageUi';
+import { findAssistantCompletedReply, shouldDisableAssistantComposer } from '../shared/designAssistantMessageUi';
 import {
   listDesignAssistantSessions,
   listDesignAssistantMessages,
@@ -2743,20 +2743,16 @@ async function restoreAssistantMessages() {
   assistantMessages.value = messages;
 }
 
-function hasAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string) {
-  return messages.some(
-    (message) => message.role === 'ASSISTANT' && message.replyToMessageId === replyToMessageId && message.status !== 'PENDING',
-  );
+function hasAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string, batchNo = '') {
+  return Boolean(findAssistantCompletedReply(messages, { replyToMessageId, batchNo }));
 }
 
-function findAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string) {
-  return messages.find(
-    (message) => message.role === 'ASSISTANT' && message.replyToMessageId === replyToMessageId && message.status !== 'PENDING',
-  );
+function findAssistantReplyForMessage(messages: DesignAssistantMessage[], replyToMessageId: string, batchNo = '') {
+  return findAssistantCompletedReply(messages, { replyToMessageId, batchNo }) as DesignAssistantMessage | undefined;
 }
 
-function renderAssistantMessagesWithPending(messages: DesignAssistantMessage[], replyToMessageId: string) {
-  if (!replyToMessageId || hasAssistantReplyForMessage(messages, replyToMessageId)) {
+function renderAssistantMessagesWithPending(messages: DesignAssistantMessage[], replyToMessageId: string, batchNo = '') {
+  if (!replyToMessageId || hasAssistantReplyForMessage(messages, replyToMessageId, batchNo)) {
     assistantMessages.value = messages;
     return;
   }
@@ -2769,16 +2765,17 @@ function waitAssistantPollInterval() {
   });
 }
 
-async function pollAssistantReply(sessionKey: string, replyToMessageId: string) {
+async function pollAssistantReply(sessionKey: string, replyToMessageId: string, batchNo = '') {
   const startedAt = Date.now();
   while (Date.now() - startedAt < ASSISTANT_REPLY_POLL_TIMEOUT_MS) {
     const messages = await listDesignAssistantMessages(getAssistantContext(), sessionKey);
-    const assistantReply = findAssistantReplyForMessage(messages, replyToMessageId);
+    const assistantReply = findAssistantReplyForMessage(messages, replyToMessageId, batchNo);
     if (assistantReply) {
       if (assistantReply.status === 'FAILED') {
         console.warn('[HomeAI Assistant] 后端 Agent 回复失败', {
           sessionKey,
           replyToMessageId,
+          batchNo,
           errorCode: assistantReply.errorCode,
           errorMessage: assistantReply.errorMessage,
         });
@@ -2786,7 +2783,7 @@ async function pollAssistantReply(sessionKey: string, replyToMessageId: string) 
       assistantMessages.value = messages;
       return;
     }
-    renderAssistantMessagesWithPending(messages, replyToMessageId);
+    renderAssistantMessagesWithPending(messages, replyToMessageId, batchNo);
     await waitAssistantPollInterval();
   }
   throw new Error('AI 回复仍在处理中，请稍后刷新消息列表查看');
@@ -2857,8 +2854,8 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
       await restoreAssistantMessages();
       return true;
     }
-    renderAssistantMessagesWithPending(response.messages ?? [], replyToMessageId);
-    await pollAssistantReply(sessionKey, replyToMessageId);
+    renderAssistantMessagesWithPending(response.messages ?? [], replyToMessageId, response.batchNo || '');
+    await pollAssistantReply(sessionKey, replyToMessageId, response.batchNo || '');
     return true;
   } catch (error) {
     assistantMessages.value = assistantMessages.value.filter((message) => message.status !== 'PENDING');

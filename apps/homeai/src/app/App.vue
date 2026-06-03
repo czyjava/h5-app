@@ -310,6 +310,9 @@
               <template v-for="record in customDesignChatRecords" :key="record.recordKey">
                 <article class="custom-chat-message user">
                   <section class="custom-chat-bubble">
+                    <figure v-if="record.inputImageUrl" class="custom-chat-image input">
+                      <img :src="record.inputImageUrl" alt="本轮参考图" @error="handleCustomDesignImageError" />
+                    </figure>
                     <span>{{ record.prompt }}</span>
                   </section>
                 </article>
@@ -341,18 +344,45 @@
                       <span>会保留原始空间结构，调整风格、软装和细节。</span>
                     </section>
 
-                    <footer v-if="record.status === 'completed' || record.status === 'applied'" class="custom-chat-actions">
-                      <button
-                        type="button"
-                        :disabled="record.status === 'applied' || customDesignApplyingCode === record.processRecordCode"
-                        @click="applyCustomDesignRecordResult(record)"
-                      >
-                        {{ customDesignRecordApplyButtonText(record) }}
-                      </button>
+                    <footer v-if="record.outputImageUrl || record.assistantText" class="custom-chat-actions">
+                      <section class="custom-chat-feedback-actions" aria-label="反馈">
+                        <button type="button" :class="{ active: record.feedback === 'unsatisfied' }" @click="markCustomDesignFeedback(record, 'unsatisfied')">
+                          <ThumbsDown :size="14" />
+                          <span>不满意</span>
+                        </button>
+                        <button type="button" :class="{ active: record.feedback === 'satisfied' }" @click="markCustomDesignFeedback(record, 'satisfied')">
+                          <ThumbsUp :size="14" />
+                          <span>满意</span>
+                        </button>
+                      </section>
+
+                      <section v-if="record.outputImageUrl" class="custom-chat-result-actions" aria-label="结果操作">
+                        <button type="button" :disabled="customDesignBusy" @click="regenerateCustomDesignFromRecord(record)">
+                          <RefreshCcw :size="14" />
+                          <span>重新生成</span>
+                        </button>
+                        <button type="button" :disabled="customDesignBusy" @click="startModifyCustomDesignFromRecord(record)">
+                          <Pencil :size="14" />
+                          <span>修改</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="apply"
+                          :disabled="record.status === 'applied' || customDesignApplyingCode === record.processRecordCode"
+                          @click="applyCustomDesignRecordResult(record)"
+                        >
+                          {{ customDesignRecordApplyButtonText(record) }}
+                        </button>
+                      </section>
                     </footer>
 
                     <footer v-else-if="record.status === 'failed'" class="custom-chat-actions">
-                      <button type="button" @click="continueCustomDesignFromRecord(record)">重新生成</button>
+                      <section class="custom-chat-result-actions" aria-label="失败操作">
+                        <button type="button" :disabled="customDesignBusy" @click="regenerateCustomDesignFromRecord(record)">
+                          <RefreshCcw :size="14" />
+                          <span>重新生成</span>
+                        </button>
+                      </section>
                     </footer>
                   </section>
                 </article>
@@ -376,6 +406,14 @@
                 <button v-for="style in customDesignStyles" :key="style.code" type="button" :disabled="customDesignBusy" @click="submitCustomDesignStyle(style)">
                   <img :src="style.image" alt="" />
                   <span>{{ style.name }}</span>
+                </button>
+              </section>
+
+              <section v-if="customDesignDraftReferenceImageUrl" class="custom-reference-preview" aria-label="本轮参考图">
+                <img :src="customDesignDraftReferenceImageUrl" alt="" @error="handleCustomDesignImageError" />
+                <span>将基于这张图修改</span>
+                <button type="button" aria-label="移除参考图" @click="clearCustomDesignDraftReferenceImage">
+                  <X :size="15" />
                 </button>
               </section>
 
@@ -841,7 +879,24 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Camera, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, MessageSquare, Plus, SendHorizontal, Settings, UserRound, WandSparkles, X } from 'lucide-vue-next';
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Image as ImageIcon,
+  MessageSquare,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  SendHorizontal,
+  Settings,
+  ThumbsDown,
+  ThumbsUp,
+  UserRound,
+  WandSparkles,
+  X,
+} from 'lucide-vue-next';
 import {
   createSmsAuthClient,
   createReplicaSession,
@@ -961,6 +1016,7 @@ interface CustomDesignProcessRecord {
   assistantText?: string;
   outputImageUrl?: string;
   outputImageLocalId?: string;
+  feedback?: 'satisfied' | 'unsatisfied';
   appliedAt?: string;
   createdAt: string;
 }
@@ -1109,6 +1165,7 @@ const customStylePanelVisible = ref(false);
 const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
 const customDesignRecordsLoading = ref(false);
 const customDesignApplyingCode = ref('');
+const customDesignDraftReferenceImageUrl = ref('');
 let customDesignPollingTimer: number | null = null;
 let assistantHistoryLoadVersion = 0;
 
@@ -2086,7 +2143,7 @@ function mapRemoteCustomDesignRecord(record: CustomDesignRecordItemResponse): Cu
     prompt: record.prompt || '',
     templateCode: record.templateCode || customDesignContext.value?.templateCode || '-',
     status: normalizeCustomDesignRecordStatus(record.status),
-    inputImageUrl: resolveCustomDesignRecordInputImageUrl(record) || customDesignContext.value?.imageUrl || '',
+    inputImageUrl: resolveCustomDesignRecordInputImageUrl(record),
     assistantText: record.assistantText || '',
     outputImageUrl,
     createdAt: formatCustomDesignRemoteRecordTime(record.createTime),
@@ -2187,6 +2244,7 @@ function enterCustomDesignPage(context: Omit<CustomDesignPageContext, 'batchNo'>
   ];
   customDesignImageIndex.value = 0;
   customDesignInput.value = presetPrompt;
+  customDesignDraftReferenceImageUrl.value = '';
   customDesignLastPrompt.value = '';
   customDesignStatus.value = 'idle';
   customStylePanelVisible.value = false;
@@ -2213,7 +2271,7 @@ function updateCustomDesignProcessRecord(recordKey: string, patch: Partial<Custo
   );
 }
 
-async function submitCustomDesignInstruction(prompt: string) {
+async function submitCustomDesignInstruction(prompt: string, options: { referenceImageUrl?: string } = {}) {
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt || customDesignBusy.value) {
     return;
@@ -2231,11 +2289,14 @@ async function submitCustomDesignInstruction(prompt: string) {
     return;
   }
   const recordKey = generateCustomDesignId('custom-design-process');
-  const inputImageUrl = currentCustomDesignImage.value.imageUrl;
+  const referenceImageUrl = (options.referenceImageUrl || customDesignDraftReferenceImageUrl.value || '').trim();
+  const isFirstContextRecord = visibleCustomDesignProcessRecords.value.length === 0;
+  const inputImageUrl = referenceImageUrl || (isFirstContextRecord ? currentCustomDesignImage.value.imageUrl : '');
   const templateCode = context.templateCode || 'homeai_custom_design_default';
   const generationRecordId = context.recordId;
   const sourceWorkId = context.workId;
   customDesignInput.value = '';
+  customDesignDraftReferenceImageUrl.value = '';
   customDesignLastPrompt.value = normalizedPrompt;
   customDesignStatus.value = 'processing';
   customStylePanelVisible.value = false;
@@ -2261,6 +2322,7 @@ async function submitCustomDesignInstruction(prompt: string) {
       sourceWorkId,
       templateCode,
       prompt: normalizedPrompt,
+      ...(referenceImageUrl ? { referenceImageUrl } : {}),
     });
     updateCustomDesignProcessRecord(recordKey, {
       processRecordCode: submitResponse.customDesignCode,
@@ -2271,6 +2333,7 @@ async function submitCustomDesignInstruction(prompt: string) {
       sourceWorkId,
       templateCode,
       status: submitResponse.status,
+      hasReferenceImage: Boolean(referenceImageUrl),
     });
     scheduleCustomDesignFetch(recordKey, submitResponse.customDesignCode, 0);
   } catch (error) {
@@ -2369,8 +2432,40 @@ function submitCustomDesignStyle(style: { code: string; name: string }) {
   void submitCustomDesignInstruction(`改成${style.name}，保留原有空间结构`);
 }
 
+function clearCustomDesignDraftReferenceImage() {
+  customDesignDraftReferenceImageUrl.value = '';
+}
+
+function markCustomDesignFeedback(record: CustomDesignProcessRecord, feedback: 'satisfied' | 'unsatisfied') {
+  updateCustomDesignProcessRecord(record.recordKey, { feedback });
+  showToast(feedback === 'satisfied' ? '已记录：满意' : '已记录：不满意');
+}
+
+function regenerateCustomDesignFromRecord(record: CustomDesignProcessRecord) {
+  const referenceImageUrl = record.outputImageUrl || record.inputImageUrl || customDesignContext.value?.imageUrl || '';
+  if (!referenceImageUrl) {
+    showToast('当前没有可参考的设计图');
+    return;
+  }
+  void submitCustomDesignInstruction('请基于当前图片重新生成一版设计效果，保持原有空间关系和用户需求方向。', {
+    referenceImageUrl,
+  });
+}
+
+function startModifyCustomDesignFromRecord(record: CustomDesignProcessRecord) {
+  if (!record.outputImageUrl) {
+    showToast('当前没有可修改的结果图');
+    return;
+  }
+  customDesignDraftReferenceImageUrl.value = record.outputImageUrl;
+  customDesignInput.value = '';
+  activeTab.value = 'customDesign';
+  showToast('已带入当前图片，请输入修改要求');
+}
+
 function closeCustomDesignPage() {
   clearCustomDesignPollingTimer();
+  customDesignDraftReferenceImageUrl.value = '';
   customDesignStatus.value = 'idle';
   activeTab.value = selectedWork.value ? 'workDetail' : 'mine';
 }
@@ -2384,6 +2479,7 @@ function resetCustomDesignPage() {
   customDesignImages.value = [source];
   customDesignImageIndex.value = 0;
   customDesignInput.value = '';
+  customDesignDraftReferenceImageUrl.value = '';
   customDesignLastPrompt.value = '';
   customDesignStatus.value = 'idle';
   customStylePanelVisible.value = false;
@@ -4385,6 +4481,18 @@ button:focus-visible {
   font-weight: 850;
 }
 
+.custom-chat-message.user .custom-chat-image {
+  width: 116px;
+  justify-self: end;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.custom-chat-message.user .custom-chat-image img {
+  max-height: 118px;
+  border-radius: 10px;
+}
+
 .custom-chat-bubble header {
   display: flex;
   align-items: center;
@@ -4483,6 +4591,12 @@ button:focus-visible {
 }
 
 .custom-chat-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.custom-chat-feedback-actions,
+.custom-chat-result-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -4493,21 +4607,70 @@ button:focus-visible {
   border: 0;
   border-radius: 17px;
   padding: 0 12px;
-  color: #fff;
-  background: #3478f6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: #43536a;
+  background: #eef2f7;
   font-size: 12px;
   font-weight: 850;
 }
 
-.custom-chat-actions button:last-child {
+.custom-chat-feedback-actions button.active {
+  color: #111827;
+  background: #ffe94b;
+}
+
+.custom-chat-result-actions button.apply {
+  min-width: 100%;
   color: #fff;
   background: #3478f6;
+  font-size: 13px;
 }
 
 .custom-chat-actions button:disabled {
   color: #8b96a8;
   background: #eef2f7;
   cursor: not-allowed;
+}
+
+.custom-reference-preview {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 7px;
+  border: 1px solid #e6ebf2;
+  border-radius: 14px;
+  background: #f7f9fc;
+}
+
+.custom-reference-preview img {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.custom-reference-preview span {
+  min-width: 0;
+  color: #324158;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.custom-reference-preview button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #65758b;
+  background: #fff;
 }
 
 .custom-chat-composer-panel {

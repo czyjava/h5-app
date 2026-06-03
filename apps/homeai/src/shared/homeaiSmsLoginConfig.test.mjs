@@ -197,6 +197,7 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
   assert.match(appConfigSource, /customDesignRecords:\s*'\/api\/open\/homeai\/custom-design\/records\.htm'/);
   assert.match(customDesignApiSource, /WAITING_USER_INPUT/);
   assert.match(customDesignApiSource, /assistantText\?:\s*string \| null/);
+  assert.match(customDesignApiSource, /referenceImageUrl\?:\s*string/);
   assert.match(customDesignApiSource, /submitHomeAiCustomDesign/);
   assert.match(customDesignApiSource, /fetchHomeAiCustomDesign/);
   assert.match(customDesignApiSource, /listHomeAiCustomDesignRecords/);
@@ -218,17 +219,26 @@ test('HomeAI 定制设计页面提交真实接口并轮询结果', () => {
 
 test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () => {
   const customChatActionsSource =
-    appVueSource.match(/<footer v-if="record\.status === 'completed' \|\| record\.status === 'applied'" class="custom-chat-actions">[\s\S]*?<\/footer>/)?.[0] ?? '';
+    appVueSource.match(/<footer v-if="record\.outputImageUrl \|\| record\.assistantText" class="custom-chat-actions">[\s\S]*?<\/footer>/)?.[0] ?? '';
   assert.match(appConfigSource, /customDesignApply:\s*'\/api\/open\/homeai\/custom-design\/apply\.htm'/);
   assert.match(customDesignApiSource, /export async function applyHomeAiCustomDesign/);
   assert.match(customDesignApiSource, /homeAiReplicaConfig\.endpoints\.customDesignApply/);
   assert.match(customDesignApiSource, /form:\s*\{\s*customDesignCode\s*\}/);
   assert.match(appVueSource, /customDesignApplyingCode/);
+  assert.match(appVueSource, /customDesignDraftReferenceImageUrl/);
   assert.match(appVueSource, /function applyCustomDesignResult\(/);
+  assert.match(appVueSource, /function markCustomDesignFeedback\(/);
+  assert.match(appVueSource, /function regenerateCustomDesignFromRecord\(/);
+  assert.match(appVueSource, /function startModifyCustomDesignFromRecord\(/);
   assert.match(appVueSource, /applyHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
   assert.match(appVueSource, /customDesignRecordApplyButtonText/);
   assert.match(appVueSource, /:disabled="record\.status === 'applied' \|\| customDesignApplyingCode === record\.processRecordCode"/);
   assert.match(appVueSource, /@click="applyCustomDesignRecordResult\(record\)"/);
+  assert.match(appVueSource, /@click="markCustomDesignFeedback\(record, 'satisfied'\)"/);
+  assert.match(appVueSource, /@click="markCustomDesignFeedback\(record, 'unsatisfied'\)"/);
+  assert.match(appVueSource, /@click="regenerateCustomDesignFromRecord\(record\)"/);
+  assert.match(appVueSource, /@click="startModifyCustomDesignFromRecord\(record\)"/);
+  assert.match(appVueSource, /\.\.\.\(referenceImageUrl \? \{ referenceImageUrl \} : \{\}\)/);
   assert.match(appVueSource, /if \(record\.status === 'applied'\)[\s\S]*?这张设计已经应用过了/);
   assert.match(customChatActionsSource, /customDesignRecordApplyButtonText/);
   assert.doesNotMatch(customChatActionsSource, /查看结果|继续修改|showCustomDesignRecordResult|continueCustomDesignFromRecord/);

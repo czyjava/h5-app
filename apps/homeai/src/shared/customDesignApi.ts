@@ -10,6 +10,7 @@ export interface CustomDesignSubmitParams {
   sourceWorkId: string;
   templateCode: string;
   prompt: string;
+  referenceImageUrl?: string;
   deviceId?: string;
 }
 

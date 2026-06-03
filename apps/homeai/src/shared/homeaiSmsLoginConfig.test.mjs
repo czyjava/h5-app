@@ -31,6 +31,8 @@ test('HomeAI 配置短信登录 auth host 和接口', () => {
 });
 
 test('HomeAI 实时 API 面板接入手机号验证码登录', () => {
+  assert.match(appVueSource, /<ReplicaProxyLifecycleOverlay v-if="!apiDebugPage" \/>/);
+  assert.match(appVueSource, /<ReplicaProxyLifecycleOverlay v-if="apiDebugPage" page-mode \/>/);
   assert.doesNotMatch(appVueSource, /:sms-login-enabled="false"/);
   assert.match(appVueSource, /:send-code-handler="sendLoginSmsCode"/);
   assert.match(appVueSource, /:login-handler="loginWithSmsCode"/);

@@ -1,7 +1,10 @@
 <template>
   <ReplicaProxyLifecycleOverlay v-if="apiDebugPage" page-mode />
 
-  <main v-else class="app-frame">
+  <template v-else>
+    <ReplicaProxyLifecycleOverlay v-if="!apiDebugPage" />
+
+    <main class="app-frame">
     <section
       class="phone-shell"
       :class="{
@@ -800,7 +803,8 @@
     </section>
 
     <p v-if="toastMessage" class="toast-message" :class="toastKind">{{ toastMessage }}</p>
-  </main>
+    </main>
+  </template>
 </template>
 
 <script setup lang="ts">

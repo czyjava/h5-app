@@ -6,7 +6,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { createReplicaTransparentProxyPlugin } from '@wmxs/h5-replica-common/proxy';
 import { homeAiReplicaConfig } from './app.config';
-import type { Plugin, ViteDevServer } from 'vite';
+import type { Plugin } from 'vite';
 
 const HOMEAI_LOCAL_AUTH_ENDPOINT = '/__homeai_local_auth';
 const localAuthFilePath = resolve(dirname(fileURLToPath(import.meta.url)), '.homeai-local-auth.json');

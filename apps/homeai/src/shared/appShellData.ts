@@ -2,7 +2,6 @@ import { homeAiAssets } from './assets';
 import type { HomeAiSnapshot } from './types';
 
 export const appShellSnapshot: HomeAiSnapshot = {
-  banners: [homeAiAssets.splashReplaceBg, homeAiAssets.splashColoringBg, homeAiAssets.surveyBg],
   features: [
     {
       code: 'interior',

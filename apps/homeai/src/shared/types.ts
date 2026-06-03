@@ -4,7 +4,6 @@ export type MainTab =
   | 'assistant'
   | 'workDetail'
   | 'customDesign'
-  | 'customDesignRecords'
   | 'discover'
   | 'mine'
   | 'vipPurchase';
@@ -141,7 +140,6 @@ export interface UserSummary {
 }
 
 export interface HomeAiSnapshot {
-  banners: string[];
   features: DesignFeature[];
   discover: DiscoverItem[];
   works: WorkItem[];

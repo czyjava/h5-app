@@ -321,6 +321,9 @@ test('HomeAI 定制设计页不再展示独立过程记录入口', () => {
   assert.match(appVueSource, /visibleCustomDesignProcessRecords/);
   assert.match(appVueSource, /customDesignChatRecords/);
   assert.match(appVueSource, /record\.generationRecordId === context\.recordId && record\.sourceWorkId === context\.workId/);
+  assert.doesNotMatch(homeAiTypesSource, /'customDesignRecords'/);
+  assert.doesNotMatch(appVueSource, /page-custom-records/);
+  assert.doesNotMatch(appVueSource, /custom-record-card/);
   assert.doesNotMatch(appVueSource, /aria-label="查看过程记录"/);
   assert.doesNotMatch(appVueSource, /@click="openCustomDesignRecordsFromCurrentDesign"/);
   assert.doesNotMatch(appVueSource, /function openCustomDesignRecordsFromCurrentDesign\(\)/);
@@ -367,11 +370,13 @@ test('HomeAI 定制设计页标题和发送按钮必须符合正式交互口径'
 });
 
 test('HomeAI 定制设计过程记录按状态展示动作', () => {
-  assert.match(appVueSource, /record\.status === 'completed' \|\| record\.status === 'applied'/);
+  assert.match(appVueSource, /if \(record\.status === 'completed'\)/);
+  assert.match(appVueSource, /if \(record\.status === 'applied'\)/);
   assert.match(appVueSource, /v-else-if="record\.status === 'failed'"/);
   assert.match(appVueSource, /customDesignRecordChatTitle/);
-  assert.match(appVueSource, /等待结果返回后可查看输出图和应用设计/);
+  assert.match(appVueSource, /v-else-if="record\.assistantText"/);
   assert.match(appVueSource, /重新生成/);
+  assert.match(appVueSource, /customDesignRecordApplyButtonText/);
   assert.doesNotMatch(appVueSource, /:disabled="record\.status !== 'completed'"/);
 });
 
@@ -390,7 +395,7 @@ test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
   assert.doesNotMatch(appVueSource, /已匹配/);
   assert.doesNotMatch(appVueSource, /已匹配当前作品模板/);
   assert.match(appVueSource, /告诉我你想调整的风格、颜色、软装或空间问题/);
-  assert.match(appVueSource, /只看当前作品的修改记录/);
+  assert.doesNotMatch(appVueSource, /只看当前作品的修改记录/);
   assert.doesNotMatch(appVueSource, /模板 \$\{formatShortCode\(customDesignContext\.value\.templateCode\)\}/);
   assert.doesNotMatch(appVueSource, /只看记录 \$\{generationRecordId\} · 作品 \$\{workId\}/);
   assert.doesNotMatch(appVueSource, /编号：\{\{ formatShortCode\(record\.processRecordCode\) \}\}/);
@@ -398,9 +403,13 @@ test('HomeAI 定制设计页面不能展示模板和记录短码', () => {
 
 test('HomeAI 定制设计过程记录不能把无输出图断言为生成中', () => {
   assert.match(appVueSource, /SUBMITTED[\s\S]*?return 'submitted';/);
-  assert.match(appVueSource, /customDesignOutputPlaceholderText\(record\)/);
-  assert.match(appVueSource, /return '暂无输出';/);
-  assert.match(appVueSource, /status === 'submitted'[\s\S]*?return '已提交';/);
+  assert.match(appVueSource, /v-else-if="record\.assistantText"/);
+  assert.match(appVueSource, /class="custom-chat-state failed"/);
+  assert.match(appVueSource, /class="custom-chat-state processing"/);
+  assert.doesNotMatch(appVueSource, /customDesignOutputPlaceholderText\(record\)/);
+  assert.doesNotMatch(appVueSource, /return '暂无输出';/);
+  assert.match(appVueSource, /normalized === 'SUBMITTED'[\s\S]*?return 'submitted';/);
+  assert.match(appVueSource, /return '正在生成新的设计';/);
   assert.doesNotMatch(appVueSource, /<span v-else>生成中<\/span>/);
 });
 
@@ -418,7 +427,7 @@ test('HomeAI AI 设计助手初始化失败应展示接口错误提示', () => {
 });
 
 test('HomeAI AI 设计助手轮次超限必须跳转会员购买页', () => {
-  const sendAssistantSource = appVueSource.match(/async function sendAssistantMessage[\s\S]*?\n}\n\nfunction handleAssistantImageError/)?.[0] ?? '';
+  const sendAssistantSource = appVueSource.match(/async function sendAssistantMessage[\s\S]*?\n}\n\nasync function openCustomDesignFromResult/)?.[0] ?? '';
   const autoInitSource = appVueSource.match(/watch\(activeTab,[\s\S]*?AI 设计助手自动初始化失败[\s\S]*?\n\s*\}\n\s*\}\)\(\);\n\}\);/)?.[0] ?? '';
   assert.match(homeAiTypesSource, /'vipPurchase'/);
   assert.match(appVueSource, /activeTab === 'vipPurchase'/);

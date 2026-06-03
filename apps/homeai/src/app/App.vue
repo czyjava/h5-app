@@ -11,7 +11,6 @@
           activeTab === 'assistant' ||
           activeTab === 'workDetail' ||
           activeTab === 'customDesign' ||
-          activeTab === 'customDesignRecords' ||
           activeTab === 'vipPurchase',
       }"
       aria-label="装修 APP H5 复刻"
@@ -452,88 +451,6 @@
           </section>
         </section>
 
-        <section v-else-if="activeTab === 'customDesignRecords'" class="page page-custom-records">
-          <header class="custom-records-header">
-            <button class="custom-records-back" type="button" aria-label="返回定制设计" @click="activeTab = 'customDesign'">
-              <ChevronLeft :size="21" />
-            </button>
-            <div>
-              <strong>过程记录</strong>
-              <small>{{ customDesignRecordsSubtitle }}</small>
-            </div>
-          </header>
-
-          <section class="custom-record-summary">
-            <article>
-              <span>{{ visibleCustomDesignProcessRecords.length }}</span>
-              <small>修改次数</small>
-            </article>
-            <article>
-              <span>{{ completedCustomDesignRecordCount }}</span>
-              <small>已完成</small>
-            </article>
-            <article>
-              <span>{{ pendingCustomDesignRecordCount }}</span>
-              <small>等待结果</small>
-            </article>
-          </section>
-
-          <section v-if="visibleCustomDesignProcessRecords.length === 0" class="custom-record-empty">
-            <strong>{{ customDesignRecordsLoading ? '正在加载过程记录' : '暂无过程记录' }}</strong>
-            <span>{{ customDesignRecordsLoading ? '正在从业务服务读取这个作品的定制设计过程。' : '从这个作品发起一次定制设计后，这里会记录它对应的修改意图、状态和结果图。' }}</span>
-            <button type="button" @click="activeTab = 'customDesign'">返回定制设计</button>
-          </section>
-
-          <section v-else class="custom-record-list">
-            <article v-for="record in visibleCustomDesignProcessRecords" :key="record.recordKey" class="custom-record-card">
-              <header>
-                <span :class="['custom-record-status', record.status]">{{ customDesignRecordStatusText(record.status) }}</span>
-                <small>{{ record.createdAt }}</small>
-              </header>
-              <section class="custom-record-images">
-                <figure>
-                  <img :src="record.inputImageUrl" alt="" />
-                  <figcaption>输入图</figcaption>
-                </figure>
-                <figure :class="{ pending: !record.outputImageUrl }">
-                  <img v-if="record.outputImageUrl" :src="record.outputImageUrl" alt="" />
-                  <span v-else>{{ customDesignOutputPlaceholderText(record) }}</span>
-                  <figcaption>输出图</figcaption>
-                </figure>
-              </section>
-              <section class="custom-record-body">
-                <strong>{{ record.prompt }}</strong>
-                <span>基于当前作品修改</span>
-              </section>
-              <footer v-if="record.status === 'completed'">
-                <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
-                <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
-                <button
-                  type="button"
-                  :disabled="customDesignApplyingCode === record.processRecordCode"
-                  @click="applyCustomDesignRecordResult(record)"
-                >
-                  {{ customDesignApplyingCode === record.processRecordCode ? '应用中' : '应用设计' }}
-                </button>
-              </footer>
-              <footer v-else-if="record.status === 'applied'">
-                <button type="button" @click="showCustomDesignRecordResult(record)">查看结果</button>
-                <button type="button" @click="continueCustomDesignFromRecord(record)">继续修改</button>
-                <button type="button" disabled>已应用</button>
-              </footer>
-              <footer v-else-if="record.status === 'failed'">
-                <button type="button" @click="continueCustomDesignFromRecord(record)">重新生成</button>
-              </footer>
-              <footer v-else-if="record.status === 'submitted'">
-                <span class="custom-record-pending-text">等待结果返回后可查看输出图和应用设计</span>
-              </footer>
-              <footer v-else>
-                <span class="custom-record-pending-text">等待结果返回后可查看输出图和应用设计</span>
-              </footer>
-            </article>
-          </section>
-        </section>
-
         <section v-else-if="activeTab === 'assistant'" class="page page-assistant">
           <header class="assistant-header">
             <button class="icon-button" type="button" aria-label="返回首页" @click="activeTab = 'home'">
@@ -804,7 +721,6 @@
           activeTab !== 'assistant' &&
           activeTab !== 'workDetail' &&
           activeTab !== 'customDesign' &&
-          activeTab !== 'customDesignRecords' &&
           activeTab !== 'vipPurchase'
         "
         class="bottom-nav"
@@ -1175,7 +1091,6 @@ const customDesignStatus = ref<CustomDesignStatus>('idle');
 const customDesignLastPrompt = ref('');
 const customStylePanelVisible = ref(false);
 const customDesignProcessRecords = ref<CustomDesignProcessRecord[]>([]);
-const customDesignRecordsLoading = ref(false);
 const customDesignApplyingCode = ref('');
 const customDesignDraftReferenceImageUrl = ref('');
 let customDesignPollingTimer: number | null = null;
@@ -1403,33 +1318,12 @@ const visibleCustomDesignProcessRecords = computed(() => {
   if (!context?.recordId || !context.workId) {
     return [];
   }
-  // 过程记录属于具体 generationRecord 下的某个 work，避免在作品详情里看到其它作品的修改记录。
+  // 过程记录需要同时命中作品组与作品，避免不同作品的定制会话互相串流。
   return customDesignProcessRecords.value.filter(
     (record) => record.generationRecordId === context.recordId && record.sourceWorkId === context.workId,
   );
 });
 const customDesignChatRecords = computed(() => [...visibleCustomDesignProcessRecords.value].reverse());
-const completedCustomDesignRecordCount = computed(
-  () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'completed' || record.status === 'applied').length,
-);
-const pendingCustomDesignRecordCount = computed(
-  () => visibleCustomDesignProcessRecords.value.filter((record) => record.status === 'submitted' || record.status === 'processing').length,
-);
-const customDesignRecordsSubtitle = computed(() => {
-  if (!customDesignContext.value) {
-    return '当前没有选中的作品';
-  }
-  return '只看当前作品的修改记录';
-});
-
-function formatShortCode(value?: string | null) {
-  const text = String(value || '').trim();
-  if (!text) {
-    return '-';
-  }
-  // 页面只展示首尾短码，真实 ID 仍保留在接口上下文里，避免长串业务字段撑破 APP 布局。
-  return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-5)}` : text;
-}
 
 function formatWorkStatusText(status?: string | null) {
   const normalized = String(status || '').trim().toUpperCase();
@@ -1750,10 +1644,6 @@ function handleSettingRow(row: ReplicaSettingsRow) {
     return;
   }
   showToast(`${row.label} 暂未接入`);
-}
-
-function chooseRole(role: string) {
-  showToast(`已选择：${role}`);
 }
 
 function acceptPrivacy() {
@@ -2215,7 +2105,6 @@ async function loadCustomDesignProcessRecords() {
   if (!context?.recordId || !context.workId || !authTokenDraft.value.trim()) {
     return;
   }
-  customDesignRecordsLoading.value = true;
   try {
     const response = await listHomeAiCustomDesignRecords(getAssistantContext(), {
       generationRecordId: context.recordId,
@@ -2245,8 +2134,6 @@ async function loadCustomDesignProcessRecords() {
       workId: context.workId,
       message,
     });
-  } finally {
-    customDesignRecordsLoading.value = false;
   }
 }
 
@@ -2548,25 +2435,6 @@ function handleCustomDesignImageError() {
   showToast('图片加载失败，请稍后重试');
 }
 
-function customDesignRecordStatusText(status: CustomDesignProcessStatus) {
-  if (status === 'submitted') {
-    return '已提交';
-  }
-  if (status === 'applied') {
-    return '已应用';
-  }
-  if (status === 'completed') {
-    return '已完成';
-  }
-  if (status === 'failed') {
-    return '失败';
-  }
-  if (status === 'waitingUserInput') {
-    return '等待补充';
-  }
-  return '生成中';
-}
-
 function customDesignRecordChatTitle(record: CustomDesignProcessRecord) {
   if (record.status === 'applied') {
     return '这张设计已应用';
@@ -2588,60 +2456,6 @@ function customDesignRecordApplyButtonText(record: CustomDesignProcessRecord) {
     return '已应用';
   }
   return customDesignApplyingCode.value === record.processRecordCode ? '应用中' : '应用设计';
-}
-
-function customDesignOutputPlaceholderText(record: CustomDesignProcessRecord) {
-  if (record.status === 'failed') {
-    return '生成失败';
-  }
-  return '暂无输出';
-}
-
-function showCustomDesignRecordResult(record: CustomDesignProcessRecord) {
-  if (!record.outputImageLocalId && !record.outputImageUrl) {
-    return;
-  }
-  if (!record.outputImageLocalId && record.outputImageUrl) {
-    const existingIndex = customDesignImages.value.findIndex((image) => image.imageUrl === record.outputImageUrl);
-    if (existingIndex >= 0) {
-      customDesignImageIndex.value = existingIndex;
-      activeTab.value = 'customDesign';
-      return;
-    }
-    const outputImageLocalId = generateCustomDesignId('custom-design-output');
-    customDesignImages.value = [
-      ...customDesignImages.value,
-      {
-        localId: outputImageLocalId,
-        imageUrl: record.outputImageUrl,
-        customDesignCode: record.processRecordCode,
-        isOriginal: false,
-      },
-    ];
-    updateCustomDesignProcessRecord(record.recordKey, { outputImageLocalId });
-    customDesignImageIndex.value = customDesignImages.value.length - 1;
-    activeTab.value = 'customDesign';
-    return;
-  }
-  const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
-  if (targetIndex >= 0) {
-    customDesignImageIndex.value = targetIndex;
-  }
-  activeTab.value = 'customDesign';
-}
-
-function continueCustomDesignFromRecord(record: CustomDesignProcessRecord) {
-  customDesignInput.value = record.prompt;
-  if (record.outputImageUrl && !record.outputImageLocalId) {
-    showCustomDesignRecordResult(record);
-    customDesignInput.value = record.prompt;
-    return;
-  }
-  const targetIndex = customDesignImages.value.findIndex((image) => image.localId === record.outputImageLocalId);
-  if (targetIndex >= 0) {
-    customDesignImageIndex.value = targetIndex;
-  }
-  activeTab.value = 'customDesign';
 }
 
 function patchAppliedWorkCover(sourceWorkId: string, outputImageUrl: string) {
@@ -2951,10 +2765,6 @@ function createAssistantWaitingMessage(replyToMessageId?: string) {
   } satisfies AssistantUiMessage & { localId: string };
 }
 
-function appendAssistantWaitingMessage(replyToMessageId?: string) {
-  assistantMessages.value.push(createAssistantWaitingMessage(replyToMessageId));
-}
-
 function parseAssistantSessionTime(value?: string | number | null) {
   const text = String(value ?? '').trim();
   if (!text) {
@@ -3186,10 +2996,6 @@ async function sendAssistantMessage(options: AssistantSendOptions = {}) {
   } finally {
     assistantSending.value = false;
   }
-}
-
-function handleAssistantImageError() {
-  showToast('图片加载失败，请稍后重试');
 }
 
 async function openCustomDesignFromResult(customPrompt?: string) {
@@ -4900,288 +4706,6 @@ button:focus-visible {
   color: #fff;
   background: #3478f6;
   font-size: 14px;
-}
-
-.page-custom-records {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 12px;
-  min-height: 0;
-  overflow: hidden;
-  padding: 12px 14px 16px;
-  background: #f4f7fb;
-}
-
-.custom-records-header {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  min-height: 48px;
-}
-
-.custom-records-back {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: #1b2638;
-  background: #fff;
-  box-shadow: 0 10px 22px rgba(31, 55, 83, 0.1);
-}
-
-.custom-records-header div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.custom-records-header strong {
-  color: #152033;
-  font-size: 21px;
-}
-
-.custom-records-header small {
-  min-width: 0;
-  overflow: hidden;
-  color: #68768a;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-record-summary {
-  display: grid;
-  grid-template-columns: 0.8fr 0.8fr 1.35fr;
-  gap: 9px;
-}
-
-.custom-record-summary article {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-  padding: 12px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 12px 24px rgba(38, 61, 92, 0.08);
-}
-
-.custom-record-summary span {
-  min-width: 0;
-  overflow: hidden;
-  color: #142033;
-  font-size: 18px;
-  font-weight: 950;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-record-summary small {
-  color: #778397;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.custom-record-empty {
-  align-self: start;
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  margin-top: 18px;
-  padding: 28px 20px;
-  border-radius: 20px;
-  background: #fff;
-  text-align: center;
-}
-
-.custom-record-empty strong {
-  color: #17243a;
-  font-size: 19px;
-}
-
-.custom-record-empty span {
-  color: #6d7a8d;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.custom-record-empty button {
-  min-height: 38px;
-  border: 0;
-  border-radius: 19px;
-  padding: 0 16px;
-  color: #111;
-  background: #fff500;
-  font-weight: 900;
-}
-
-.custom-record-list {
-  min-height: 0;
-  display: grid;
-  gap: 12px;
-  align-content: start;
-  overflow-y: auto;
-  padding-bottom: 4px;
-}
-
-.custom-record-card {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 14px 28px rgba(38, 61, 92, 0.09);
-}
-
-.custom-record-card header,
-.custom-record-card footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.custom-record-card header small {
-  color: #7d8798;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.custom-record-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 950;
-}
-
-.custom-record-status.submitted,
-.custom-record-status.processing {
-  color: #7a5600;
-  background: #fff3bf;
-}
-
-.custom-record-status.completed {
-  color: #17623e;
-  background: #dff8ea;
-}
-
-.custom-record-status.applied {
-  color: #3f3200;
-  background: #fff3a6;
-}
-
-.custom-record-status.failed {
-  color: #9d2b2b;
-  background: #ffe8e8;
-}
-
-.custom-record-images {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-}
-
-.custom-record-images figure {
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-  margin: 0;
-  border-radius: 14px;
-  background: #eef3f8;
-}
-
-.custom-record-images img,
-.custom-record-images figure > span {
-  width: 100%;
-  aspect-ratio: 1.18;
-  display: grid;
-  place-items: center;
-  object-fit: cover;
-}
-
-.custom-record-images figure > span {
-  color: #7a8798;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.custom-record-images figcaption {
-  position: absolute;
-  left: 7px;
-  bottom: 7px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.48);
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.custom-record-body {
-  display: grid;
-  gap: 5px;
-}
-
-.custom-record-body strong {
-  color: #17243a;
-  font-size: 15px;
-  line-height: 1.45;
-}
-
-.custom-record-body span {
-  min-width: 0;
-  overflow: hidden;
-  color: #748197;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-record-card footer {
-  justify-content: flex-end;
-}
-
-.custom-record-pending-text {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  color: #6b7588;
-  background: #f3f6fa;
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.custom-record-card footer button {
-  min-height: 34px;
-  border: 0;
-  border-radius: 17px;
-  padding: 0 12px;
-  color: #2654bd;
-  background: #eaf1ff;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.custom-record-card footer button:first-child {
-  color: #111;
-  background: #fff500;
-}
-
-.custom-record-card footer button:last-child {
-  color: #111;
-  background: #fff500;
-}
-
-.custom-record-card footer button:disabled {
-  color: #9aa5b5;
-  background: #edf1f6;
-  cursor: not-allowed;
 }
 
 .assistant-header {

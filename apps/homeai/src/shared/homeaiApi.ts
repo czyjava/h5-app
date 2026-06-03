@@ -257,7 +257,6 @@ export async function loadHomeAiSnapshot(context: HomeAiRequestContext): Promise
   const snapshot: HomeAiSnapshot = {
     ...appShellSnapshot,
     ...mappedSnapshot,
-    banners: appShellSnapshot.banners,
     features: appShellSnapshot.features,
   };
 

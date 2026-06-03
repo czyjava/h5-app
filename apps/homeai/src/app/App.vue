@@ -958,6 +958,8 @@ const PRIVACY_STORAGE_KEY = `${homeAiReplicaConfig.appId}:privacy-accepted`;
 const ONBOARDING_STORAGE_KEY = `${homeAiReplicaConfig.appId}:onboarding-complete`;
 const GUIDE_STORAGE_KEY = `${homeAiReplicaConfig.appId}:guide-complete`;
 const BUSINESS_TARGET_STORAGE_KEY = `${homeAiReplicaConfig.appId}:business-targets`;
+const REPLICA_ENVIRONMENT_STORAGE_KEY = `__WMXS_H5_REPLICA_${homeAiReplicaConfig.appId.toUpperCase()}_ENVIRONMENT__`;
+const DEFAULT_REPLICA_ENVIRONMENT: ReplicaEnvironment = 'test';
 const REPLICA_ENVIRONMENTS = ['local', 'test', 'production'] as const satisfies readonly ReplicaEnvironment[];
 const BUSINESS_TARGET_LABELS: Record<ReplicaEnvironment, string> = {
   local: '本地环境',
@@ -1005,6 +1007,22 @@ function loadBusinessTargets() {
   return nextTargets;
 }
 
+function resolveInitialReplicaEnvironment(storedEnvironment: ReplicaEnvironment) {
+  try {
+    const rawEnvironment = window.sessionStorage.getItem(REPLICA_ENVIRONMENT_STORAGE_KEY);
+    if (rawEnvironment === 'local' || rawEnvironment === 'test' || rawEnvironment === 'production') {
+      return storedEnvironment;
+    }
+  } catch {
+    // sessionStorage 不可用时仍回落测试环境，保证局域网首开默认连接测试业务域。
+  }
+  console.info('[HomeAI 设置] 首次进入默认使用测试环境业务域', {
+    environment: DEFAULT_REPLICA_ENVIRONMENT,
+    host: formatBusinessTargetHost(DEFAULT_BUSINESS_TARGETS.test),
+  });
+  return DEFAULT_REPLICA_ENVIRONMENT;
+}
+
 function formatBusinessTargetHost(value: string) {
   try {
     return new URL(value).host;
@@ -1028,7 +1046,7 @@ const session = createReplicaSession(homeAiReplicaConfig.appId);
 const initialBusinessTargets = loadBusinessTargets();
 const activeTab = ref<MainTab>('home');
 const mineTab = ref<'works' | 'assistant'>('works');
-const environment = ref<ReplicaEnvironment>(session.environment);
+const environment = ref<ReplicaEnvironment>(resolveInitialReplicaEnvironment(session.environment));
 const authTokenDraft = ref(session.authToken);
 const businessTargets = ref<Record<ReplicaEnvironment, string>>({ ...initialBusinessTargets });
 const businessTargetDrafts = ref<Record<ReplicaEnvironment, string>>({ ...initialBusinessTargets });

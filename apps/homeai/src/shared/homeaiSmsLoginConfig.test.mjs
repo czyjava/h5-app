@@ -51,6 +51,9 @@ test('HomeAI 登录和接口环境配置必须独立弹窗展示', () => {
 test('HomeAI 设置必须支持本地测试线上三套业务访问地址', () => {
   assert.match(commonTypesSource, /export type ReplicaEnvironment = 'local' \| 'test' \| 'production'/);
   assert.match(commonSessionSource, /environment === 'local' \|\| environment === 'test' \|\| environment === 'production'/);
+  assert.match(appConfigSource, /testTarget:\s*'https:\/\/pixel-studio\.ttt\.wanmeixiangsu\.cn'/);
+  assert.match(appVueSource, /DEFAULT_REPLICA_ENVIRONMENT:\s*ReplicaEnvironment\s*=\s*'test'/);
+  assert.match(appVueSource, /function resolveInitialReplicaEnvironment/);
   assert.match(appVueSource, /BUSINESS_TARGET_STORAGE_KEY/);
   assert.match(appVueSource, /本地环境访问地址/);
   assert.match(appVueSource, /测试环境访问地址/);

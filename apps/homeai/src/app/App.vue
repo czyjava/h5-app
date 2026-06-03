@@ -304,6 +304,16 @@
                     <img v-if="customDesignContext?.imageUrl" :src="customDesignContext.imageUrl" alt="定制设计源图" @error="handleCustomDesignImageError" />
                     <figcaption>{{ customDesignContext?.workTitle || '当前作品' }}</figcaption>
                   </figure>
+                  <section v-if="customDesignContext?.imageUrl" class="custom-chat-source-actions" aria-label="源图操作">
+                    <button type="button" :disabled="customDesignBusy" @click="regenerateCustomDesignFromSourceImage">
+                      <RefreshCcw :size="14" />
+                      <span>重新生成</span>
+                    </button>
+                    <button type="button" :disabled="customDesignBusy" @click="startModifyCustomDesignFromSourceImage">
+                      <Pencil :size="14" />
+                      <span>修改</span>
+                    </button>
+                  </section>
                 </section>
               </article>
 
@@ -2472,8 +2482,7 @@ async function markCustomDesignFeedback(record: CustomDesignProcessRecord, feedb
   }
 }
 
-function regenerateCustomDesignFromRecord(record: CustomDesignProcessRecord) {
-  const referenceImageUrl = record.outputImageUrl || record.inputImageUrl || customDesignContext.value?.imageUrl || '';
+function regenerateCustomDesignFromImage(referenceImageUrl: string) {
   if (!referenceImageUrl) {
     showToast('当前没有可参考的设计图');
     return;
@@ -2483,15 +2492,34 @@ function regenerateCustomDesignFromRecord(record: CustomDesignProcessRecord) {
   });
 }
 
-function startModifyCustomDesignFromRecord(record: CustomDesignProcessRecord) {
-  if (!record.outputImageUrl) {
-    showToast('当前没有可修改的结果图');
+function startModifyCustomDesignFromImage(referenceImageUrl: string) {
+  if (!referenceImageUrl) {
+    showToast('当前没有可修改的设计图');
     return;
   }
-  customDesignDraftReferenceImageUrl.value = record.outputImageUrl;
+  customDesignDraftReferenceImageUrl.value = referenceImageUrl;
   customDesignInput.value = '';
   activeTab.value = 'customDesign';
   showToast('已带入当前图片，请输入修改要求');
+}
+
+// 源图和结果图都走同一套图片引用逻辑，保证 Agent 能收到用户明确选择的参考图。
+function regenerateCustomDesignFromSourceImage() {
+  regenerateCustomDesignFromImage(customDesignContext.value?.imageUrl || '');
+}
+
+function startModifyCustomDesignFromSourceImage() {
+  startModifyCustomDesignFromImage(customDesignContext.value?.imageUrl || '');
+}
+
+function regenerateCustomDesignFromRecord(record: CustomDesignProcessRecord) {
+  const referenceImageUrl = record.outputImageUrl || record.inputImageUrl || customDesignContext.value?.imageUrl || '';
+  regenerateCustomDesignFromImage(referenceImageUrl);
+}
+
+function startModifyCustomDesignFromRecord(record: CustomDesignProcessRecord) {
+  const referenceImageUrl = record.outputImageUrl || record.inputImageUrl || customDesignContext.value?.imageUrl || '';
+  startModifyCustomDesignFromImage(referenceImageUrl);
 }
 
 function closeCustomDesignPage() {
@@ -4623,29 +4651,49 @@ button:focus-visible {
 
 .custom-chat-actions {
   display: grid;
-  gap: 10px;
-}
-
-.custom-chat-feedback-actions,
-.custom-chat-result-actions {
-  display: flex;
-  flex-wrap: wrap;
   gap: 8px;
 }
 
+.custom-chat-source-actions,
+.custom-chat-feedback-actions,
+.custom-chat-result-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-chat-source-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.custom-chat-feedback-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.custom-chat-result-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.custom-chat-source-actions button,
 .custom-chat-actions button {
-  min-height: 34px;
+  min-width: 0;
+  min-height: 36px;
   border: 0;
-  border-radius: 17px;
-  padding: 0 12px;
+  border-radius: 12px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  color: #43536a;
-  background: #eef2f7;
+  gap: 6px;
+  color: #53657f;
+  background: #f0f4f9;
   font-size: 12px;
   font-weight: 850;
+}
+
+.custom-chat-source-actions button {
+  color: #42546d;
+  background: #fff;
+  border: 1px solid #e1e7f0;
 }
 
 .custom-chat-feedback-actions button.active {
@@ -4654,12 +4702,14 @@ button:focus-visible {
 }
 
 .custom-chat-result-actions button.apply {
-  min-width: 100%;
+  grid-column: 1 / -1;
+  min-height: 42px;
   color: #fff;
   background: #3478f6;
   font-size: 13px;
 }
 
+.custom-chat-source-actions button:disabled,
 .custom-chat-actions button:disabled {
   color: #8b96a8;
   background: #eef2f7;

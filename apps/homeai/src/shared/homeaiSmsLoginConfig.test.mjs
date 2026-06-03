@@ -233,6 +233,8 @@ test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () =
   assert.match(appVueSource, /feedbackHomeAiCustomDesign\(getAssistantContext\(\), record\.processRecordCode, remoteStatus\)/);
   assert.match(appVueSource, /function regenerateCustomDesignFromRecord\(/);
   assert.match(appVueSource, /function startModifyCustomDesignFromRecord\(/);
+  assert.match(appVueSource, /function regenerateCustomDesignFromSourceImage\(/);
+  assert.match(appVueSource, /function startModifyCustomDesignFromSourceImage\(/);
   assert.match(appVueSource, /applyHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);
   assert.match(appVueSource, /customDesignRecordApplyButtonText/);
   assert.match(appVueSource, /:disabled="record\.status === 'applied' \|\| customDesignApplyingCode === record\.processRecordCode"/);
@@ -241,6 +243,9 @@ test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () =
   assert.match(appVueSource, /@click="markCustomDesignFeedback\(record, 'unsatisfied'\)"/);
   assert.match(appVueSource, /@click="regenerateCustomDesignFromRecord\(record\)"/);
   assert.match(appVueSource, /@click="startModifyCustomDesignFromRecord\(record\)"/);
+  assert.match(appVueSource, /@click="regenerateCustomDesignFromSourceImage"/);
+  assert.match(appVueSource, /@click="startModifyCustomDesignFromSourceImage"/);
+  assert.match(appVueSource, /record\.outputImageUrl \|\| record\.inputImageUrl \|\| customDesignContext\.value\?\.imageUrl/);
   assert.match(appVueSource, /\.\.\.\(referenceImageUrl \? \{ referenceImageUrl \} : \{\}\)/);
   assert.match(appVueSource, /if \(record\.status === 'applied'\)[\s\S]*?这张设计已经应用过了/);
   assert.match(customChatActionsSource, /customDesignRecordApplyButtonText/);
@@ -345,6 +350,14 @@ test('HomeAI 定制设计页必须给用户明确的操作引导', () => {
   assert.match(appVueSource, /基于这张图定制设计/);
   assert.match(appVueSource, /告诉我你想调整的风格、颜色、软装或空间问题/);
   assert.match(appVueSource, /useCustomDesignPromptExample/);
+});
+
+test('HomeAI 定制设计源图和结果图操作按钮必须保持清晰分组', () => {
+  assert.match(appVueSource, /class="custom-chat-source-actions"/);
+  assert.match(appVueSource, /\.custom-chat-feedback-actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(appVueSource, /\.custom-chat-result-actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(appVueSource, /\.custom-chat-result-actions button\.apply\s*\{[\s\S]*?grid-column:\s*1 \/ -1;/);
+  assert.doesNotMatch(appVueSource, /\.custom-chat-feedback-actions,\s*\n\.custom-chat-result-actions\s*\{\s*display:\s*flex;/);
 });
 
 test('HomeAI 定制设计页标题和发送按钮必须符合正式交互口径', () => {

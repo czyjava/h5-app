@@ -228,6 +228,9 @@ test('HomeAI 定制设计应用设计必须走 custom-design apply 接口', () =
   assert.match(appVueSource, /customDesignDraftReferenceImageUrl/);
   assert.match(appVueSource, /function applyCustomDesignResult\(/);
   assert.match(appVueSource, /function markCustomDesignFeedback\(/);
+  assert.match(customDesignApiSource, /CUSTOM_DESIGN_FEEDBACK_ENDPOINT\s*=\s*'\/api\/open\/homeai\/custom-design\/feedback\.htm'/);
+  assert.match(customDesignApiSource, /export async function feedbackHomeAiCustomDesign/);
+  assert.match(appVueSource, /feedbackHomeAiCustomDesign\(getAssistantContext\(\), record\.processRecordCode, remoteStatus\)/);
   assert.match(appVueSource, /function regenerateCustomDesignFromRecord\(/);
   assert.match(appVueSource, /function startModifyCustomDesignFromRecord\(/);
   assert.match(appVueSource, /applyHomeAiCustomDesign\(getAssistantContext\(\), customDesignCode\)/);

@@ -4,6 +4,9 @@ import { resolveAssistantImageUrl } from './designAssistantApi';
 import type { DesignAssistantMediaInfo } from './types';
 
 export type CustomDesignRemoteStatus = 'SUBMITTED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'WAITING_USER_INPUT' | 'APPLIED' | string;
+export type CustomDesignFeedbackStatus = 'SATISFIED' | 'UNSATISFIED';
+
+const CUSTOM_DESIGN_FEEDBACK_ENDPOINT = '/api/open/homeai/custom-design/feedback.htm';
 
 export interface CustomDesignSubmitParams {
   generationRecordId: string;
@@ -29,6 +32,7 @@ export interface CustomDesignFetchResponse {
   nextFetchPeriodMs?: number;
   outputImage?: DesignAssistantMediaInfo | null;
   assistantText?: string | null;
+  feedbackStatus?: CustomDesignFeedbackStatus | string | null;
   outputMediaList?: DesignAssistantMediaInfo[];
   errorCode?: string | null;
   errorMessage?: string | null;
@@ -43,6 +47,7 @@ export interface CustomDesignRecordItemResponse {
   status: CustomDesignRemoteStatus;
   inputMediaList?: DesignAssistantMediaInfo[];
   assistantText?: string | null;
+  feedbackStatus?: CustomDesignFeedbackStatus | string | null;
   outputMediaList?: DesignAssistantMediaInfo[];
   errorCode?: string | null;
   errorMessage?: string | null;
@@ -60,6 +65,11 @@ export interface CustomDesignApplyResponse {
   customDesignCode: string;
   status: CustomDesignRemoteStatus;
   sourceWorkId?: string;
+}
+
+export interface CustomDesignFeedbackResponse {
+  customDesignCode: string;
+  feedbackStatus: CustomDesignFeedbackStatus;
 }
 
 export async function submitHomeAiCustomDesign(context: HomeAiRequestContext, params: CustomDesignSubmitParams) {
@@ -105,6 +115,21 @@ export async function applyHomeAiCustomDesign(context: HomeAiRequestContext, cus
     {
       method: 'POST',
       form: { customDesignCode },
+    },
+  );
+}
+
+export async function feedbackHomeAiCustomDesign(
+  context: HomeAiRequestContext,
+  customDesignCode: string,
+  feedbackStatus: CustomDesignFeedbackStatus,
+) {
+  return requestBusiness<CustomDesignFeedbackResponse>(
+    CUSTOM_DESIGN_FEEDBACK_ENDPOINT,
+    context,
+    {
+      method: 'POST',
+      form: { customDesignCode, feedbackStatus },
     },
   );
 }

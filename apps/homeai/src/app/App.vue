@@ -927,6 +927,7 @@ import {
 import {
   applyHomeAiCustomDesign,
   fetchHomeAiCustomDesign,
+  feedbackHomeAiCustomDesign,
   listHomeAiCustomDesignRecords,
   resolveCustomDesignRecordInputImageUrl,
   resolveCustomDesignRecordOutputImageUrl,
@@ -1003,6 +1004,7 @@ interface CustomDesignImageEntry {
 type CustomDesignStatus = 'idle' | 'processing' | 'completed' | 'failed';
 
 type CustomDesignProcessStatus = 'submitted' | 'processing' | 'waitingUserInput' | 'completed' | 'applied' | 'failed';
+type CustomDesignFeedback = 'satisfied' | 'unsatisfied';
 
 interface CustomDesignProcessRecord {
   recordKey: string;
@@ -1016,7 +1018,7 @@ interface CustomDesignProcessRecord {
   assistantText?: string;
   outputImageUrl?: string;
   outputImageLocalId?: string;
-  feedback?: 'satisfied' | 'unsatisfied';
+  feedback?: CustomDesignFeedback;
   appliedAt?: string;
   createdAt: string;
 }
@@ -2146,8 +2148,20 @@ function mapRemoteCustomDesignRecord(record: CustomDesignRecordItemResponse): Cu
     inputImageUrl: resolveCustomDesignRecordInputImageUrl(record),
     assistantText: record.assistantText || '',
     outputImageUrl,
+    feedback: mapRemoteCustomDesignFeedback(record.feedbackStatus),
     createdAt: formatCustomDesignRemoteRecordTime(record.createTime),
   };
+}
+
+function mapRemoteCustomDesignFeedback(feedbackStatus?: string | null): CustomDesignFeedback | undefined {
+  const normalized = String(feedbackStatus || '').toUpperCase();
+  if (normalized === 'SATISFIED') {
+    return 'satisfied';
+  }
+  if (normalized === 'UNSATISFIED') {
+    return 'unsatisfied';
+  }
+  return undefined;
 }
 
 function isPendingCustomDesignRecord(record: CustomDesignProcessRecord) {
@@ -2436,9 +2450,26 @@ function clearCustomDesignDraftReferenceImage() {
   customDesignDraftReferenceImageUrl.value = '';
 }
 
-function markCustomDesignFeedback(record: CustomDesignProcessRecord, feedback: 'satisfied' | 'unsatisfied') {
+async function markCustomDesignFeedback(record: CustomDesignProcessRecord, feedback: CustomDesignFeedback) {
+  if (!record.processRecordCode || record.processRecordCode === '提交中') {
+    showToast('记录还在提交中，请稍后再反馈');
+    return;
+  }
   updateCustomDesignProcessRecord(record.recordKey, { feedback });
-  showToast(feedback === 'satisfied' ? '已记录：满意' : '已记录：不满意');
+  try {
+    const remoteStatus = feedback === 'satisfied' ? 'SATISFIED' : 'UNSATISFIED';
+    await feedbackHomeAiCustomDesign(getAssistantContext(), record.processRecordCode, remoteStatus);
+    showToast(feedback === 'satisfied' ? '已记录：满意' : '已记录：不满意');
+  } catch (error) {
+    updateCustomDesignProcessRecord(record.recordKey, { feedback: undefined });
+    const message = error instanceof Error ? error.message : '反馈保存失败';
+    showToast(message);
+    console.warn('[HomeAI CustomDesign] 定制设计反馈保存失败', {
+      customDesignCode: record.processRecordCode,
+      feedback,
+      message,
+    });
+  }
 }
 
 function regenerateCustomDesignFromRecord(record: CustomDesignProcessRecord) {

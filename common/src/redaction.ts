@@ -15,7 +15,7 @@ export function redactText(value: string) {
     .replace(/(smsCode=)[^&\s]+/gi, '$1已脱敏')
     .replace(/(NECaptchaValidate=)[^&\s]+/gi, '$1已脱敏')
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer 已脱敏')
-    .replace(/1[3-9]\d{9}/g, '手机号已脱敏');
+    .replace(/(^|[^\d])(1[3-9]\d{9})(?!\d)/g, '$1手机号已脱敏');
 }
 
 export function redactValue(key: string, value: unknown): unknown {
@@ -36,6 +36,34 @@ export function redactValue(key: string, value: unknown): unknown {
 
 export function redactObject(input: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(input).map(([key, value]) => [key, redactValue(key, value)]));
+}
+
+function redactJsonValue(key: string, value: unknown): unknown {
+  if (isSensitiveKey(key)) {
+    return '已脱敏';
+  }
+  if (typeof value === 'string') {
+    return redactText(value);
+  }
+  if (typeof value === 'number' && Number.isInteger(value) && /^1[3-9]\d{9}$/.test(String(value))) {
+    // JSON 数字字段不能直接替换成裸文本；返回字符串占位，保证调试面板仍可解析树形结构。
+    return '手机号已脱敏';
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactJsonValue(key, item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => [childKey, redactJsonValue(childKey, childValue)]));
+  }
+  return value;
+}
+
+export function redactJsonText(value: string) {
+  try {
+    return JSON.stringify(redactJsonValue('', JSON.parse(value)));
+  } catch {
+    return null;
+  }
 }
 
 function flattenHeaderValue(value: unknown) {

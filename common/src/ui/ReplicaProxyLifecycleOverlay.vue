@@ -2,6 +2,7 @@
 import { Activity, RefreshCw, Search, Trash2, Wifi, WifiOff, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import ReplicaJsonTree from './ReplicaJsonTree.vue';
+import { parseReplicaJsonBody } from './replicaJsonBody.ts';
 import type { ReplicaConsoleEndpoints } from './types.ts';
 
 defineOptions({ name: 'ReplicaProxyLifecycleOverlay' });
@@ -233,7 +234,7 @@ const selectedExchange = computed<RawExchange | null>(() => {
   return buildRawExchange(selectedGroup.value);
 });
 
-const parsedResponseBody = computed(() => parseJsonBody(selectedExchange.value?.response.body ?? ''));
+const parsedResponseBody = computed(() => parseReplicaJsonBody(selectedExchange.value?.response.body ?? ''));
 const completedCount = computed(() => requestGroups.value.filter((group) => group.phase === 'completed').length);
 const errorCount = computed(() => requestGroups.value.filter((group) => group.phase === 'error').length);
 const filteredCompletedCount = computed(() =>
@@ -345,20 +346,6 @@ function domainLabel(group: ProxyRequestGroup) {
 
 function rawDump(value: unknown) {
   return JSON.stringify(value, null, 2);
-}
-
-function parseJsonBody(body: string) {
-  const text = body.trim();
-  if (!text) {
-    return { parsed: false, value: null as unknown };
-  }
-
-  try {
-    // 响应体可能是普通文本或被截断的 JSON，解析失败时必须保留原文方便排查。
-    return { parsed: true, value: JSON.parse(text) as unknown };
-  } catch {
-    return { parsed: false, value: null as unknown };
-  }
 }
 
 function formatDuration(duration?: number) {

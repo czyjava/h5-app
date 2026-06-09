@@ -2,7 +2,7 @@ import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:
 import type { Plugin, ViteDevServer } from 'vite';
 import { Buffer } from 'node:buffer';
 import type { ReplicaAppConfig, ReplicaHostConfig } from '../types.ts';
-import { redactHeaders, redactText, redactUrl } from '../redaction.ts';
+import { redactHeaders, redactJsonText, redactText, redactUrl } from '../redaction.ts';
 import { buildReplicaUpstreamHeaders } from '../network/replicaNetwork.ts';
 import { buildSignedReplicaUrl } from './magicSign.ts';
 
@@ -127,9 +127,11 @@ function makeBodyPreview(buffer: Buffer, maxBodyPreview: number, contentType?: s
   }
 
   const previewBuffer = buffer.subarray(0, maxBodyPreview);
+  const previewText = previewBuffer.toString('utf8');
+  const redactedJsonText = /json/i.test(contentType ?? '') ? redactJsonText(previewText) : null;
   return {
     size: buffer.length,
-    text: redactText(previewBuffer.toString('utf8')),
+    text: redactedJsonText ?? redactText(previewText),
     truncated: buffer.length > maxBodyPreview,
     contentType,
   };

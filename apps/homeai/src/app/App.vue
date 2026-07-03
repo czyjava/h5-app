@@ -116,15 +116,21 @@
         <section v-if="activeTab === 'home'" class="page page-home native-home" @scroll.passive="isScrolled = true">
           <header class="home-native-head">
             <button type="button" class="member-pill" @click="openVipPurchasePage('manual')">
-              <span>👑</span>
-              开通会员
+              <img :src="homeAiAssets.vipSquare" alt="" />
+              开会员无限用
             </button>
           </header>
+
+          <section class="home-native-title">
+            <h1>AI装修大师</h1>
+            <p>看见家的千万种可能</p>
+          </section>
 
           <section class="native-feature-list">
             <button v-for="feature in homeCards" :key="feature.code" type="button" class="native-feature-card" @click="selectFeature(feature.code)">
               <div class="native-feature-media">
-                <img :src="feature.image" alt="" />
+                <img :src="feature.beforeImage" alt="" />
+                <img :src="feature.afterImage" alt="" />
                 <span class="compare-line"></span>
               </div>
               <footer>
@@ -146,7 +152,7 @@
             <button class="icon-button" type="button" aria-label="返回首页" @click="activeTab = 'home'">
               <ChevronLeft :size="20" />
             </button>
-            <strong>{{ selectedFeature.title }}</strong>
+            <strong>第{{ designStep + 1 }}步</strong>
             <button class="icon-button" type="button" aria-label="重置设计" @click="resetDesign">
               <X :size="18" />
             </button>
@@ -157,46 +163,50 @@
           </div>
 
           <section v-if="currentStep === 'upload'" class="design-panel upload-panel">
-            <img class="upload-art" :src="selectedFeature.guideImage" alt="" />
-            <h2>上传空间照片</h2>
-            <p>HomeAI 会识别房间结构，再生成对应的装修方案。</p>
-            <button class="upload-zone" type="button" @click="selectDesignInputImage">
-              <img :src="homeAiAssets.upload" alt="" />
-              <span>{{ selectedImageName || '从相册选择图片' }}</span>
+            <h2>{{ designUploadTitle }}</h2>
+            <button class="upload-zone native-upload-zone" type="button" :class="{ selected: Boolean(selectedDesignImageUrl) }" @click="selectDesignInputImage">
+              <img v-if="selectedDesignImageUrl" class="selected-upload-image" :src="selectedDesignImageUrl" alt="" />
+              <template v-else>
+                <span class="native-upload-plus">+</span>
+                <strong>上传图片</strong>
+              </template>
             </button>
-            <div class="guide-compare">
-              <figure>
-                <img :src="selectedFeature.guideImage" alt="" />
-                <figcaption>光线清晰</figcaption>
-              </figure>
-              <figure v-if="selectedFeature.badImage">
-                <img :src="selectedFeature.badImage" alt="" />
-                <figcaption>避免遮挡</figcaption>
-              </figure>
-            </div>
+            <h3>{{ designExampleTitle }}</h3>
+            <section class="design-example-strip" aria-label="参考示例">
+              <button
+                v-for="example in designExamples"
+                :key="example.label"
+                type="button"
+                :class="{ active: selectedDesignExample?.label === example.label }"
+                @click="selectDesignExample(example)"
+              >
+                <span class="free-badge">免费</span>
+                <img :src="example.image" alt="" />
+                <small>{{ example.label }}</small>
+              </button>
+            </section>
           </section>
 
           <section v-else-if="currentStep === 'style'" class="design-panel style-panel">
-            <h2>选择装修风格</h2>
-            <p>保留原空间轮廓，调整软装、色彩和材质。</p>
-            <div class="chip-grid">
+            <h2>选择心仪风格,创造理想空间</h2>
+            <div class="style-image-grid">
               <button
                 v-for="style in styles"
                 :key="style"
-                class="select-chip"
+                class="style-choice"
                 :class="{ active: style === selectedStyle }"
                 type="button"
                 @click="selectedStyle = style"
               >
-                {{ style }}
+                <img :src="styleImageFor(style)" alt="" />
+                <span>{{ style }}</span>
               </button>
             </div>
-            <div class="tool-strip">
-              <button v-for="tool in designTools" :key="tool.label" type="button" class="tool-button" @click="showToast(`${tool.label} 工具已选中`)">
-                <img :src="tool.icon" alt="" />
-                <span>{{ tool.label }}</span>
-              </button>
-            </div>
+            <footer class="generation-option-row">
+              <strong>剩余 3 次免费</strong>
+              <span>配色 <small>VIP</small></span>
+              <span>高品质 <small>VIP</small></span>
+            </footer>
           </section>
 
           <section v-else class="design-panel result-panel">
@@ -215,7 +225,7 @@
           </section>
 
           <button class="bottom-action" type="button" @click="nextDesignStep">
-            {{ designStep === designSteps.length - 1 ? '再做一张' : '下一步' }}
+            {{ designPrimaryActionText }}
           </button>
         </section>
 
@@ -575,29 +585,22 @@
         </section>
 
         <section v-else-if="activeTab === 'discover'" class="page page-discover">
-          <header class="page-title-row">
-            <div>
-              <p>发现</p>
-              <h2>真实空间灵感库</h2>
-            </div>
-            <img :src="homeAiAssets.discoverScreen" alt="" />
+          <header class="native-page-title">
+            <h2>发现</h2>
           </header>
-          <div class="category-tabs">
-            <button
-              v-for="category in discoverCategories"
-              :key="category"
-              :class="{ active: category === activeDiscoverCategory }"
-              type="button"
-              @click="activeDiscoverCategory = category"
-            >
-              {{ category }}
-            </button>
+          <div class="discover-segmented">
+            <button type="button" :class="{ active: activeDiscoverScope === 'indoor' }" @click="activeDiscoverScope = 'indoor'">室内</button>
+            <button type="button" :class="{ active: activeDiscoverScope === 'exterior' }" @click="activeDiscoverScope = 'exterior'">外观</button>
           </div>
-          <section class="discover-grid">
-            <article v-for="item in filteredDiscover" :key="item.title" class="discover-card">
-              <img :src="item.coverUrl" alt="" />
-              <strong>{{ item.title }}</strong>
-              <span>{{ item.subtitle }}</span>
+          <section class="discover-section-list">
+            <article v-for="section in discoverSections" :key="section.title" class="discover-section-card">
+              <header>
+                <h3>{{ section.title }}</h3>
+                <button type="button" @click="showToast(`${section.title} 全部灵感入口已保留`)">查看全部</button>
+              </header>
+              <div>
+                <img v-for="item in section.items" :key="`${section.title}-${item.coverUrl}`" :src="item.coverUrl" alt="" />
+              </div>
             </article>
           </section>
         </section>
@@ -607,72 +610,103 @@
             <button class="icon-button" type="button" :aria-label="vipPurchaseBackLabel" @click="returnFromVipPurchase">
               <ChevronLeft :size="20" />
             </button>
-            <strong>AI装修大师 VIP</strong>
             <span></span>
           </header>
           <section class="vip-purchase-hero">
-            <img :src="homeAiAssets.vipFontLogo" alt="VIP" />
-            <h2>{{ vipPurchaseTitle }}</h2>
-            <p>{{ vipPurchaseDescription }}</p>
+            <h2>室内设计</h2>
+            <strong>AI一键焕新</strong>
+            <p>上传毛坯房，秒看精装效果</p>
+            <h3>AI装修大师</h3>
+            <small>看见家的千万种可能</small>
+          </section>
+          <section class="vip-plan-row" aria-label="会员套餐">
+            <button v-for="plan in vipPlans" :key="plan.title" type="button" :class="{ active: plan.recommended }">
+              <small v-if="plan.recommended">新人专享</small>
+              <strong>{{ plan.title }}</strong>
+              <span>{{ plan.quota }}</span>
+              <b>¥{{ plan.price }}</b>
+              <del>¥{{ plan.originalPrice }}</del>
+              <em>{{ plan.dailyPrice }}</em>
+            </button>
           </section>
           <section class="vip-purchase-benefits">
-            <article>
-              <strong>不限对话轮数</strong>
-              <span>超过免费体验轮数后，开通会员可继续使用 AI 设计助手。</span>
-            </article>
-            <article>
-              <strong>不限助手会话</strong>
-              <span>支持持续创建和恢复你的装修咨询上下文。</span>
-            </article>
-            <article>
-              <strong>定制设计权益</strong>
-              <span>用于作品修改、方案细化和更多会员能力。</span>
-            </article>
+            <h3>尊享以下会员特权</h3>
+            <div class="vip-benefit-grid">
+              <article v-for="benefit in vipBenefits" :key="benefit.label">
+                <span>{{ benefit.icon }}</span>
+                <strong>{{ benefit.label }}</strong>
+              </article>
+            </div>
+          </section>
+          <section class="vip-payment-row">
+            <span>支付方式</span>
+            <strong>支付宝支付</strong>
           </section>
           <p v-if="vipPurchaseStatusText" class="vip-purchase-status">{{ vipPurchaseStatusText }}</p>
           <button type="button" class="vip-purchase-action" :disabled="vipPurchaseLoading" @click="loadVipPurchaseChannel">
-            {{ vipPurchaseLoading ? '加载会员方案' : '继续开通会员' }}
+            {{ vipPurchaseLoading ? '加载会员方案' : '立即购买' }}
           </button>
+          <footer class="vip-purchase-links">用户协议　VIP购买须知</footer>
         </section>
 
         <section v-else class="page page-mine">
           <header class="profile-head">
-            <img :src="homeAiAssets.appLogo" alt="" />
+            <img :src="snapshot.user.avatar || homeAiAssets.appLogo" alt="" />
             <div>
               <h2>{{ snapshot.user.nickname }}</h2>
-              <p>{{ profileUserHint }}</p>
+              <p>
+                <img :src="homeAiAssets.diamond" alt="" />
+                {{ snapshot.user.diamondCount }}钻石
+                <button type="button" @click.stop="showToast('钻石明细入口已保留')">查看明细</button>
+              </p>
             </div>
-            <span>{{ snapshot.user.vipLabel }}</span>
+            <button class="profile-diamond-button" type="button" aria-label="充值钻石" @click="showToast('充值入口已保留')">
+              <Gem :size="22" />
+              <Plus :size="13" />
+            </button>
             <button class="profile-settings-button" type="button" aria-label="登录与接口配置" @click="settingsDialogVisible = true">
               <Settings :size="18" />
             </button>
           </header>
 
           <button type="button" class="vip-card" @click="openVipPurchasePage('manual')">
-            <img :src="homeAiAssets.vipCardBg" alt="" />
             <div>
-              <img :src="homeAiAssets.vipFontLogo" alt="VIP" />
-              <strong>{{ snapshot.user.diamondCount }} 钻石</strong>
-              <span>会员权益与余额同步展示</span>
+              <strong>AI装修大师 <em>VIP</em></strong>
+              <span>超多会员特权等你体验</span>
             </div>
+            <b>立即开通</b>
+            <footer>
+              <span>无限次数</span>
+              <span>高速生成</span>
+              <span>去品牌 logo</span>
+            </footer>
           </button>
 
-          <nav class="mine-tabs" aria-label="我的内容切换">
-            <button type="button" :class="{ active: mineTab === 'works' }" @click="chooseMineTab('works')">作品</button>
-            <button type="button" :class="{ active: mineTab === 'assistant' }" @click="chooseMineTab('assistant')">助手</button>
-          </nav>
+          <section class="mine-action-row">
+            <button type="button" @click="showToast('邀请好友入口已保留')">
+              <Gift :size="20" />
+              邀请好友
+            </button>
+            <button type="button" @click="showToast('用户问卷入口已保留')">
+              <ClipboardList :size="20" />
+              用户问卷
+            </button>
+            <button type="button" @click="showToast('联系客服入口已保留')">
+              <Headphones :size="20" />
+              联系客服
+            </button>
+          </section>
 
-          <section v-if="mineTab === 'works'" class="work-list">
-            <header>
-              <h3>我的作品</h3>
-              <button type="button" :disabled="workListLoading" @click="refreshWorkList">
-                {{ workListLoading ? '加载中' : '刷新' }}
-              </button>
-            </header>
-            <p v-if="workListError" class="work-list-error">{{ workListError }}</p>
-            <p v-if="workListLoading && displayWorks.length === 0" class="work-list-empty">正在加载作品...</p>
-            <p v-else-if="displayWorks.length === 0" class="work-list-empty">暂无作品</p>
-            <article v-for="work in displayWorks" :key="work.id" class="work-row">
+          <section class="native-work-empty">
+            <h3>
+              作品
+              <LockKeyhole :size="14" />
+            </h3>
+            <template v-if="displayWorks.length === 0">
+              <div class="empty-box-visual"></div>
+              <p>这里什么都没有</p>
+            </template>
+            <article v-for="work in displayWorks" v-else :key="work.id" class="work-row">
               <img :src="work.coverUrl" alt="" />
               <div class="work-info">
                 <strong>{{ work.title }}</strong>
@@ -681,46 +715,13 @@
               <button type="button" class="custom" @click="openWorkDetail(work)">查看详情</button>
             </article>
           </section>
-
-          <section v-else class="assistant-history-list">
-            <header>
-              <h3>助手</h3>
-              <button type="button" :disabled="assistantHistoryLoading" @click="loadAssistantHistory">
-                {{ assistantHistoryLoading ? '加载中' : '刷新' }}
-              </button>
-            </header>
-            <p v-if="assistantHistoryError" class="assistant-history-error">{{ assistantHistoryError }}</p>
-            <p v-if="assistantHistoryLoading && assistantHistorySessions.length === 0" class="assistant-history-empty">正在加载助手会话...</p>
-            <p v-else-if="assistantHistorySessions.length === 0" class="assistant-history-empty">暂无助手会话</p>
-            <section v-for="group in assistantHistoryGroups" :key="group.label" class="assistant-history-group">
-              <h4>{{ group.label }}</h4>
-              <button
-                v-for="session in group.sessions"
-                :key="session.sessionKey"
-                type="button"
-                class="assistant-history-card"
-                @click="openAssistantHistorySession(session)"
-              >
-                <span class="assistant-history-icon-wrap">
-                  <img class="assistant-history-icon" :src="homeAiAssets.magicWand" alt="" />
-                </span>
-                <span class="assistant-history-copy">
-                  <strong>{{ formatAssistantHistoryTitle(session) }}</strong>
-                  <small>{{ formatAssistantHistorySubtitle(session) }}</small>
-                </span>
-                <span class="assistant-history-meta">
-                  <span class="assistant-history-time">{{ formatAssistantHistoryTime(session) }}</span>
-                  <ChevronRight class="assistant-history-arrow" :size="16" aria-hidden="true" />
-                </span>
-              </button>
-            </section>
-          </section>
         </section>
       </section>
 
       <nav
         v-if="
           !bootFlowVisible &&
+          activeTab !== 'design' &&
           activeTab !== 'assistant' &&
           activeTab !== 'workDetail' &&
           activeTab !== 'customDesign' &&
@@ -813,8 +814,13 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Copy,
+  Gem,
+  Gift,
+  Headphones,
   Image as ImageIcon,
+  LockKeyhole,
   MessageSquare,
   Pencil,
   Plus,
@@ -911,6 +917,11 @@ interface AssistantSendOptions {
   prompt?: string;
   imageUrls?: string[];
   suppressBusyToast?: boolean;
+}
+
+interface DesignExample {
+  label: string;
+  image: string;
 }
 
 interface CustomDesignPageContext {
@@ -1079,8 +1090,9 @@ const selectedSource = ref('');
 const selectedFeatureCode = ref('interior');
 const designStep = ref(0);
 const selectedImageName = ref('');
+const selectedDesignExample = ref<DesignExample | null>(null);
 const selectedStyle = ref('现代简约');
-const activeDiscoverCategory = ref('全部');
+const activeDiscoverScope = ref<'indoor' | 'exterior'>('indoor');
 const assistantInput = ref('');
 const assistantImageUrls = ref<string[]>([]);
 const assistantUploadingImage = ref(false);
@@ -1120,6 +1132,39 @@ let assistantHistoryLoadVersion = 0;
 
 const designSteps = ['upload', 'style', 'result'] as const;
 const styles = ['现代简约', '奶油风', '新中式', '原木风', '轻奢', '工业风'];
+const styleImages: Record<string, string> = {
+  现代简约: homeAiAssets.guide.interiorGood,
+  奶油风: homeAiAssets.guide.renovationGood,
+  新中式: homeAiAssets.guide.exteriorGood,
+  原木风: homeAiAssets.guide.gardenGood,
+  轻奢: homeAiAssets.guide.interiorBad,
+  工业风: homeAiAssets.guide.renovationBad,
+};
+const designExampleMap: Record<string, DesignExample[]> = {
+  floor_plan: [
+    { label: '三室两厅', image: homeAiAssets.guide.floorPlanGood },
+    { label: '两室两厅', image: homeAiAssets.guide.floorPlanBad },
+    { label: '三室两厅', image: homeAiAssets.guide.floorPlanGood },
+    { label: '三室一厅', image: homeAiAssets.guide.floorPlanBad },
+  ],
+  interior: [
+    { label: '免费', image: homeAiAssets.guide.renovationBad },
+    { label: '免费', image: homeAiAssets.guide.interiorBad },
+    { label: '免费', image: homeAiAssets.guide.gardenBad },
+    { label: '免费', image: homeAiAssets.guide.exteriorBad },
+  ],
+};
+const vipPlans = [
+  { title: '年会员', quota: '不限次数', price: '198', originalPrice: '298', dailyPrice: '¥0.54/天', recommended: true },
+  { title: '季度会员', quota: '体验60次', price: '98', originalPrice: '198', dailyPrice: '¥1.05/天', recommended: false },
+  { title: '月会员', quota: '体验20次', price: '48', originalPrice: '78', dailyPrice: '¥1.55/天', recommended: false },
+];
+const vipBenefits = [
+  { label: '全屋设计', icon: '⌂' },
+  { label: '户型图设计', icon: '▦' },
+  { label: '旧房改造', icon: '⌑' },
+  { label: '设计助手', icon: '◉' },
+];
 const roles = [
   { label: '我是业主', subtitle: 'Owner', image: homeAiAssets.surveyOwner },
   { label: '我是设计师', subtitle: 'Design', image: homeAiAssets.surveyDesigner },
@@ -1205,7 +1250,6 @@ const normalizedBusinessTarget = computed(
 const tabs = computed(() => [
   { key: 'home' as const, label: '首页', icon: activeTab.value === 'home' ? homeAiAssets.tabs.home[1] : homeAiAssets.tabs.home[0] },
   { key: 'design' as const, label: '设计', icon: activeTab.value === 'design' ? homeAiAssets.tabs.design[1] : homeAiAssets.tabs.design[0] },
-  { key: 'assistant' as const, label: '设计助手', icon: homeAiAssets.magicWand },
   {
     key: 'discover' as const,
     label: '发现',
@@ -1218,21 +1262,51 @@ const selectedFeature = computed<DesignFeature>(
   () => snapshot.value.features.find((feature) => feature.code === selectedFeatureCode.value) ?? snapshot.value.features[0],
 );
 const homeCards = computed(() =>
-  // 首页入口复用各功能的装修参考图，避免误用 APK 中其他功能域的演示素材。
-  snapshot.value.features.map((feature) => ({
+  // 首页入口按 APK 5.28.1 的主卡顺序展示，首屏优先露出户型图渲染和室内设计。
+  snapshot.value.features.slice(0, 4).map((feature) => ({
     ...feature,
-    image: feature.guideImage,
+    beforeImage: feature.badImage || feature.guideImage,
+    afterImage: feature.guideImage,
   })),
 );
 const bootFlowVisible = computed(() => privacyVisible.value || onboardingVisible.value || guideVisible.value);
 const activeGuide = computed(() => guideSlides[guideStep.value] ?? guideSlides[0]);
 const currentStep = computed(() => designSteps[designStep.value]);
-const discoverCategories = computed(() => ['全部', ...Array.from(new Set(snapshot.value.discover.map((item) => item.tag)))]);
-const filteredDiscover = computed(() => {
-  if (activeDiscoverCategory.value === '全部') {
-    return snapshot.value.discover;
+const selectedDesignImageUrl = computed(() => selectedDesignExample.value?.image || '');
+const designUploadTitle = computed(() =>
+  selectedFeature.value.code === 'floor_plan' ? '上传户型图,AI生成设计方案' : '上传照片,AI生成设计方案',
+);
+const designExampleTitle = computed(() => (selectedFeature.value.code === 'floor_plan' ? '示例户型图' : '参考示例'));
+const designPrimaryActionText = computed(() => {
+  if (designStep.value === 1) {
+    return '立即生成';
   }
-  return snapshot.value.discover.filter((item) => item.tag === activeDiscoverCategory.value);
+  return designStep.value === designSteps.length - 1 ? '再做一张' : '下一步';
+});
+const designExamples = computed(() => designExampleMap[selectedFeature.value.code] ?? designExampleMap.interior);
+const discoverSections = computed(() => {
+  const scopeText = activeDiscoverScope.value === 'indoor' ? '室内' : '外观';
+  const fallbackTitles = activeDiscoverScope.value === 'indoor' ? ['卧室', '客厅'] : ['住宅', '别墅'];
+  const sourceItems = snapshot.value.discover.filter((item) => {
+    const buildingType = `${item.buildingType}${item.tag}${item.spaceType}`;
+    return activeDiscoverScope.value === 'indoor' ? !buildingType.includes('外观') && !buildingType.includes('住宅') && !buildingType.includes('别墅') : buildingType.includes('外观') || buildingType.includes('住宅') || buildingType.includes('别墅');
+  });
+  const grouped = new Map<string, typeof snapshot.value.discover>();
+  for (const item of sourceItems) {
+    const title = item.spaceType || item.tag || scopeText;
+    grouped.set(title, [...(grouped.get(title) ?? []), item]);
+  }
+  if (grouped.size === 0) {
+    for (const title of fallbackTitles) {
+      grouped.set(
+        title,
+        appShellSnapshot.discover.filter((item) => item.spaceType === title || item.tag === title).slice(0, 3),
+      );
+    }
+  }
+  return Array.from(grouped.entries())
+    .map(([title, items]) => ({ title, items: items.slice(0, 3) }))
+    .filter((section) => section.items.length > 0);
 });
 const displayWorks = computed(() => (workList.value.length > 0 ? workList.value : snapshot.value.works));
 const assistantHistoryGroups = computed(() => {
@@ -1719,18 +1793,25 @@ function nextGuide() {
 function selectFeature(code: string) {
   selectedFeatureCode.value = code;
   designStep.value = 0;
+  selectedImageName.value = '';
+  selectedDesignExample.value = null;
   activeTab.value = 'design';
 }
 
 function resetDesign() {
   designStep.value = 0;
   selectedImageName.value = '';
+  selectedDesignExample.value = null;
 }
 
 function switchTab(tab: MainTab) {
   if (tab === 'assistant') {
     openAssistantHome();
     return;
+  }
+  if (tab === 'design') {
+    selectedFeatureCode.value = 'interior';
+    resetDesign();
   }
   activeTab.value = tab;
 }
@@ -1759,6 +1840,19 @@ function chooseMineTab(nextTab: 'works' | 'assistant') {
 function selectDesignInputImage() {
   // 这里只记录用户选择的本地输入态，不生成任何业务作品；作品必须来自真实 generation 接口。
   selectedImageName.value = `${selectedFeature.value.title}.jpg`;
+  selectedDesignExample.value = {
+    label: '本地图片',
+    image: selectedFeature.value.badImage || selectedFeature.value.guideImage,
+  };
+}
+
+function selectDesignExample(example: DesignExample) {
+  selectedDesignExample.value = example;
+  selectedImageName.value = `${example.label}.jpg`;
+}
+
+function styleImageFor(style: string) {
+  return styleImages[style] || selectedFeature.value.guideImage;
 }
 
 function selectGenerationWork(work: WorkItem) {
@@ -3405,7 +3499,7 @@ button:focus-visible {
 
 .role-card img {
   display: block;
-  width: 100%;
+  width: auto;
   height: auto;
   object-fit: contain;
 }
@@ -6168,6 +6262,763 @@ button:focus-visible {
 .bottom-nav img {
   width: 24px;
   height: 24px;
+}
+
+.home-native-title {
+  display: grid;
+  gap: 4px;
+  padding: 0 6px 8px;
+  color: #fff;
+}
+
+.home-native-title h1,
+.home-native-title p {
+  margin: 0;
+}
+
+.home-native-title h1 {
+  font-size: 32px;
+  line-height: 1.08;
+}
+
+.home-native-title p {
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.member-pill img {
+  width: 20px;
+  height: 20px;
+}
+
+.native-feature-media {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  aspect-ratio: 1.45;
+}
+
+.native-feature-media img {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.page-design {
+  padding: 14px 15px 92px;
+  background: #f7f7f7;
+}
+
+.page-design .page-header strong {
+  color: #1f1f1f;
+  font-size: 20px;
+}
+
+.page-design .step-indicator {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin: 14px 4px 18px;
+}
+
+.page-design .step-indicator span {
+  height: 8px;
+  border-radius: 2px;
+  transform: skewX(-26deg);
+  background: #dddbe5;
+}
+
+.page-design .step-indicator span.active {
+  background: #151515;
+}
+
+.upload-panel,
+.style-panel,
+.result-panel {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.upload-panel h2,
+.style-panel h2 {
+  margin: 0;
+  color: #1b1b1b;
+  font-size: 25px;
+  line-height: 1.18;
+}
+
+.upload-panel h3 {
+  margin: 16px 0 0;
+  color: #1b1b1b;
+  font-size: 22px;
+}
+
+.native-upload-zone {
+  width: 100%;
+  min-height: 145px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  border: 2px dashed #d4d4d4;
+  border-radius: 22px;
+  color: #fff;
+  background: #eeeeee;
+}
+
+.native-upload-zone.selected {
+  overflow: hidden;
+  padding: 0;
+  border-style: solid;
+  background: #e7e7e7;
+}
+
+.native-upload-plus {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #2b2b2b;
+  background: #fff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.native-upload-zone strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: 24px;
+  color: #fff;
+  background: #2d2d2d;
+  font-size: 19px;
+}
+
+.selected-upload-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.design-example-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 31%;
+  gap: 9px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.design-example-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.design-example-strip button {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  color: #1d1d1d;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.design-example-strip img {
+  width: 100%;
+  aspect-ratio: 1.12;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.free-badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  padding: 2px 7px;
+  border-radius: 8px 0 8px 0;
+  color: #fff;
+  background: #ff705f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.style-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px 12px;
+}
+
+.style-choice {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  color: #303030;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.style-choice img {
+  width: 100%;
+  aspect-ratio: 1.1;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.style-choice.active img {
+  border-color: #fff500;
+}
+
+.generation-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.generation-option-row strong {
+  color: #1d1d1d;
+  font-size: 18px;
+}
+
+.generation-option-row span {
+  position: relative;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: #4d4d4d;
+  background: #ececec;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.generation-option-row small {
+  position: absolute;
+  right: -3px;
+  top: -11px;
+  padding: 1px 5px;
+  border-radius: 5px 5px 5px 0;
+  color: #222;
+  background: #ffd22e;
+  font-size: 10px;
+}
+
+.bottom-action {
+  position: static;
+  left: auto;
+  right: auto;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 18px;
+  color: #151515;
+  background: #fff500;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.page-discover {
+  padding: 42px 15px 98px;
+  background: #f5f5f5;
+}
+
+.native-page-title h2 {
+  margin: 0 0 24px;
+  color: #202020;
+  font-size: 34px;
+  line-height: 1.05;
+}
+
+.discover-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-bottom: 18px;
+  padding: 4px;
+  border-radius: 28px;
+  background: #fff;
+}
+
+.discover-segmented button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 24px;
+  color: #222;
+  background: transparent;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.discover-segmented button.active {
+  color: #fff;
+  background: #2e2e2e;
+}
+
+.discover-section-list {
+  display: grid;
+  gap: 18px;
+}
+
+.discover-section-card {
+  display: grid;
+  gap: 15px;
+  padding: 18px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.discover-section-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.discover-section-card h3 {
+  margin: 0;
+  color: #242424;
+  font-size: 27px;
+}
+
+.discover-section-card button {
+  border: 0;
+  color: #9a9a9a;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.discover-section-card div {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 42%;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.discover-section-card div::-webkit-scrollbar {
+  display: none;
+}
+
+.discover-section-card img {
+  width: 100%;
+  aspect-ratio: 0.82;
+  border-radius: 13px;
+  object-fit: cover;
+}
+
+.page-vip-purchase {
+  display: block;
+  padding: 0 16px 18px;
+  overflow-y: auto;
+  color: #fff;
+  background: #050505;
+}
+
+.vip-purchase-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-top: 12px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.56), transparent);
+}
+
+.vip-purchase-hero {
+  min-height: 430px;
+  align-content: end;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 70px 20px 36px;
+  border-radius: 0;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.62) 70%, #050505 100%),
+    url("/assets/homeai/ha_bg_splash_replace.png") center top / cover no-repeat;
+  box-shadow: none;
+}
+
+.vip-purchase-hero h2,
+.vip-purchase-hero h3,
+.vip-purchase-hero p,
+.vip-purchase-hero strong,
+.vip-purchase-hero small {
+  margin: 0;
+}
+
+.vip-purchase-hero h2,
+.vip-purchase-hero strong {
+  font-size: 40px;
+  line-height: 1.05;
+}
+
+.vip-purchase-hero p {
+  width: max-content;
+  padding: 5px 10px;
+  color: #fff;
+  background: rgba(218, 177, 96, 0.65);
+  font-size: 18px;
+}
+
+.vip-purchase-hero h3 {
+  margin-top: 52px;
+  font-size: 32px;
+}
+
+.vip-purchase-hero small {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.vip-plan-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: -20px;
+}
+
+.vip-plan-row button {
+  position: relative;
+  min-width: 0;
+  min-height: 172px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  color: #fff;
+  background: #18191f;
+}
+
+.vip-plan-row button.active {
+  border-color: #fff500;
+}
+
+.vip-plan-row small {
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  padding: 3px 8px;
+  border-radius: 10px 0 10px 0;
+  color: #111;
+  background: #b7ff20;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.vip-plan-row strong {
+  font-size: 18px;
+}
+
+.vip-plan-row span {
+  padding: 3px 9px;
+  border-radius: 10px;
+  color: #111;
+  background: #b7ff20;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.vip-plan-row b {
+  font-size: 30px;
+}
+
+.vip-plan-row del,
+.vip-plan-row em {
+  color: #858585;
+  font-size: 14px;
+  font-style: normal;
+}
+
+.vip-purchase-benefits {
+  margin-top: 24px;
+  overflow: visible;
+}
+
+.vip-purchase-benefits h3 {
+  margin: 0 0 18px;
+  color: #fff;
+  font-size: 24px;
+}
+
+.vip-benefit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vip-benefit-grid article {
+  justify-items: center;
+  gap: 8px;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vip-benefit-grid article span {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #17191f;
+  font-size: 24px;
+}
+
+.vip-benefit-grid strong {
+  color: #fff;
+  font-size: 14px;
+}
+
+.vip-payment-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 28px;
+  color: #fff;
+  font-size: 18px;
+}
+
+.vip-payment-row strong {
+  color: #fff500;
+}
+
+.vip-purchase-action {
+  width: 100%;
+  min-height: 62px;
+  margin-top: 16px;
+  border-radius: 31px;
+  color: #111;
+  background: linear-gradient(90deg, #b8ff20, #fff500);
+  font-size: 22px;
+}
+
+.vip-purchase-links {
+  padding-top: 14px;
+  color: #8e8e8e;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.page-mine {
+  padding: 112px 15px 100px;
+  background: #f5f5f5;
+}
+
+.profile-head {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 46px 38px;
+  gap: 10px;
+  align-items: center;
+  padding: 0;
+  color: #1e1e1e;
+  background: transparent;
+}
+
+.profile-head > img {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.profile-head h2 {
+  color: #1e1e1e;
+  font-size: 24px;
+}
+
+.profile-head p {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 5px 11px;
+  border-radius: 16px;
+  color: #333;
+  background: #e8e8e8;
+  font-size: 14px;
+}
+
+.profile-head p img {
+  width: 18px;
+  height: 18px;
+}
+
+.profile-head p button {
+  border: 0;
+  color: #333;
+  background: transparent;
+  font: inherit;
+}
+
+.profile-diamond-button,
+.profile-settings-button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #191919;
+  background: transparent;
+}
+
+.profile-diamond-button {
+  position: relative;
+}
+
+.profile-diamond-button svg:last-child {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+}
+
+.vip-card {
+  min-height: 126px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 1fr auto;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 20px 20px 0;
+  border-radius: 18px;
+  color: #161616;
+  background: linear-gradient(135deg, #fff500, #bcff24);
+}
+
+.vip-card div {
+  padding: 0;
+}
+
+.vip-card strong {
+  font-size: 28px;
+}
+
+.vip-card em {
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: #fff500;
+  background: #171717;
+  font-size: 17px;
+  font-style: normal;
+}
+
+.vip-card b {
+  align-self: start;
+  padding: 10px 16px;
+  border-radius: 20px;
+  color: #fff;
+  background: #181818;
+  font-size: 16px;
+}
+
+.vip-card footer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 -20px;
+  padding: 12px 18px;
+  border-radius: 0 0 18px 18px;
+  color: #242424;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.mine-action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.mine-action-row button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 23px;
+  color: #222;
+  background: #fff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.native-work-empty {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.native-work-empty h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #1f1f1f;
+  font-size: 24px;
+}
+
+.empty-box-visual {
+  width: 96px;
+  height: 72px;
+  justify-self: center;
+  margin-top: 230px;
+  border-radius: 16px 16px 10px 10px;
+  background: linear-gradient(180deg, #d9d9d9, #eeeeee);
+  opacity: 0.68;
+}
+
+.native-work-empty p {
+  margin: 0;
+  color: #9ba8bd;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.bottom-nav {
+  grid-template-columns: repeat(4, 1fr);
+  height: 76px;
+  border-top: 0;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(28, 28, 28, 0.06);
+}
+
+.bottom-nav button {
+  color: #222;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.bottom-nav button.active {
+  color: #222;
+}
+
+.bottom-nav img {
+  width: 30px;
+  height: 30px;
 }
 
 .toast-message {

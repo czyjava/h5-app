@@ -272,19 +272,24 @@ test('HomeAI 作品详情定制设计入口非会员必须先跳转会员购买�
   assert.match(appVueSource, /function openCustomDesignFromSelectedWork\(\)[\s\S]*?!isHomeAiVipMember\.value[\s\S]*?return;/);
 });
 
-test('HomeAI 我的页必须提供作品和助手二级 tab', () => {
-  assert.match(appVueSource, /mineTab/);
-  assert.match(appVueSource, /class="mine-tabs"/);
-  assert.match(appVueSource, />作品</);
-  assert.match(appVueSource, />助手</);
-  assert.match(appVueSource, /class="assistant-history-list"/);
+test('HomeAI 5.28.1 我的页必须使用原生个人中心结构', () => {
+  assert.match(appVueSource, /class="profile-diamond-button"/);
+  assert.match(appVueSource, /class="vip-card"/);
+  assert.match(appVueSource, /class="mine-action-row"/);
+  assert.match(appVueSource, /邀请好友/);
+  assert.match(appVueSource, /用户问卷/);
+  assert.match(appVueSource, /联系客服/);
+  assert.match(appVueSource, /class="native-work-empty"/);
+  assert.match(appVueSource, /这里什么都没有/);
+  assert.doesNotMatch(appVueSource, /class="mine-tabs"/);
+  assert.doesNotMatch(appVueSource, /class="assistant-history-list"/);
+});
+
+test('HomeAI 助手历史能力保留真实消息摘要但不暴露在 5.28.1 底导中', () => {
   assert.match(appVueSource, /loadAssistantHistory/);
   assert.match(appVueSource, /openAssistantHistorySession/);
   assert.match(appVueSource, /listDesignAssistantSessions\(getAssistantContext\(\), 'ASSISTANT_CHAT'\)/);
   assert.match(appVueSource, /listDesignAssistantMessages\(getAssistantContext\(\), session\.sessionKey\)/);
-});
-
-test('HomeAI 助手历史列表必须用真实消息生成标题描述和时间', () => {
   assert.match(appVueSource, /interface AssistantHistorySession/);
   assert.match(appVueSource, /buildAssistantHistorySession/);
   assert.match(appVueSource, /createAssistantHistoryPlaceholder/);
@@ -297,26 +302,34 @@ test('HomeAI 助手历史列表必须用真实消息生成标题描述和时间'
   assert.match(appVueSource, /summaryLoaded/);
   assert.match(appVueSource, /validSessions\.forEach\(\(session\) => \{\s*void enrichAssistantHistorySession\(session, loadVersion\);/);
   assert.match(appVueSource, /message\.role === 'USER'/);
-  assert.match(appVueSource, /formatAssistantHistoryTitle\(session\)[\s\S]*?session\.firstUserText/);
-  assert.match(appVueSource, /formatAssistantHistorySubtitle\(session\)[\s\S]*?session\.lastPreviewText/);
-  assert.match(appVueSource, /formatAssistantHistoryTime\(session\)[\s\S]*?session\.lastUserMessageTime/);
+  assert.match(appVueSource, /function formatAssistantHistoryTitle\(session: AssistantHistorySession\)/);
+  assert.match(appVueSource, /const firstUserText = compactAssistantHistoryText\(session\.firstUserText/);
+  assert.match(appVueSource, /function formatAssistantHistorySubtitle\(session: AssistantHistorySession\)/);
+  assert.match(appVueSource, /const lastPreviewText = compactAssistantHistoryText\(session\.lastPreviewText/);
+  assert.match(appVueSource, /function formatAssistantHistoryTime\(session: AssistantHistorySession\)/);
+  assert.match(appVueSource, /parseAssistantSessionTime\(session\.lastUserMessageTime\)/);
+  assert.doesNotMatch(appVueSource, /key: 'assistant' as const, label: '设计助手'/);
   assert.doesNotMatch(appVueSource, /继续上次设计建议/);
 });
 
-test('HomeAI 助手历史列表图标必须复用底部 AI 助手图标', () => {
-  assert.match(appVueSource, /key: 'assistant' as const, label: '设计助手', icon: homeAiAssets\.magicWand/);
-  assert.match(appVueSource, /class="assistant-history-icon"[\s\S]*?:src="homeAiAssets\.magicWand"/);
+test('HomeAI 5.28.1 底导必须是四项原生 Tab', () => {
+  assert.match(appVueSource, /key: 'home' as const, label: '首页'/);
+  assert.match(appVueSource, /key: 'design' as const, label: '设计'/);
+  assert.match(appVueSource, /key: 'discover' as const/);
+  assert.match(appVueSource, /key: 'mine' as const/);
+  assert.match(appVueSource, /grid-template-columns:\s*repeat\(4, 1fr\)/);
+  assert.match(appVueSource, /activeTab !== 'design'/);
+  assert.doesNotMatch(appVueSource, /label: '设计助手', icon: homeAiAssets\.magicWand/);
   assert.doesNotMatch(appVueSource, /formatAssistantHistoryIcon/);
 });
 
-test('HomeAI 助手历史列表必须使用移动端会话列表样式', () => {
-  assert.match(appVueSource, /class="assistant-history-icon-wrap"/);
-  assert.match(appVueSource, /class="assistant-history-meta"/);
-  assert.match(appVueSource, /class="assistant-history-arrow"/);
-  assert.match(appVueSource, /\.assistant-history-card\s*\{[\s\S]*?grid-template-columns:\s*42px minmax\(0, 1fr\)/);
-  assert.match(appVueSource, /\.assistant-history-list\s*\{[\s\S]*?padding-bottom:\s*92px/);
+test('HomeAI 5.28.1 我的页必须使用移动端原生样式', () => {
+  assert.match(appVueSource, /\.profile-head\s*\{[\s\S]*?grid-template-columns:\s*70px minmax\(0, 1fr\) 46px 38px/);
+  assert.match(appVueSource, /\.vip-card\s*\{[\s\S]*?background:\s*linear-gradient\(135deg, #fff500, #bcff24\)/);
+  assert.match(appVueSource, /\.mine-action-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(appVueSource, /\.native-work-empty\s*\{[\s\S]*?display:\s*grid/);
   assert.match(appVueSource, /\.page-mine\s*\{[\s\S]*?scrollbar-width:\s*none/);
-  assert.match(appVueSource, /\.mine-tabs button\.active::after/);
+  assert.match(appVueSource, /class="native-work-empty"/);
   assert.doesNotMatch(appVueSource, /border-color:\s*#ff4b4b/);
 });
 
@@ -442,7 +455,7 @@ test('HomeAI AI 设计助手轮次超限必须跳转会员购买页', () => {
   assert.match(appVueSource, /function handleAssistantQuotaLimitError/);
   assert.match(appVueSource, /function loadVipPurchaseChannel/);
   assert.match(appVueSource, /超过免费体验轮数/);
-  assert.match(appVueSource, /继续开通会员/);
+  assert.match(appVueSource, /立即购买/);
   assert.match(appVueSource, /goodsChannelCode/);
   assert.doesNotMatch(appVueSource, /会员购买入口已打开/);
   assert.match(sendAssistantSource, /handleAssistantQuotaLimitError\(error\)/);
